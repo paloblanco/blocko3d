@@ -51,6 +51,18 @@ map(enemy_ship)
 pal()`,
   },
   {
+    title: 'Outlines',
+    intro: 'A 1-pixel outline around whatever is drawn, computed from what is on screen. Like pal(), it applies to the draws that follow and stays set until changed. Off by default.',
+    items: [
+      ['outline(c)', 'Draws after this get an outline in color c (a palette index; pal() remaps apply).'],
+      ['outline()', 'No outline for draws after this.'],
+    ],
+    code: `outline(0)       // black outlines
+map(0)           // follows the map's shape, including edges inside it
+sphere(px, py, pz, 0.4, 10)
+outline()`,
+  },
+  {
     title: 'Camera',
     intro: 'One camera. The screen is square, 256 × 256 pixels.',
     items: [

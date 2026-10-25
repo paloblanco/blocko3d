@@ -5,6 +5,7 @@ import {
   createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureGeometry,
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
+  createSceneTarget, createOutlinePass,
 } from './core.js';
 import { drawText } from './font.js';
 
@@ -23,12 +24,16 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
   const renderer = setupRenderer(canvas, SCREEN);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
+  const target = createSceneTarget(SCREEN);
   const camPos = [0, 6, -10], camLook = [0, 0, 0];
   const ctx = overlay.getContext('2d');
   overlay.width = overlay.height = SCREEN;
 
   let palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
   const palU = createPaletteUniform(palette);
+  const outlinePass = createOutlinePass(target, palU);
+  outlinePass.uniforms.uNear.value = camera.near;
+  outlinePass.uniforms.uFar.value = camera.far;
   const atlas = createAtlas();
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
@@ -37,7 +42,9 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
   let remap = identityRemap();
   let trans = noTransparency();
   let bgColor = 0;
+  let outlineColor = -1;   // -1 = no outline (the default)
   let cursorY = 0;
+  let drawId = 0, anyOutline = false;
 
   // ---- per-frame object pools (immediate mode: everything is re-submitted each _draw)
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -68,6 +75,9 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     // bake the current draw palette into this draw
     const u = o.material.uniforms;
     for (let i = 0; i < NCOLORS; i++) { u.uRemap.value[i] = remap[i]; u.uTrans.value[i] = trans[i]; }
+    u.uOutline.value = outlineColor < 0 ? -1 : remap[outlineColor];
+    u.uId.value = ++drawId;
+    if (outlineColor >= 0) anyOutline = true;
     return o;
   }
 
@@ -106,6 +116,7 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
       trans[i & 31] = on ? 1 : 0;
     },
     bg(c) { bgColor = remap[(c | 0) & 31]; },
+    outline(c) { outlineColor = c === undefined || c === null || c === false ? -1 : (c | 0) & 31; },
 
     // --- camera
     cam_set_pos(x, y, z) { camPos.splice(0, 3, ...vec(x, y, z)); },
@@ -231,15 +242,24 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     for (const k in used) used[k] = 0;
     ctx.clearRect(0, 0, SCREEN, SCREEN);
     cursorY = 0;
+    drawId = 0;
+    anyOutline = false;
   }
 
   function endDraw() {
     for (const k in pools) for (let i = used[k]; i < pools[k].length; i++) pools[k][i].visible = false;
     syncPaletteUniform(palU, palette);
-    renderer.setClearColor(palette[bgColor] ?? 0, 1);
     camera.position.set(...camPos);
     camera.lookAt(...camLook);
+    // 1) scene -> color + draw info + depth
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(palette[bgColor] ?? 0, 1);
+    renderer.clear();
     renderer.render(scene, camera);
+    // 2) copy to the screen, painting outlines when any draw asked for one
+    renderer.setRenderTarget(null);
+    outlinePass.uniforms.uAny.value = anyOutline ? 1 : 0;
+    renderer.render(outlinePass.scene, outlinePass.camera);
   }
 
   function guard(fn) {

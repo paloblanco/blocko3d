@@ -205,6 +205,9 @@ function _draw() {
   cam_set_pos([px, py + 3.5, pz - 6])
   cam_set_lookat([px, py, pz + 3])
 
+  // black outlines on everything drawn from here on (off by default)
+  outline(0)
+
   // flash the world white when hit: remap every color to 7 for these draws
   if (flash > 0) for (let i = 0; i < 32; i++) pal(i, 7)
   map(0)

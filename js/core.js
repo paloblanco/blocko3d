@@ -176,20 +176,32 @@ const PAL_GLSL = /* glsl */`
   uniform vec3 uPalette[32];
   uniform float uRemap[32];
   uniform float uTrans[32];
+  uniform float uOutline;   // outline palette index for this draw, or -1 for none
+  uniform float uId;        // draw id, unique within a frame (1..65535)
+  layout(location = 0) out highp vec4 outColor;
+  layout(location = 1) out highp vec4 outInfo;   // read by the outline pass
   vec3 palColor(int idx) {
     if (uTrans[idx] > 0.5) discard;          // palt applies to the original index
     return uPalette[int(uRemap[idx] + 0.5)];  // then pal() remap, then the real color
   }
+  void writePixel(vec3 c) {
+    outColor = vec4(c, 1.0);
+    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, 1.0);
+  }
 `;
+
+const drawUniforms = (paletteUniform) => ({
+  uPalette: paletteUniform,
+  uRemap: { value: identityRemap() },
+  uTrans: { value: noTransparency() },
+  uOutline: { value: -1 },
+  uId: { value: 1 },
+});
 
 export function createVoxelMaterial(atlas, paletteUniform) {
   return new THREE.ShaderMaterial({
-    uniforms: {
-      uAtlas: { value: atlas },
-      uPalette: paletteUniform,
-      uRemap: { value: identityRemap() },
-      uTrans: { value: noTransparency() },
-    },
+    glslVersion: THREE.GLSL3,
+    uniforms: { uAtlas: { value: atlas }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
       attribute vec2 aUV;
       attribute vec2 aTF;
@@ -211,26 +223,126 @@ export function createVoxelMaterial(atlas, paletteUniform) {
         float face = floor(vTF.y + 0.5);
         vec2 st = vec2((face * 8.0 + px + 0.5) / ${ATLAS_W.toFixed(1)}, (tile * 8.0 + py + 0.5) / ${ATLAS_H.toFixed(1)});
         int idx = int(texture2D(uAtlas, st).r * 255.0 + 0.5);
-        gl_FragColor = vec4(palColor(idx), 1.0);
+        writePixel(palColor(idx));
       }`,
   });
 }
 
 export function createSolidMaterial(paletteUniform) {
   return new THREE.ShaderMaterial({
-    uniforms: {
-      uPalette: paletteUniform,
-      uRemap: { value: identityRemap() },
-      uTrans: { value: noTransparency() },
-      uColor: { value: 7 },
-    },
+    glslVersion: THREE.GLSL3,
+    uniforms: { uColor: { value: 7 }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
       void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */`
       uniform float uColor;
       ${PAL_GLSL}
-      void main() { gl_FragColor = vec4(palColor(int(uColor + 0.5)), 1.0); }`,
+      void main() { writePixel(palColor(int(uColor + 0.5))); }`,
   });
+}
+
+// ---------------------------------------------------------------- outlines
+// The scene renders into a target with two color outputs (color + per-pixel draw info) and a
+// depth texture; pixels still at the cleared depth are background. A full-screen pass then copies the color and, where outlines are on, paints
+// 1-pixel outlines: a pixel takes the outline color of a 4-neighbor that belongs to an outlined
+// draw and sits in front of it, either a different draw, or the same draw with a depth jump
+// (so edges inside a map, like the rim of a divot, are outlined too).
+
+export function createSceneTarget(size) {
+  const rt = new THREE.WebGLRenderTarget(size, size, {
+    count: 2,
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    generateMipmaps: false,
+    depthTexture: new THREE.DepthTexture(size, size),
+  });
+  return rt;
+}
+
+export function createOutlinePass(target, paletteUniform) {
+  const mat = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    depthTest: false,
+    depthWrite: false,
+    uniforms: {
+      tColor: { value: target.textures[0] },
+      tInfo: { value: target.textures[1] },
+      tDepth: { value: target.depthTexture },
+      uPalette: paletteUniform,
+      uNear: { value: 0.05 },
+      uFar: { value: 2000 },
+      uAny: { value: 0 },
+    },
+    vertexShader: /* glsl */`
+      void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform sampler2D tColor;
+      uniform sampler2D tInfo;
+      uniform sampler2D tDepth;
+      uniform vec3 uPalette[32];
+      uniform float uNear;
+      uniform float uFar;
+      uniform int uAny;
+      layout(location = 0) out highp vec4 outColor;
+
+      float linZ(ivec2 q) {
+        float d = texelFetch(tDepth, q, 0).r;
+        return uNear * uFar / (uFar - d * (uFar - uNear));
+      }
+      // nothing was drawn where the depth buffer still holds its cleared value
+      bool drawnAt(ivec2 q) { return texelFetch(tDepth, q, 0).r < 1.0; }
+      float drawId(vec4 i) { return floor(i.g * 255.0 + 0.5) + 256.0 * floor(i.b * 255.0 + 0.5); }
+      bool inside(ivec2 q, ivec2 size) { return q.x >= 0 && q.y >= 0 && q.x < size.x && q.y < size.y; }
+
+      void main() {
+        ivec2 p = ivec2(gl_FragCoord.xy);
+        outColor = vec4(texelFetch(tColor, p, 0).rgb, 1.0);
+        if (uAny == 0) return;   // no outlined draws this frame: plain copy
+
+        ivec2 size = textureSize(tInfo, 0);
+        vec4 iP = texelFetch(tInfo, p, 0);
+        bool drawnP = drawnAt(p);
+        float zP = drawnP ? linZ(p) : 1e9;
+        float idP = drawnP ? drawId(iP) : -1.0;
+
+        int best = -1;
+        float bestZ = 1e9;
+        for (int k = 0; k < 4; k++) {
+          ivec2 dir = k == 0 ? ivec2(1, 0) : k == 1 ? ivec2(-1, 0) : k == 2 ? ivec2(0, 1) : ivec2(0, -1);
+          ivec2 q = p + dir;
+          if (!inside(q, size)) continue;
+          if (!drawnAt(q)) continue;
+          vec4 iN = texelFetch(tInfo, q, 0);
+          float oc = floor(iN.r * 255.0 + 0.5) - 1.0;
+          if (oc < 0.0) continue;                       // neighbor has no outline
+          float zN = linZ(q);
+          bool edge = false;
+          if (!drawnP) {
+            edge = true;                                // background next to an outlined draw
+          } else if (drawId(iN) != idP) {
+            edge = zN < zP - 0.002 * zP;                // a different draw, in front of this pixel
+          } else if (zN < zP) {
+            // Same draw: extend the neighbor's surface one more pixel (1/z is linear across a
+            // flat face) and check whether this pixel lies well behind it.
+            ivec2 q2 = q + dir;
+            if (inside(q2, size) && drawnAt(q2) && drawId(texelFetch(tInfo, q2, 0)) == idP) {
+              float pred = 2.0 / zN - 1.0 / linZ(q2);
+              edge = pred > 0.0 && zP - 1.0 / pred > 0.25 + 0.03 * zP;
+            } else {
+              edge = zP - zN > 0.5 + 0.05 * zP;
+            }
+          }
+          if (edge && zN < bestZ) { bestZ = zN; best = int(oc); }
+        }
+        if (best >= 0) outColor = vec4(uPalette[best], 1.0);
+      }`,
+  });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  quad.frustumCulled = false;
+  const scene = new THREE.Scene();
+  scene.add(quad);
+  return { scene, camera: new THREE.Camera(), uniforms: mat.uniforms };
 }
 
 export function setupRenderer(canvas, size) {

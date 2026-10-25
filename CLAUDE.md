@@ -75,6 +75,13 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - `pal(a, b)` / `pal()` / `palt(i, on)`: a **per-draw** remap and transparency. It is captured at each draw call.
 - In the shader, transparency is checked against the original index. Then comes the remap, then the palette lookup.
 
+**Outlines** (agreed with the owner):
+
+- `outline(c)` / `outline()`, per-draw state like `pal`, **off by default**. The color is a palette index and goes through the current `pal` remap at draw time.
+- They're screen-space and 1 pixel wide, and work the same for maps, primitives and the future spr. Every shader also writes a second output (outline index + 1, draw id); a full-screen pass in `createOutlinePass` (`js/core.js`) then paints a pixel with the outline color of a 4-neighbor that is outlined and in front of it.
+- **Edges inside maps are outlined too** (the owner wants a divot in a cliff outlined). For pixels of the same draw, the pass extrapolates the neighbor's surface one pixel (1/z is linear across a flat face) and outlines where this pixel sits well behind it. Contact edges where a block meets the ground under it (concave corners) are not outlined.
+- Background is detected by the depth buffer still holding its cleared value. Don't clear the color with alpha 0: three.js premultiplies the clear color, which turns the background black.
+
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
@@ -86,7 +93,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 | File | Role |
 | --- | --- |
-| `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×512, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders, renderer setup, cart base64 helpers. |
+| `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×512, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders (GLSL3, two outputs), the scene render target and outline pass, renderer setup, cart base64 helpers. |
 | `js/engine.js` | `createEngine()`: the runtime plus the global API object, object pools per draw kind, sphere query, fixed-step loop, input. |
 | `js/boot.js` | `install(cart, opts)` creates the engine and puts the API on `window` with `Object.defineProperties` (keeps `palette` as a getter/setter); `start(hooks?)` finds `_init`/`_update`/`_draw` via `HOOKS_EXPR` and runs the loop; `showError` draws errors on screen for exported games. |
 | `runtime/blocky3d.runtime.js` | **Built file, committed.** `tools/runtime-entry.js` bundled by esbuild (`npm run build`): engine + boot + font + three.js as one minified IIFE exposing `window.Blocky3D`. Used by both `player.html` (Run) and exports, so Run matches Export. |
@@ -104,7 +111,8 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - Shaders are `ShaderMaterial` and use dynamic indexing into uniform arrays, which needs WebGL2.
 - Textures **must** stay `NearestFilter` with no mipmaps. Filtering would blend indices into unrelated colors.
 - The shader samples texel centers computed from the face UV, so the atlas never bleeds between tiles.
-- Each pooled draw object has its own material, and the remap and transparency arrays are copied into it on every draw.
+- Each pooled draw object has its own material, and the remap, transparency, outline color and draw id are copied into it on every draw.
+- The engine renders the scene into a 256×256 multiple-render-target (color + draw info) with a depth texture, then the outline pass draws to the canvas. The editor previews render straight to their canvas; the extra shader output is simply ignored there.
 
 **Cart format (JSON)**
 
@@ -141,6 +149,7 @@ What was checked:
   - Sphere push-out for pitched, yawed and rolled maps.
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
+- Outlines: the demo with `outline(0)` (silhouettes, primitives, a different outline color on the player) and a castle wall with carved notches (inner edges outlined). With outlines on, the game still holds 60 fps under SwiftShader, which is software rendering on the CPU.
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.

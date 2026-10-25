@@ -55,6 +55,7 @@ function _draw() {
 - **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `msetw`.
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
+- **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen, including edges inside maps. Off by default.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
 - **Extras:** `print`, `printh`, `btn`, `btnp`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
