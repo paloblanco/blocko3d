@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blocky3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+<link rel="stylesheet" href="css/ide.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/javascript/javascript.min.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="cube" aria-hidden="true"></span><span>blocky<b>3D</b></span></div>
+  <input id="cartName" class="cartname" spellcheck="false" aria-label="Cart name">
+  <div class="spacer"></div>
+  <div class="group">
+    <button id="btnNew" title="Start an empty cart">New</button>
+    <button id="btnDemo" title="Load the demo cart">Demo</button>
+    <button id="btnOpen" title="Open a .json cart file">Open</button>
+    <button id="btnSave" title="Download this cart as a .json file">Save</button>
+    <input type="file" id="fileInput" accept=".json,application/json" hidden>
+  </div>
+  <div class="group">
+    <button id="btnRun" class="run" title="Run (Ctrl+Enter)">▶ Run</button>
+    <button id="btnStop" class="stop" title="Stop">■ Stop</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <nav class="tabs" role="tablist">
+      <button data-tab="code" class="on">Code</button>
+      <button data-tab="map">Map</button>
+      <button data-tab="spr">Spr</button>
+      <button data-tab="info">Info</button>
+    </nav>
+
+    <div class="panel on" id="tab-code">
+      <textarea id="code" spellcheck="false"></textarea>
+    </div>
+
+    <div class="panel" id="tab-map">
+      <div class="toolbar">
+        <label>Map <select id="mapSelect"></select></label>
+        <button id="mapNew">+ New</button>
+        <button id="mapDelete">Delete</button>
+        <span class="sep"></span>
+        <label>Name <input id="mapName" size="10" spellcheck="false"></label>
+        <span class="sep"></span>
+        <label class="xyz">Size <input id="mapW" type="number" min="1" max="128"><input id="mapH" type="number" min="1" max="128"><input id="mapD" type="number" min="1" max="128"></label>
+        <button id="mapResize">Resize</button>
+        <span class="sep"></span>
+        <label class="xyz">Origin <input id="oX" type="number" step="0.5"><input id="oY" type="number" step="0.5"><input id="oZ" type="number" step="0.5"></label>
+      </div>
+      <div class="tilebar" id="mapTiles"></div>
+      <div class="mapwork">
+        <div class="gridwrap">
+          <div class="layerbar">
+            <span>Layer y</span>
+            <button id="layerDown" title="Layer down ( [ )">−</button>
+            <b id="layerLabel">0</b>
+            <button id="layerUp" title="Layer up ( ] )">+</button>
+            <input type="range" id="layerRange" min="0" max="0" value="0">
+            <label class="check"><input type="checkbox" id="ghost" checked> ghost below</label>
+            <button id="layerFill">Fill layer</button>
+            <button id="layerClear">Clear layer</button>
+          </div>
+          <div class="gridscroll" id="gridScroll"><canvas id="mapGrid"></canvas></div>
+          <div class="hint">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer. Seen from above: +x right, +z down.</div>
+        </div>
+        <div class="previewwrap">
+          <canvas id="mapPreview"></canvas>
+          <div class="hint">Drag to orbit, wheel to zoom. Red cross = origin.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-spr">
+      <div class="sprwork">
+        <aside class="tilelist">
+          <div id="sprTiles" class="tilegrid"></div>
+          <div class="row">
+            <button id="tileAdd">+ Add</button>
+            <button id="tileDup">Duplicate</button>
+            <button id="tileClear">Clear</button>
+          </div>
+        </aside>
+        <div class="spreditor">
+          <div class="sprhead">
+            <span>Tile <b id="sprIndex">1</b></span>
+            <span class="toolpick">
+              <button data-tool="pencil" class="on">Pencil</button>
+              <button data-tool="fill">Fill</button>
+            </span>
+            <span class="hint">Right-click picks a color.</span>
+          </div>
+          <div class="faces" id="faces"></div>
+          <div class="palette" id="sprPalette"></div>
+          <div class="colorinfo">Color <b id="colorIndex">7</b> <code id="colorHex"></code></div>
+        </div>
+        <div class="previewwrap small">
+          <canvas id="sprPreview"></canvas>
+          <div class="hint">Drag to orbit.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-info">
+      <div class="apiref" id="info"></div>
+    </div>
+  </section>
+
+  <section class="right">
+    <div class="screen" id="screen">
+      <div class="placeholder" id="placeholder">
+        <div class="cube big" aria-hidden="true"></div>
+        <p>Press <b>Run</b> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd></p>
+      </div>
+    </div>
+    <div class="controls">Arrows / WASD move · <kbd>Z</kbd> O · <kbd>X</kbd> X · click the game to focus it</div>
+    <div class="console" id="console" aria-live="polite"></div>
+  </section>
+</main>
+
+<script type="module" src="js/ide.js"></script>
+</body>
+</html>

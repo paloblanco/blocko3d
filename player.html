@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blocky3D player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #screen { position: absolute; inset: 0; margin: auto; aspect-ratio: 1; width: min(100vw, 100vh); }
+  #screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  #screen canvas:focus { outline: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="screen">
+  <canvas id="gl" width="256" height="256"></canvas>
+  <canvas id="ui" width="256" height="256"></canvas>
+</div>
+<script type="module">
+import { createEngine } from './js/engine.js';
+
+const send = (msg) => parent.postMessage({ source: 'blocky3d-player', ...msg }, '*');
+let engine = null;
+
+// Turn an error's stack into a line number in the cart's code.
+function cartLine(err) {
+  const m = /cart\.js:(\d+):(\d+)/.exec(err && err.stack || '');
+  return m ? +m[1] : null;
+}
+
+function reportError(err) {
+  send({ type: 'error', message: String(err && err.message || err), line: cartLine(err) });
+}
+
+function run(cart) {
+  engine = createEngine({
+    canvas: document.getElementById('gl'),
+    overlay: document.getElementById('ui'),
+    cart,
+    onError: reportError,
+    onLog: (text) => send({ type: 'log', text }),
+  });
+  // The whole API goes into the global namespace, PICO-8 style.
+  Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
+  let hooks;
+  try {
+    hooks = (0, eval)(String(cart.code || '') +
+      '\n;({ _init: typeof _init === "function" ? _init : null,' +
+      ' _update: typeof _update === "function" ? _update : null,' +
+      ' _draw: typeof _draw === "function" ? _draw : null })' +
+      '\n//# sourceURL=cart.js');
+  } catch (e) { reportError(e); return; }
+  if (engine.start(hooks)) send({ type: 'started' });
+}
+
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === 'run' && !engine) run(d.cart);
+  if (d.type === 'stop' && engine) engine.stop();
+});
+window.addEventListener('keydown', (e) => engine && engine.key(e, true));
+window.addEventListener('keyup', (e) => engine && engine.key(e, false));
+window.addEventListener('error', (e) => reportError(e.error || e.message));
+send({ type: 'ready' });
+</script>
+</body>
+</html>
