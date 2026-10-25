@@ -1,0 +1,12 @@
+{
+  "name": "blocky3d",
+  "private": true,
+  "description": "Build tooling for the blocky3D runtime bundle. The IDE itself needs no build step.",
+  "scripts": {
+    "build": "esbuild tools/runtime-entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=inline --outfile=runtime/blocky3d.runtime.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "three": "0.170.0"
+  }
+}

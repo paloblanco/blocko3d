@@ -3,6 +3,7 @@ import { DEFAULT_PALETTE, MAX_TILES, FACES, hexColor, emptyTile, bytesToB64, b64
 import { demoCart, emptyCart, normalizeCart, CART_VERSION } from './cart.js';
 import { Preview } from './preview.js';
 import { API_SECTIONS } from './apidocs.js';
+import { exportGame } from './export.js';
 
 const $ = (id) => document.getElementById(id);
 const STORE = 'blocky3d.cart.v1';
@@ -520,6 +521,14 @@ function renderInfo() {
 }
 
 // ================================================================= top bar + keys
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 function setupTopBar() {
   $('btnRun').onclick = run;
   $('btnStop').onclick = () => stop();
@@ -534,11 +543,18 @@ function setupTopBar() {
   };
   $('btnSave').onclick = () => {
     const blob = new Blob([JSON.stringify(serialize())], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (cart.name || 'cart').replace(/[^\w.-]+/g, '_') + '.b3d.json';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    download(blob, (cart.name || 'cart').replace(/[^\w.-]+/g, '_') + '.b3d.json');
+  };
+  $('btnExport').onclick = async () => {
+    const btn = $('btnExport');
+    btn.disabled = true;
+    try {
+      const { filename, blob } = await exportGame(serialize());
+      download(blob, filename);
+      log(`exported ${filename} (${Math.round(blob.size / 1024)} KB): index.html + game .js, no other files needed`, 'info');
+    } catch (err) {
+      log('Export failed: ' + err.message, 'error');
+    } finally { btn.disabled = false; }
   };
   $('btnOpen').onclick = () => $('fileInput').click();
   $('fileInput').onchange = async (e) => {

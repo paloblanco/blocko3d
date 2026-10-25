@@ -88,7 +88,10 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | --- | --- |
 | `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×512, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders, renderer setup, cart base64 helpers. |
 | `js/engine.js` | `createEngine()`: the runtime plus the global API object, object pools per draw kind, sphere query, fixed-step loop, input. |
-| `player.html` | Runs a cart in an **iframe**. Installs the API on `window` with `Object.defineProperties`, which keeps `palette` as a getter/setter. Evaluates code with `(0, eval)` and `//# sourceURL=cart.js` so errors carry line numbers. Talks to the IDE through `postMessage` (`ready` → `run` → `started` / `error` / `log`). |
+| `js/boot.js` | `install(cart, opts)` creates the engine and puts the API on `window` with `Object.defineProperties` (keeps `palette` as a getter/setter); `start(hooks?)` finds `_init`/`_update`/`_draw` via `HOOKS_EXPR` and runs the loop; `showError` draws errors on screen for exported games. |
+| `runtime/blocky3d.runtime.js` | **Built file, committed.** `tools/runtime-entry.js` bundled by esbuild (`npm run build`): engine + boot + font + three.js as one minified IIFE exposing `window.Blocky3D`. Used by both `player.html` (Run) and exports, so Run matches Export. |
+| `player.html` | Runs a cart in an **iframe** using the runtime bundle (classic script, no import map). Evaluates code with `(0, eval)`, appending `HOOKS_EXPR` so `let`/`const` hooks are found, and `//# sourceURL=cart.js` so errors carry line numbers. Talks to the IDE through `postMessage` (`ready` → `run` → `started` / `error` / `log`). |
+| `js/export.js`, `js/zip.js` | **Export**: `<slug>.zip` (slug from the cart name) with `index.html` and `<slug>.js` = runtime bundle + `Blocky3D.install(<cart data>)` + the cart's code as plain top-level script + `Blocky3D.start()`. Syntax-checks the code first. `zip.js` is a dependency-free zip writer using the browser's `CompressionStream('deflate-raw')` when available. |
 | `index.html`, `js/ide.js`, `css/ide.css` | The IDE: CodeMirror 5 code tab (falls back to a textarea), map editor (layer grid with a ghost of the layer below, orbit preview), tile editor (three face canvases, pencil and fill, right-click eyedropper), Info tab, console. Autosaves to `localStorage` under `blocky3d.cart.v1`. Save and Open use `.b3d.json`. |
 | `js/preview.js` | The orbit viewer used by both editors. |
 | `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (castle, drawbridge, guards, gems). |
@@ -112,17 +115,21 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - Map data is flattened as `x + w * (y + h * z)`.
 - In tile textures, row 0 is the top row of the image.
 
-**Dependencies**, all loaded from CDNs:
+**Dependencies**
 
-- three@0.170.0, via an import map in both HTML files. If you bump it, bump it in both.
-- CodeMirror 5.65.18 from cdnjs.
-- Google Fonts: IBM Plex Sans and JetBrains Mono.
+- three@0.170.0, in two places that must match: `package.json` (bundled into the runtime) and the import map in `index.html` (used by the editor previews in `js/preview.js`).
+- CodeMirror 5.65.18 from cdnjs, and Google Fonts (IBM Plex Sans, JetBrains Mono), for the IDE only.
+- esbuild, a dev dependency for building the runtime bundle.
+
+**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js` or `js/boot.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js`. Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle is stale.
+
+**Exported games** must stay fully standalone: two files, no network requests, working from `file://`. Don't add CDN loads, ES modules (they fail from `file://`) or extra asset files to the export.
 
 ## Testing
 
 There's no test suite in the repo yet. It was verified with Playwright and headless Chromium: launch with `--use-gl=swiftshader --enable-unsafe-swiftshader`, which supports WebGL2.
 
-Because the sandbox couldn't reach the CDNs, the tests served the repo with `python -m http.server` and used `page.route` to serve three.js and CodeMirror from a local `npm install three@0.170.0 codemirror@5.65.18`.
+Because the sandbox couldn't reach the CDNs, the tests served the repo with `python -m http.server` and used `page.route` to serve three.js and CodeMirror from a local `npm install three@0.170.0 codemirror@5.65.18`. The game player no longer needs that, since it uses the committed bundle.
 
 What was checked:
 
@@ -134,6 +141,7 @@ What was checked:
   - Sphere push-out for pitched, yawed and rolled maps.
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
+- Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.
 

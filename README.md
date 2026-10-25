@@ -11,7 +11,7 @@ It's a static site with no build step. ES modules need a web server, so either:
 - **GitHub Pages:** in the repo's Settings → Pages, deploy from the `main` branch root. The IDE is `index.html`.
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
-Three.js (0.170) and CodeMirror 5 load from CDNs, so the page needs an internet connection.
+The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from CDNs, so it needs an internet connection. Games themselves run on the bundled runtime in `runtime/` (see below).
 
 ## The IDE
 
@@ -23,6 +23,15 @@ Three.js (0.170) and CodeMirror 5 load from CDNs, so the page needs an internet 
 | Info | API reference. |
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a castle, a drawbridge, palette tricks).
+
+## Exporting a game
+
+**Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). It holds exactly two files:
+
+- `index.html`: a page that fills the window with the square game view.
+- `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps and code.
+
+It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
 
 ## A tiny cart
 
@@ -55,9 +64,23 @@ The Info tab has the full reference.
 
 - `js/core.js`: palette, tile atlas, voxel meshing, map transforms and the shaders. Tile textures store palette indices; a shader remaps each index through the current `pal()` table, then looks up the real color in a 32-entry palette shared by every material. So changing `palette[i]` recolors maps, primitives and the background on the next frame.
 - `js/engine.js`: the runtime and the global API.
+- `js/boot.js`: installs the API as globals and starts a cart; shared by Run and exported games.
+- `runtime/blocky3d.runtime.js`: the engine, boot code and Three.js bundled into one plain script (`window.Blocky3D`). Both **Run** and **Export** use this file, so what you test is what you ship.
 - `player.html`: runs a cart inside an iframe, so every run starts clean.
+- `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
 - `index.html`, `js/ide.js`, `css/ide.css`: the IDE. `js/preview.js` is the orbit viewer used by the editors.
 - `js/cart.js`: cart format and the demo cart.
+
+## Changing the engine
+
+The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js` or `js/boot.js`:
+
+```
+npm install      # once
+npm run build    # rewrites runtime/blocky3d.runtime.js
+```
+
+Commit the rebuilt bundle with your change. A GitHub Action fails if the committed bundle doesn't match a fresh build.
 
 ## Not in this version
 

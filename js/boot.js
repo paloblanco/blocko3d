@@ -1,0 +1,52 @@
+// Boot helpers shared by the IDE's player (player.html) and exported games.
+// Bundled with the engine and three.js into runtime/blocky3d.runtime.js as window.Blocky3D.
+import { createEngine } from './engine.js';
+import { drawText } from './font.js';
+
+let engine = null;
+let overlay = null;
+
+// Create the engine for a cart and put its whole API in the global namespace.
+export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log } = {}) {
+  overlay = ui;
+  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog });
+  Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
+  window.addEventListener('keydown', (e) => engine.key(e, true));
+  window.addEventListener('keyup', (e) => engine.key(e, false));
+  return engine;
+}
+
+// Expression that collects the cart's _init/_update/_draw, whether declared with function, let or const.
+export const HOOKS_EXPR = '({ _init: typeof _init === "function" ? _init : null,' +
+  ' _update: typeof _update === "function" ? _update : null,' +
+  ' _draw: typeof _draw === "function" ? _draw : null })';
+
+// Start the game loop. Pass hooks when the cart was run through eval (its let/const stay inside it);
+// otherwise they are looked up in the global scope.
+export function start(hooks) {
+  return engine.start(hooks || (0, eval)(HOOKS_EXPR));
+}
+
+export function stop() { if (engine) engine.stop(); }
+
+// Default error display for exported games: stop and write the message on screen.
+export function showError(err) {
+  console.error(err);
+  if (engine) engine.stop();
+  if (!overlay) return;
+  const ctx = overlay.getContext('2d');
+  const words = String((err && err.message) || err).toUpperCase().split(/\s+/);
+  const lines = ['ERROR:'];
+  for (const w of words) {
+    const last = lines[lines.length - 1];
+    if ((last + ' ' + w).length * 4 > 240) lines.push(w); else lines[lines.length - 1] = last + ' ' + w;
+  }
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 256, lines.length * 6 + 6);
+  drawText(ctx, lines.join('\n'), 4, 4, '#ff004d');
+}
+
+// For exported games: report errors thrown at load time or outside the game loop.
+export function catchGlobalErrors() {
+  window.addEventListener('error', (e) => showError(e.error || e.message));
+}

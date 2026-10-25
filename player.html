@@ -8,61 +8,50 @@
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
   #screen { position: absolute; inset: 0; margin: auto; aspect-ratio: 1; width: min(100vw, 100vh); }
   #screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
-  #screen canvas:focus { outline: none; }
 </style>
-<script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
-</script>
 </head>
 <body>
 <div id="screen">
   <canvas id="gl" width="256" height="256"></canvas>
   <canvas id="ui" width="256" height="256"></canvas>
 </div>
-<script type="module">
-import { createEngine } from './js/engine.js';
-
+<!-- The same bundled runtime that exported games use, so Run matches Export. -->
+<script src="runtime/blocky3d.runtime.js"></script>
+<script>
 const send = (msg) => parent.postMessage({ source: 'blocky3d-player', ...msg }, '*');
-let engine = null;
+let started = false;
 
 // Turn an error's stack into a line number in the cart's code.
 function cartLine(err) {
-  const m = /cart\.js:(\d+):(\d+)/.exec(err && err.stack || '');
+  const m = /cart\.js:(\d+):(\d+)/.exec((err && err.stack) || '');
   return m ? +m[1] : null;
 }
 
 function reportError(err) {
-  send({ type: 'error', message: String(err && err.message || err), line: cartLine(err) });
+  Blocky3D.stop();
+  send({ type: 'error', message: String((err && err.message) || err), line: cartLine(err) });
 }
 
 function run(cart) {
-  engine = createEngine({
+  started = true;
+  Blocky3D.install(cart, {
     canvas: document.getElementById('gl'),
     overlay: document.getElementById('ui'),
-    cart,
     onError: reportError,
     onLog: (text) => send({ type: 'log', text }),
   });
-  // The whole API goes into the global namespace, PICO-8 style.
-  Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
   let hooks;
   try {
-    hooks = (0, eval)(String(cart.code || '') +
-      '\n;({ _init: typeof _init === "function" ? _init : null,' +
-      ' _update: typeof _update === "function" ? _update : null,' +
-      ' _draw: typeof _draw === "function" ? _draw : null })' +
-      '\n//# sourceURL=cart.js');
+    hooks = (0, eval)(String(cart.code || '') + '\n;' + Blocky3D.HOOKS_EXPR + '\n//# sourceURL=cart.js');
   } catch (e) { reportError(e); return; }
-  if (engine.start(hooks)) send({ type: 'started' });
+  if (Blocky3D.start(hooks)) send({ type: 'started' });
 }
 
 window.addEventListener('message', (e) => {
   const d = e.data || {};
-  if (d.type === 'run' && !engine) run(d.cart);
-  if (d.type === 'stop' && engine) engine.stop();
+  if (d.type === 'run' && !started) run(d.cart);
+  if (d.type === 'stop') Blocky3D.stop();
 });
-window.addEventListener('keydown', (e) => engine && engine.key(e, true));
-window.addEventListener('keyup', (e) => engine && engine.key(e, false));
 window.addEventListener('error', (e) => reportError(e.error || e.message));
 send({ type: 'ready' });
 </script>
