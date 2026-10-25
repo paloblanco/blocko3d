@@ -79,7 +79,11 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 - `outline(c)` / `outline()`, per-draw state like `pal`, **off by default**. The color is a palette index and goes through the current `pal` remap at draw time.
 - They're screen-space and 1 pixel wide, and work the same for maps, primitives and the future spr. Every shader also writes a second output (outline index + 1, draw id); a full-screen pass in `createOutlinePass` (`js/core.js`) then paints a pixel with the outline color of a 4-neighbor that is outlined and in front of it.
-- **Edges inside maps are outlined too** (the owner wants a divot in a cliff outlined). For pixels of the same draw, the pass extrapolates the neighbor's surface one pixel (1/z is linear across a flat face) and outlines where this pixel sits well behind it. Contact edges where a block meets the ground under it (concave corners) are not outlined.
+- **Every visible edge of a map is outlined** (the owner asked for this: a box-shaped map shows all its visible edges, and a divot in a cliff is outlined). Two rules inside the same map:
+  - **Creases:** map pixels also record which way their face points (direction 1-6 in the info target's alpha; 0 for primitives). Neighboring pixels facing different ways get a line, which covers both outside and inside corners, like the foot of a pillar. Only the pixel with the larger direction index takes the line, so it stays 1 pixel wide. Grid lines between blocks on one flat surface get no line.
+  - **Depth jumps:** where one part of the map is in front of a parallel part behind it, the pass extrapolates the neighbor's surface one pixel (1/z is linear across a flat face) and outlines where this pixel sits well behind it.
+- Primitives only get outlined against other draws and the background, never inside themselves (so a low-poly sphere doesn't show its facets).
+- The pass fetches each depth and info texel once per neighbor; keep it that way. Under SwiftShader (CPU rendering), the demo runs at the same frame rate with outlines on or off.
 - Background is detected by the depth buffer still holding its cleared value. Don't clear the color with alpha 0: three.js premultiplies the clear color, which turns the background black.
 
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
@@ -149,7 +153,7 @@ What was checked:
   - Sphere push-out for pitched, yawed and rolled maps.
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
-- Outlines: the demo with `outline(0)` (silhouettes, primitives, a different outline color on the player) and a castle wall with carved notches (inner edges outlined). With outlines on, the game still holds 60 fps under SwiftShader, which is software rendering on the CPU.
+- Outlines: the demo with `outline(0)` (silhouettes, creases, primitives, a different outline color on the player), a box-shaped map with a notch (every visible edge outlined), and a castle wall with carved notches. Frame time under SwiftShader is the same with outlines on and off (about 16.5 ms).
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.

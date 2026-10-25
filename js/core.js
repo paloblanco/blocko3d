@@ -124,12 +124,13 @@ export function buildMapGeometry(m) {
   for (let z = 0; z < m.d; z++) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
     const t = m.data[mapIndex(m, x, y, z)];
     if (!t) continue;
-    for (const fd of FACE_DEFS) {
+    for (let fi = 0; fi < FACE_DEFS.length; fi++) {
+      const fd = FACE_DEFS[fi];
       if (mapGet(m, x + fd.n[0], y + fd.n[1], z + fd.n[2])) continue;
       for (let k = 0; k < 4; k++) {
         pos.push(x + fd.v[k][0], y + fd.v[k][1], z + fd.v[k][2]);
         uv.push(fd.uv[k][0], fd.uv[k][1]);
-        tf.push(t, fd.f);
+        tf.push(t, fd.f, fi + 1);   // tile, texture face, direction (1-6, used for outline creases)
       }
       idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
       vi += 4;
@@ -138,7 +139,7 @@ export function buildMapGeometry(m) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aUV', new THREE.Float32BufferAttribute(uv, 2));
-  g.setAttribute('aTF', new THREE.Float32BufferAttribute(tf, 2));
+  g.setAttribute('aTF', new THREE.Float32BufferAttribute(tf, 3));
   g.setIndex(vi > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
   g.computeBoundingSphere();
   return g;
@@ -184,9 +185,10 @@ const PAL_GLSL = /* glsl */`
     if (uTrans[idx] > 0.5) discard;          // palt applies to the original index
     return uPalette[int(uRemap[idx] + 0.5)];  // then pal() remap, then the real color
   }
-  void writePixel(vec3 c) {
+  // dir: which way a map face points (1-6), or 0 for primitives
+  void writePixel(vec3 c, float dir) {
     outColor = vec4(c, 1.0);
-    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, 1.0);
+    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, dir / 255.0);
   }
 `;
 
@@ -204,9 +206,9 @@ export function createVoxelMaterial(atlas, paletteUniform) {
     uniforms: { uAtlas: { value: atlas }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
       attribute vec2 aUV;
-      attribute vec2 aTF;
+      attribute vec3 aTF;
       varying vec2 vUV;
-      varying vec2 vTF;
+      varying vec3 vTF;
       void main() {
         vUV = aUV; vTF = aTF;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -215,7 +217,7 @@ export function createVoxelMaterial(atlas, paletteUniform) {
       uniform sampler2D uAtlas;
       ${PAL_GLSL}
       varying vec2 vUV;
-      varying vec2 vTF;
+      varying vec3 vTF;
       void main() {
         float px = clamp(floor(vUV.x * 8.0), 0.0, 7.0);
         float py = clamp(floor(vUV.y * 8.0), 0.0, 7.0);
@@ -223,7 +225,7 @@ export function createVoxelMaterial(atlas, paletteUniform) {
         float face = floor(vTF.y + 0.5);
         vec2 st = vec2((face * 8.0 + px + 0.5) / ${ATLAS_W.toFixed(1)}, (tile * 8.0 + py + 0.5) / ${ATLAS_H.toFixed(1)});
         int idx = int(texture2D(uAtlas, st).r * 255.0 + 0.5);
-        writePixel(palColor(idx));
+        writePixel(palColor(idx), floor(vTF.z + 0.5));
       }`,
   });
 }
@@ -237,7 +239,7 @@ export function createSolidMaterial(paletteUniform) {
     fragmentShader: /* glsl */`
       uniform float uColor;
       ${PAL_GLSL}
-      void main() { writePixel(palColor(int(uColor + 0.5))); }`,
+      void main() { writePixel(palColor(int(uColor + 0.5)), 0.0); }`,
   });
 }
 
@@ -245,8 +247,8 @@ export function createSolidMaterial(paletteUniform) {
 // The scene renders into a target with two color outputs (color + per-pixel draw info) and a
 // depth texture; pixels still at the cleared depth are background. A full-screen pass then copies the color and, where outlines are on, paints
 // 1-pixel outlines: a pixel takes the outline color of a 4-neighbor that belongs to an outlined
-// draw and sits in front of it, either a different draw, or the same draw with a depth jump
-// (so edges inside a map, like the rim of a divot, are outlined too).
+// draw and either sits in front of it (a different draw, or the same draw with a depth jump, like
+// the rim of a divot) or is part of the same map but faces another way (a crease, like a box's edges).
 
 export function createSceneTarget(size) {
   const rt = new THREE.WebGLRenderTarget(size, size, {
@@ -286,55 +288,71 @@ export function createOutlinePass(target, paletteUniform) {
       uniform int uAny;
       layout(location = 0) out highp vec4 outColor;
 
-      float linZ(ivec2 q) {
-        float d = texelFetch(tDepth, q, 0).r;
-        return uNear * uFar / (uFar - d * (uFar - uNear));
-      }
-      // nothing was drawn where the depth buffer still holds its cleared value
-      bool drawnAt(ivec2 q) { return texelFetch(tDepth, q, 0).r < 1.0; }
+      // depth-buffer value to distance from the camera
+      float linZ(float d) { return uNear * uFar / (uFar - d * (uFar - uNear)); }
+      float faceDir(vec4 i) { return floor(i.a * 255.0 + 0.5); }
       float drawId(vec4 i) { return floor(i.g * 255.0 + 0.5) + 256.0 * floor(i.b * 255.0 + 0.5); }
-      bool inside(ivec2 q, ivec2 size) { return q.x >= 0 && q.y >= 0 && q.x < size.x && q.y < size.y; }
+
+      ivec2 size;
+      vec4 iP; float zP, idP, fP; bool drawnP;
+      int best; float bestZ;
+
+      // Off-screen lookups clamp to the edge pixel, which compares as "same surface": no outline.
+      ivec2 clampQ(ivec2 q) { return clamp(q, ivec2(0), size - 1); }
+
+      void check(ivec2 dir) {
+        ivec2 q = clampQ(ivec2(gl_FragCoord.xy) + dir);
+        float dN = texelFetch(tDepth, q, 0).r;
+        if (dN >= 1.0) return;                          // neighbor is background
+        vec4 iN = texelFetch(tInfo, q, 0);
+        float oc = floor(iN.r * 255.0 + 0.5) - 1.0;
+        if (oc < 0.0) return;                           // neighbor has no outline
+        float zN = linZ(dN);
+        bool edge;
+        if (!drawnP) {
+          edge = true;                                  // background next to an outlined draw
+        } else if (drawId(iN) != idP) {
+          edge = zN < zP - 0.002 * zP;                  // a different draw, in front of this pixel
+        } else if (fP > 0.0 && faceDir(iN) > 0.0 && fP != faceDir(iN)) {
+          // Same map, faces pointing different ways: a crease (a box's corner edges, the foot of
+          // a pillar). Only the pixel with the larger direction index takes the line, so it stays
+          // 1 pixel wide.
+          edge = fP > faceDir(iN);
+        } else if (zN < zP) {
+          // Same draw: extend the neighbor's surface one more pixel (1/z is linear across a flat
+          // face) and check whether this pixel lies well behind it (the rim of a divot).
+          ivec2 q2 = clampQ(q + dir);
+          float d2 = texelFetch(tDepth, q2, 0).r;
+          if (q2 != q && d2 < 1.0 && drawId(texelFetch(tInfo, q2, 0)) == idP) {
+            float pred = 2.0 / zN - 1.0 / linZ(d2);
+            edge = pred > 0.0 && zP - 1.0 / pred > 0.25 + 0.03 * zP;
+          } else {
+            edge = zP - zN > 0.5 + 0.05 * zP;
+          }
+        } else {
+          edge = false;
+        }
+        if (edge && zN < bestZ) { bestZ = zN; best = int(oc); }
+      }
 
       void main() {
         ivec2 p = ivec2(gl_FragCoord.xy);
         outColor = vec4(texelFetch(tColor, p, 0).rgb, 1.0);
         if (uAny == 0) return;   // no outlined draws this frame: plain copy
 
-        ivec2 size = textureSize(tInfo, 0);
-        vec4 iP = texelFetch(tInfo, p, 0);
-        bool drawnP = drawnAt(p);
-        float zP = drawnP ? linZ(p) : 1e9;
-        float idP = drawnP ? drawId(iP) : -1.0;
-
-        int best = -1;
-        float bestZ = 1e9;
-        for (int k = 0; k < 4; k++) {
-          ivec2 dir = k == 0 ? ivec2(1, 0) : k == 1 ? ivec2(-1, 0) : k == 2 ? ivec2(0, 1) : ivec2(0, -1);
-          ivec2 q = p + dir;
-          if (!inside(q, size)) continue;
-          if (!drawnAt(q)) continue;
-          vec4 iN = texelFetch(tInfo, q, 0);
-          float oc = floor(iN.r * 255.0 + 0.5) - 1.0;
-          if (oc < 0.0) continue;                       // neighbor has no outline
-          float zN = linZ(q);
-          bool edge = false;
-          if (!drawnP) {
-            edge = true;                                // background next to an outlined draw
-          } else if (drawId(iN) != idP) {
-            edge = zN < zP - 0.002 * zP;                // a different draw, in front of this pixel
-          } else if (zN < zP) {
-            // Same draw: extend the neighbor's surface one more pixel (1/z is linear across a
-            // flat face) and check whether this pixel lies well behind it.
-            ivec2 q2 = q + dir;
-            if (inside(q2, size) && drawnAt(q2) && drawId(texelFetch(tInfo, q2, 0)) == idP) {
-              float pred = 2.0 / zN - 1.0 / linZ(q2);
-              edge = pred > 0.0 && zP - 1.0 / pred > 0.25 + 0.03 * zP;
-            } else {
-              edge = zP - zN > 0.5 + 0.05 * zP;
-            }
-          }
-          if (edge && zN < bestZ) { bestZ = zN; best = int(oc); }
-        }
+        size = textureSize(tInfo, 0);
+        float dP = texelFetch(tDepth, p, 0).r;
+        drawnP = dP < 1.0;      // the depth buffer still holds its cleared value where nothing was drawn
+        iP = texelFetch(tInfo, p, 0);
+        zP = drawnP ? linZ(dP) : 1e9;
+        idP = drawnP ? drawId(iP) : -1.0;
+        fP = faceDir(iP);
+        best = -1;
+        bestZ = 1e9;
+        check(ivec2(1, 0));
+        check(ivec2(-1, 0));
+        check(ivec2(0, 1));
+        check(ivec2(0, -1));
         if (best >= 0) outColor = vec4(uPalette[best], 1.0);
       }`,
   });
