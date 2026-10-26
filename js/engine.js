@@ -368,6 +368,18 @@ export function createEngine({
     mray(m, ox, oy, oz, dx, dy, dz, maxd = 100) {
       return rayQuery(getMap(m), +ox || 0, +oy || 0, +oz || 0, +dx || 0, +dy || 0, +dz || 0, +maxd || 0);
     },
+    // a point in map m's own grid -> where it is in the world now, and back (not rounded to cells,
+    // unlike mgetw). Both use the map's current pos, origin and angle, like map() and mgetw().
+    mtow(m, x, y, z) {
+      const map = getMap(m);
+      updateTransform(map);
+      _v.set(+x || 0, +y || 0, +z || 0).applyMatrix4(map._m);
+      return [_v.x, _v.y, _v.z];
+    },
+    wtom(m, x, y, z) {
+      const p = toLocal(getMap(m), +x || 0, +y || 0, +z || 0);
+      return [p.x, p.y, p.z];
+    },
     mgetw(m, x, y, z, r) {
       const map = getMap(m), p = toLocal(map, x, y, z);
       if (r === undefined) {

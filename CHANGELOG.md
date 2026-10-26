@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `mtow(m, x, y, z)` gives where a point in map m's own grid is in the world right now, and `wtom(m, x, y, z)` goes the other way (not rounded to a cell). Tilt Maze and Scrambler now use them instead of their own rotation math.
 - Four new demos, in the IDE's Demos menu and as standalone pages: **Block Pop** (clicking blocks), **Tilt Maze** (collision on a rotated map), **Scrambler** (maps spinning on pivots) and **First Person** (mouse-look and a dungeon).
 - In mouse mode 2, moving the mouse no longer counts toward `mouse_delta()` until it's captured, so reaching for the game to click doesn't spin a mouse-look view. Touch drags still count.
 - Every demo is exported to its own page under `standalone_demo/`, and `standalone_demo/` itself is now a page linking to them (the castle moved to `standalone_demo/castle/`).

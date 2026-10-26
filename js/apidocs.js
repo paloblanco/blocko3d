@@ -30,6 +30,8 @@ export const API_SECTIONS = [
       ['mgetw(m, x, y, z)', 'Look up the world point (x, y, z) in map m. Returns [t, xi, yi, zi].'],
       ['mgetw(m, x, y, z, r)', 'Sphere query. Returns [t, xi, yi, zi, nx, ny, nz, d]: the deepest block hit, plus the world-space direction (nx, ny, nz) and distance d to push the sphere out. t is 0 when nothing is hit.'],
       ['msetw(m, x, y, z, t)', 'Set the block of map m at a world point.'],
+      ['mtow(m, x, y, z)', 'Where a point in map m\'s own grid is in the world right now, as [x, y, z], using the map\'s position, origin and angle. Handy for anything attached to a moving or turned map: a flag on a tilting maze, a car on a spinning arm, a camera riding along.'],
+      ['wtom(m, x, y, z)', 'The other way: where a world point is in map m\'s own grid, as [x, y, z]. Not rounded to a cell (mgetw does that). Keep something\'s position in a platform\'s grid and convert back each frame to ride it.'],
       ['mray(m, ox, oy, oz, dx, dy, dz, maxd?)', 'The first block of map m along a ray from (ox, oy, oz) in direction (dx, dy, dz), within maxd (default 100). Returns [t, xi, yi, zi, nx, ny, nz, d]: the tile, its grid cell, the face it hit as a grid direction (n), and the distance d along the ray. t is 0 when nothing is hit. Works on moved and rotated maps. Use it with mouse_ray() to click on blocks, or for line of sight.'],
     ],
     code: `let [t, xi, yi, zi, nx, ny, nz, d] = mgetw(0, px, py, pz, 0.4)
