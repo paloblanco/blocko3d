@@ -565,28 +565,37 @@ export function createEngine({
     try { fn(); return true; } catch (e) { stop(); onError(e); return false; }
   }
 
-  // ---- pause menu (Enter or P), drawn on the 2D overlay over the frozen game
+  // ---- pause menu (Enter or P). It has its own canvas on top of the game's overlay, so pausing
+  // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
+  // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
+  // first time that happened the menu stopped showing.
   const MENU = canHires ? ['Resume', 'Restart', 'Screenshot', 'Resolution'] : ['Resume', 'Restart', 'Screenshot'];
-  let paused = false, menuSel = 0, frozen = null, note = '', noteUntil = 0, menuAge = 0;
+  let paused = false, menuSel = 0, note = '', noteUntil = 0, menuAge = 0;
+  const menuCanvas = document.createElement('canvas');
+  menuCanvas.width = menuCanvas.height = SCREEN;
+  menuCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;pointer-events:none;display:none';
+  overlay.after(menuCanvas);
+  const mctx = menuCanvas.getContext('2d');
 
   function setPaused(p) {
     paused = p;
     menuHover = menuClick = -1;
     for (const b of [19, 20, 21]) down[b] = false;
+    menuCanvas.style.display = p ? 'block' : 'none';
     if (p) {
-      frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);   // the game's own overlay, kept for screenshots
       menuSel = 0; note = ''; menuAge = 0;
       audio.suspend();
       if (locked()) document.exitPointerLock();          // pausing frees the mouse
     } else {
-      ctx.putImageData(frozen, 0, 0);
+      mctx.clearRect(0, 0, SCREEN, SCREEN);
       audio.resume();
       if (mouseMode === 2) requestLock();                // and resuming captures it again
     }
   }
 
   function drawMenu() {
-    ctx.putImageData(frozen, 0, 0);
+    const ctx = mctx;   // everything below draws on the menu's own canvas
+    ctx.clearRect(0, 0, SCREEN, SCREEN);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.fillRect(0, 0, SCREEN, SCREEN);
     const w = 156, h = 26 + MENU.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
@@ -613,10 +622,7 @@ export function createEngine({
     const o = out.getContext('2d');
     o.imageSmoothingEnabled = false;
     o.drawImage(canvas, 0, 0, S, S);
-    const ui = document.createElement('canvas');
-    ui.width = ui.height = SCREEN;
-    ui.getContext('2d').putImageData(frozen, 0, 0);
-    o.drawImage(ui, 0, 0, S, S);
+    o.drawImage(overlay, 0, 0, S, S);   // the game's text, untouched while paused; the menu is on its own canvas
     const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
     const name = `${slug(cart.name)}_${stamp}.png`;
     out.toBlob((blob) => {
@@ -665,7 +671,6 @@ export function createEngine({
     beginDraw();
     if (hooks._draw && !guard(hooks._draw)) return;
     endDraw();
-    frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);
   }
 
   function tick(t) {
