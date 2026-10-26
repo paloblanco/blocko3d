@@ -74,7 +74,7 @@ function _draw() {
 - **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
-- **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps, every visible edge is outlined. Off by default.
+- **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps and vox models, every visible edge is outlined. `outline(c, false)` draws only the outer outline, for round shapes. Off by default.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
 - **Text and UI:** `print(str, x, y, c, oc, sx, sy)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline, `sx`/`sy` scale it by whole numbers for titles. `rect` and `rectfill(x0, y0, x1, y1, c)` draw outlined or filled boxes on the same layer, PICO-8 style.
 - **Sound:** `sfx(n, ch, offset, length)` plays sound n (0-63) from the Sfx tab on one of 4 channels; `sfx(-1)` stops, `sfx(-2, ch)` ends a loop.

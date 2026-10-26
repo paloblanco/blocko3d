@@ -253,16 +253,19 @@ const PAL_GLSL = /* glsl */`
   uniform float uTrans[32];
   uniform float uOutline;   // outline palette index for this draw, or -1 for none
   uniform float uId;        // draw id, unique within a frame (1..65535)
+  uniform float uInner;     // 1: outline inner edges too (creases, overlaps); 0: outer outline only
   layout(location = 0) out highp vec4 outColor;
   layout(location = 1) out highp vec4 outInfo;   // read by the outline pass
   vec3 palColor(int idx) {
     if (uTrans[idx] > 0.5) discard;          // palt applies to the original index
     return uPalette[int(uRemap[idx] + 0.5)];  // then pal() remap, then the real color
   }
-  // dir: which way a map face points (1-6), or 0 for primitives
+  // dir: which way a map face points (1-6), or 0 for primitives. A draw with outline(c, false)
+  // writes 7 instead: the outline pass then draws no lines inside it, only around it.
   void writePixel(vec3 c, float dir) {
     outColor = vec4(c, 1.0);
-    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, dir / 255.0);
+    float d = uInner > 0.5 ? dir : 7.0;
+    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, d / 255.0);
   }
 `;
 
@@ -272,6 +275,7 @@ const drawUniforms = (paletteUniform) => ({
   uTrans: { value: noTransparency() },
   uOutline: { value: -1 },
   uId: { value: 1 },
+  uInner: { value: 1 },
 });
 
 export function createVoxelMaterial(atlas, paletteUniform) {
@@ -408,6 +412,8 @@ export function createOutlinePass(target, paletteUniform) {
           edge = true;                                  // background next to an outlined draw
         } else if (drawId(iN) != idP) {
           edge = zN < zP - 0.002 * zP;                  // a different draw, in front of this pixel
+        } else if (faceDir(iN) > 6.5) {
+          edge = false;                                 // outline(c, false): no lines inside one draw
         } else if (fP > 0.0 && faceDir(iN) > 0.0 && fP != faceDir(iN)) {
           kind = 3.0;
           // Same map, faces pointing different ways: a crease (a box's corner edges, the foot of

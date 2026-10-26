@@ -83,6 +83,7 @@ export function createEngine({
   let trans = noTransparency();
   let bgColor = 0;
   let outlineColor = -1;   // -1 = no outline (the default)
+  let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
   let cursorY = 0;
   let drawId = 0, anyOutline = false;
 
@@ -119,6 +120,7 @@ export function createEngine({
     const u = o.material.uniforms;
     for (let i = 0; i < NCOLORS; i++) { u.uRemap.value[i] = remap[i]; u.uTrans.value[i] = trans[i]; }
     u.uOutline.value = outlineColor < 0 ? -1 : remap[outlineColor];
+    u.uInner.value = outlineInner ? 1 : 0;
     u.uId.value = ++drawId;
     if (outlineColor >= 0) anyOutline = true;
     return o;
@@ -316,7 +318,12 @@ export function createEngine({
       trans[i & 31] = on ? 1 : 0;
     },
     bg(c) { bgColor = remap[(c | 0) & 31]; },
-    outline(c) { outlineColor = c === undefined || c === null || c === false ? -1 : (c | 0) & 31; },
+    // outline(c): outlines in color c, inner edges included; outline(c, false): only around the
+    // outside of each draw; outline(): none
+    outline(c, inner = true) {
+      outlineColor = c === undefined || c === null || c === false ? -1 : (c | 0) & 31;
+      outlineInner = outlineColor < 0 || inner !== false;
+    },
 
     // --- camera
     cam_set_pos(x, y, z) { camPos.splice(0, 3, ...vec(x, y, z)); },
@@ -721,7 +728,7 @@ export function createEngine({
     maps.splice(0, maps.length, ...mapsFromCart(cart));
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency();
-    bgColor = 0; outlineColor = -1; cursorY = 0;
+    bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     camera.fov = 90; camera.updateProjectionMatrix();
     frames = 0; acc = 0;

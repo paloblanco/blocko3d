@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `outline(c, false)` draws only the outer outline of maps and vox models: no lines at corners, steps or overlaps inside them. Useful for round voxel shapes. `outline(c)` is unchanged.
+
 ## 0.1.0-alpha (2026-10-26)
 
 The first version ready for testing by people other than its makers. Everything below works and has been checked in a headless browser (Chromium, with phone and tablet sizes emulated), but has had little time on real devices, and the API can still change.

@@ -87,6 +87,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
   - **Creases:** map pixels also record which way their face points (direction 1-6 in the info target's alpha; 0 for primitives). Neighboring pixels facing different ways get a line, which covers both outside and inside corners, like the foot of a pillar. Only the pixel with the larger direction index takes the line, so it stays 1 pixel wide. Grid lines between blocks on one flat surface get no line.
   - **Depth jumps:** where one part of the map is in front of a parallel part behind it, the pass extrapolates the neighbor's surface one pixel (1/z is linear across a flat face) and outlines where this pixel sits well behind it.
 - Primitives only get outlined against other draws and the background, never inside themselves (so a low-poly sphere doesn't show its facets).
+- **`outline(c, false)`: outer outline only** (the owner asked, for round voxel models; it applies to maps too, and drops overlap lines as well as creases). Per-draw state like the color; `outline(c)` turns inner edges back on and `outline()` resets both. Each material has a `uInner` uniform; when it's 0, `writePixel` stores direction **7** instead of the face direction, and the outline pass skips any pair of pixels from the same draw when the neighbor is a 7 (no crease, no depth jump), so only edges against the background or other draws remain. No extra texture fetches. Default output is pixel-identical to before at 1× and 3×.
 - The pass fetches each depth and info texel once per neighbor; keep it that way. Under SwiftShader (CPU rendering), the demo runs at the same frame rate with outlines on or off.
 - Background is detected by the depth buffer still holding its cleared value. Don't clear the color with alpha 0: three.js premultiplies the clear color, which turns the background black.
 
@@ -221,6 +222,7 @@ What was checked:
   - Sphere push-out for pitched, yawed and rolled maps.
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
+- Outer-only outlines: a voxel ball, a figure with an arm in front of its body and a rounded map hill, with `outline(0)` and `outline(0, false)` side by side at 1× and 3× (the ball and hill lose their step lines, the arm loses its overlap line, edges against the background stay); the default renders identically to the previous runtime.
 - Outlines: the demo with `outline(0)` (silhouettes, creases, primitives, a different outline color on the player), a box-shaped map with a notch (every visible edge outlined), and a castle wall with carved notches. Frame time under SwiftShader is the same with outlines on and off (about 16.5 ms).
 - UI: `rect`/`rectfill` (including reversed corners and `pal`), `print` at scale 2, stretched (4×2, 2×5) and with/without outline, the return value, and the demo title card.
 - Vox: a test model drawn plain, yawed, pitched, scaled, squashed, recolored with `pal` and with/without outlines; the demo's hero walks and turns, guards march; editor painting (grid and 3D click, mirror, Erase, Fill, Pick), onion skin, playback, on desktop and at phone size.

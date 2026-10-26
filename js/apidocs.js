@@ -74,11 +74,14 @@ pal()`,
     title: 'Outlines',
     intro: 'A 1-pixel outline around whatever is drawn, computed from what is on screen. On maps, every visible edge is outlined: silhouettes, corners and the rims of holes. Like pal(), it applies to the draws that follow and stays set until changed. Off by default.',
     items: [
-      ['outline(c)', 'Draws after this get an outline in color c (a palette index; pal() remaps apply).'],
+      ['outline(c)', 'Draws after this get an outline in color c (a palette index; pal() remaps apply), inner edges included.'],
+      ['outline(c, false)', 'Only the outer outline: a line where each map or vox model meets the background or another draw, none inside it (no corner or step lines, no line where one part overlaps another). Good for round voxel shapes. Primitives are always drawn this way.'],
       ['outline()', 'No outline for draws after this.'],
     ],
     code: `outline(0)       // black outlines
 map(0)           // outlines every visible edge of the map
+outline(0, false)
+vox(3, bx, by, bz) // a round model: just its outer outline
 sphere(px, py, pz, 0.4, 10)
 outline()`,
   },
