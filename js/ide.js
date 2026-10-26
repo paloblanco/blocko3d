@@ -198,7 +198,6 @@ function run() {
   frame.src = 'player.html';
   frame.title = 'Game';
   frame.allow = 'autoplay; gamepad; fullscreen';   // sound once you've clicked Run; gamepads; the fullscreen button
-  frame.allowFullscreen = true;
   $('placeholder').hidden = true;
   $('screen').append(frame);
   if (MOBILE.matches) showTab('game');
@@ -217,7 +216,6 @@ window.addEventListener('message', (e) => {
   else if (d.type === 'started') { log('running', 'info'); frame.focus(); frame.contentWindow.focus(); }
   else if (d.type === 'error') logError(d.message, d.line);
   else if (d.type === 'log') log(d.text);
-  else if (d.type === 'restart') run();
   else if (d.type === 'save') showSaveData();
 });
 

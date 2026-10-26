@@ -3,6 +3,11 @@
 // so the game needs no network access and no other files.
 import { zipFiles } from './zip.js';
 
+// Same expression as boot.js's HOOKS_EXPR (export.js runs in the IDE, which doesn't load boot.js).
+const HOOKS_EXPR = '({ _init: typeof _init === "function" ? _init : null,' +
+  ' _update: typeof _update === "function" ? _update : null,' +
+  ' _draw: typeof _draw === "function" ? _draw : null })';
+
 const RUNTIME_URL = new URL('../runtime/blocky3d.runtime.js', import.meta.url);
 
 export function gameSlug(name) {
@@ -45,9 +50,11 @@ export function gameJs(cart, runtime) {
     'Blocky3D.catchGlobalErrors();',
     `Blocky3D.install(${JSON.stringify(data)});`,
     '// ---------------------------------------------------------------- game code',
+    '// (inside a function, so Restart can run it again from the top)',
+    'Blocky3D.start(function () {',
     cart.code,
-    '// ---------------------------------------------------------------- start',
-    ';Blocky3D.start();',
+    ';return ' + HOOKS_EXPR + ';',
+    '});',
     '',
   ].join('\n');
 }

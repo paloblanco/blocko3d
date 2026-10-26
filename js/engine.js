@@ -29,7 +29,7 @@ const vec = (a, b, c) => (Array.isArray(a) ? [+a[0] || 0, +a[1] || 0, +a[2] || 0
 
 export function createEngine({
   canvas, overlay, cart, onError = console.error, onLog = console.log,
-  onRestart = () => location.reload(), onSave = () => {},
+  onRestart = () => location.reload(), onSave = () => {},   // boot passes a soft restart (see reset)
 }) {
   const renderer = setupRenderer(canvas, SCREEN);
   // Resolution: the 3D view renders at SCREEN * scale (1x, 2x or 3x); text and rectangles stay on
@@ -712,6 +712,31 @@ export function createEngine({
     if (locked()) document.exitPointerLock();
   }
 
+  // Put everything the game can change back the way the cart started, so the cart can run again
+  // in the same page (Restart). The page, the WebGL context, fullscreen and the player's settings
+  // (resolution, mute) stay as they are.
+  function reset() {
+    stop();
+    for (const m of maps) if (m.geometry) m.geometry.dispose();
+    maps.splice(0, maps.length, ...mapsFromCart(cart));
+    palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
+    remap = identityRemap(); trans = noTransparency();
+    bgColor = 0; outlineColor = -1; cursorY = 0;
+    camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
+    camera.fov = 90; camera.updateProjectionMatrix();
+    frames = 0; acc = 0;
+    setMouseMode(0);
+    dxAcc = dyAcc = wheelAcc = mdx = mdy = mwheel = 0;
+    for (const a of [down, held, tapped]) a.fill(false);
+    for (const pl of nowP) pl.fill(false);
+    for (const pl of prevP) pl.fill(false);
+    paused = false; menuHover = menuClick = -1;
+    menuCanvas.style.display = 'none';
+    mctx.clearRect(0, 0, SCREEN, SCREEN);
+    audio.resume();   // un-hold the sound the pause menu held
+    ctx.clearRect(0, 0, SCREEN, SCREEN);
+  }
+
   // On-screen buttons (touch controls, the pause button) press game buttons directly.
   function setButton(i, on) {
     held[i] = !!on;
@@ -738,7 +763,7 @@ export function createEngine({
   }
 
   return {
-    api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setMuted,
+    api, start, stop, reset, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setMuted,
     get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
   };
 }

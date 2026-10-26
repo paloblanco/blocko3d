@@ -32,14 +32,14 @@ function run(cart) {
   Blocky3D.install(cart, {
     onError: reportError,
     onLog: (text) => send({ type: 'log', text }),
-    onRestart: () => send({ type: 'restart' }),   // the IDE runs the cart again from scratch
     onSave: (json) => send({ type: 'save', json }),
   });
-  let hooks;
+  // The cart's code becomes a function returning its hooks, so Restart can run it again in place.
+  let runCart;
   try {
-    hooks = (0, eval)(String(cart.code || '') + '\n;' + Blocky3D.HOOKS_EXPR + '\n//# sourceURL=cart.js');
+    runCart = (0, eval)(Blocky3D.cartFunctionSource(cart.code) + '\n//# sourceURL=cart.js');
   } catch (e) { reportError(e); return; }
-  if (Blocky3D.start(hooks)) send({ type: 'started' });
+  if (Blocky3D.start(runCart)) send({ type: 'started' });
 }
 
 window.addEventListener('message', (e) => {
