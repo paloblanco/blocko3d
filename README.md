@@ -31,7 +31,7 @@ While a game runs, **Enter** pauses it, PICO-8 style, with Resume, Restart, Scre
 
 ### On a phone
 
-On narrow screens the IDE shows one panel at a time, and the game gets its own **Game** tab, which **Run** switches to. Touch screens get on-screen controls under the game: a d-pad plus O and X, which send the same input as the keyboard. In the map editor, pick tile 0 to erase. In the tile and vox editors, the **Pick** tool takes a color from the image, standing in for right-click.
+On narrow screens the IDE shows one panel at a time, and the game gets its own **Game** tab, which **Run** switches to. The game shows the same touch controls as an exported game (see below). In the map editor, pick tile 0 to erase. In the tile and vox editors, the **Pick** tool takes a color from the image, standing in for right-click.
 
 ## Exporting a game
 
@@ -39,6 +39,8 @@ On narrow screens the IDE shows one panel at a time, and the game gets its own *
 
 - `index.html`: a page that fills the window with the square game view.
 - `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models, sounds, music and code. The pause menu, sounds and save data all work in exported games too.
+
+The page around the game has a **pause**, **mute** and **fullscreen** button, on desktop too. On a phone or tablet (or once someone touches the screen) it adds PICO-8-style touch controls: a d-pad and O and X on either side of the game in landscape, or under it in portrait. They're HTML around the game, never drawn on it, and you can restyle them with your own `<style>` in `index.html`.
 
 It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
 
@@ -82,6 +84,7 @@ The Info tab has the full reference.
 - `js/core.js`: palette, tile atlas, voxel meshing, map transforms and the shaders. Tile textures store palette indices; a shader remaps each index through the current `pal()` table, then looks up the real color in a 32-entry palette shared by every material. So changing `palette[i]` recolors maps, primitives and the background on the next frame.
 - `js/engine.js`: the runtime and the global API.
 - `js/boot.js`: installs the API as globals and starts a cart; shared by Run and exported games.
+- `js/shell.js`: the page around the game: layout, touch controls, and the pause, mute and fullscreen buttons.
 - `runtime/blocky3d.runtime.js`: the engine, boot code and Three.js bundled into one plain script (`window.Blocky3D`). Both **Run** and **Export** use this file, so what you test is what you ship.
 - `player.html`: runs a cart inside an iframe, so every run starts clean.
 - `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
@@ -95,10 +98,10 @@ The IDE needs no build step, but the runtime bundle does. After editing `js/core
 
 ```
 npm install      # once
-npm run build    # rewrites runtime/blocky3d.runtime.js
+npm run build    # rewrites runtime/blocky3d.runtime.js and standalone_demo/
 ```
 
-Commit the rebuilt bundle with your change. A GitHub Action fails if the committed bundle doesn't match a fresh build.
+The build also exports the castle demo to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle doesn't match a fresh build.
 
 ## Not in this version
 

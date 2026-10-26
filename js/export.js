@@ -12,36 +12,29 @@ export function gameSlug(name) {
 
 const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function indexHtml(title, jsFile) {
+// The page is just a shell: the runtime builds the screen, touch controls and system buttons
+// (see js/shell.js). Add your own <style> here to restyle them.
+export function indexHtml(title, jsFile) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>${escHtml(title)}</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  #screen { position: absolute; inset: 0; margin: auto; aspect-ratio: 1; width: min(100vw, 100vh); }
-  #screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  html, body { margin: 0; height: 100%; background: #000; }
 </style>
 </head>
 <body>
-<div id="screen">
-  <canvas id="gl" width="256" height="256"></canvas>
-  <canvas id="ui" width="256" height="256"></canvas>
-</div>
 <script src="${escHtml(jsFile)}"></script>
-<script>
-  // keep keyboard focus on the game, including when embedded in an iframe (itch.io, Game Jolt)
-  window.focus();
-  window.addEventListener('pointerdown', () => window.focus());
-</script>
 </body>
 </html>
 `;
 }
 
-function gameJs(cart, runtime) {
+export function gameJs(cart, runtime) {
   const data = { ...cart };
   delete data.code;
   return [
@@ -50,7 +43,7 @@ function gameJs(cart, runtime) {
     runtime.trim(),
     '// ---------------------------------------------------------------- cart data',
     'Blocky3D.catchGlobalErrors();',
-    `Blocky3D.install(${JSON.stringify(data)}, { canvas: document.getElementById('gl'), overlay: document.getElementById('ui') });`,
+    `Blocky3D.install(${JSON.stringify(data)});`,
     '// ---------------------------------------------------------------- game code',
     cart.code,
     '// ---------------------------------------------------------------- start',

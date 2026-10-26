@@ -197,7 +197,8 @@ function run() {
   frame = document.createElement('iframe');
   frame.src = 'player.html';
   frame.title = 'Game';
-  frame.allow = 'autoplay; gamepad';   // sound once you've clicked Run; gamepads
+  frame.allow = 'autoplay; gamepad; fullscreen';   // sound once you've clicked Run; gamepads; the fullscreen button
+  frame.allowFullscreen = true;
   $('placeholder').hidden = true;
   $('screen').append(frame);
   if (MOBILE.matches) showTab('game');
@@ -1374,23 +1375,6 @@ function setupSaveData() {
   };
 }
 
-// ================================================================= touch game buttons
-// Each on-screen button sends a key to the game iframe, so the game sees the same input as a keyboard.
-const BTN_CODES = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyZ', 'KeyX', 'Enter'];
-
-function setupTouchpad() {
-  document.querySelectorAll('#touchpad button').forEach((b) => {
-    const code = BTN_CODES[+b.dataset.btn];
-    const send = (down) => {
-      b.classList.toggle('on', down);
-      if (frame) frame.contentWindow.postMessage({ type: 'key', code, down }, '*');
-    };
-    b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); send(true); });
-    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => send(false));
-    b.addEventListener('contextmenu', (e) => e.preventDefault());
-  });
-}
-
 // Leaving the phone layout while on the game tab: go back to the code.
 MOBILE.addEventListener('change', () => {
   if (!MOBILE.matches && activeTab === 'game') showTab('code');
@@ -1405,7 +1389,6 @@ setupSprEditor();
 setupVoxEditor();
 setupSfxEditor();
 setupMusicEditor();
-setupTouchpad();
 setupSaveData();
 renderInfo();
 document.body.dataset.tab = activeTab;

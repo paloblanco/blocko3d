@@ -10,9 +10,9 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
-      - name: Fail if the committed bundle differs from a fresh build
+      - name: Fail if the committed bundle or demo differs from a fresh build
         run: |
-          git diff --exit-code runtime/ || {
-            echo "::error::runtime/blocky3d.runtime.js is out of date. Run 'npm run build' and commit the result."
+          git diff --exit-code runtime/ standalone_demo/ || {
+            echo "::error::runtime/blocky3d.runtime.js or standalone_demo/ is out of date. Run 'npm run build' and commit the result."
             exit 1
           }

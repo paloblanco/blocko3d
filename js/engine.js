@@ -189,7 +189,7 @@ export function createEngine({
     for (let p = 0; p < PLAYERS; p++) {
       for (let i = 0; i < NBTN; i++) {
         prevP[p][i] = nowP[p][i];
-        nowP[p][i] = padState[p][i] || (p === 0 && (down[i] || tapped[i]));
+        nowP[p][i] = padState[p][i] || (p === 0 && (down[i] || held[i] || tapped[i]));
       }
     }
     tapped.fill(false);
@@ -223,6 +223,7 @@ export function createEngine({
   let menuHover = -1, menuClick = -1, menuRects = [];
   const MBTN = { 0: 19, 2: 20, 1: 21 };   // DOM mouse button -> engine button
   const tapped = new Array(NBTN).fill(false);   // a click shorter than one update still counts once
+  const held = new Array(NBTN).fill(false);     // on-screen touch buttons (player 0)
   const press = (b) => { down[b] = tapped[b] = true; };
 
   const locked = () => document.pointerLockElement === overlay;
@@ -704,6 +705,22 @@ export function createEngine({
     if (locked()) document.exitPointerLock();
   }
 
+  // On-screen buttons (touch controls, the pause button) press game buttons directly.
+  function setButton(i, on) {
+    held[i] = !!on;
+    if (on) tapped[i] = true;
+  }
+
+  // Mute is a player setting, kept per device like the resolution.
+  let muted = false;
+  try { muted = localStorage.getItem('blocky3d.mute') === '1'; } catch { /* storage blocked */ }
+  audio.setMuted(muted);
+  function setMuted(m) {
+    muted = !!m;
+    audio.setMuted(muted);
+    try { localStorage.setItem('blocky3d.mute', muted ? '1' : '0'); } catch { /* storage blocked */ }
+  }
+
   function key(e, isDown) {
     if (isDown) audio.unlock();   // browsers only allow sound after the player does something
     const b = KEYMAP[e.code];
@@ -713,5 +730,8 @@ export function createEngine({
     e.preventDefault();
   }
 
-  return { api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), get paused() { return paused; }, get scale() { return scale; }, setScale };
+  return {
+    api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setMuted,
+    get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
+  };
 }

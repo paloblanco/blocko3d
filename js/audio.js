@@ -216,6 +216,13 @@ export class SfxPlayer {
     this.channels = Array.from({ length: CHANNELS }, () => null);   // { src, started, sfx, offset }
     this.cache = new Map();
     this.volume = 1;
+    this.muted = false;
+  }
+
+  // Mute everything (sfx and music) without stopping it.
+  setMuted(m) {
+    this.muted = !!m;
+    if (this.gain) this.gain.gain.value = this.muted ? 0 : 1;
   }
 
   // Call from a user gesture (key press, click) so the browser lets audio start.
@@ -226,6 +233,7 @@ export class SfxPlayer {
       this.ctx = new AC();
       this.gain = this.ctx.createGain();
       this.gain.connect(this.ctx.destination);
+      this.gain.gain.value = this.muted ? 0 : 1;
     }
     if (this.ctx.state === 'suspended') this.ctx.resume().then(() => this.startPendingMusic());
     else if (this.pendingMusic) this.startPendingMusic();

@@ -2,18 +2,22 @@
 // Bundled with the engine and three.js into runtime/blocky3d.runtime.js as window.Blocky3D.
 import { createEngine } from './engine.js';
 import { drawText, textWidth } from './font.js';
+import { mountShell, wireShell } from './shell.js';
 
 let engine = null;
 let overlay = null;
 
 // Create the engine for a cart and put its whole API in the global namespace.
+// Without a canvas, it builds the standard page first: the screen, touch controls and system buttons.
 export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart, onSave } = {}) {
+  if (!canvas) ({ canvas, overlay: ui } = mountShell());
   overlay = ui;
   engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave });
   Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
   window.addEventListener('keydown', (e) => engine.key(e, true));
   window.addEventListener('keyup', (e) => engine.key(e, false));
   window.addEventListener('pointerdown', () => engine.unlockAudio());
+  wireShell(engine);
   return engine;
 }
 
