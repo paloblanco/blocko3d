@@ -361,6 +361,11 @@ export function createEngine({
       const map = getMap(m), p = toLocal(map, x, y, z);
       mapSet(map, Math.floor(p.x), Math.floor(p.y), Math.floor(p.z), t | 0);
     },
+    // first block hit along a ray: [t, xi, yi, zi, nx, ny, nz, d]; n is the face hit as a grid
+    // direction, so mset(m, xi + nx, yi + ny, zi + nz, t) places a block on it
+    mray(m, ox, oy, oz, dx, dy, dz, maxd = 100) {
+      return rayQuery(getMap(m), +ox || 0, +oy || 0, +oz || 0, +dx || 0, +dy || 0, +dz || 0, +maxd || 0);
+    },
     mgetw(m, x, y, z, r) {
       const map = getMap(m), p = toLocal(map, x, y, z);
       if (r === undefined) {
@@ -474,6 +479,9 @@ export function createEngine({
     mouse_delta() { return [mdx, mdy]; },             // movement since the last update, in pixels
     mouse_wheel() { return mwheel; },                 // scroll since the last update, in notches (down +)
     mouse_locked() { return locked(); },              // is the mouse captured (mode 2)?
+    // the ray from the camera through the cursor (the screen center in capture mode):
+    // [ox, oy, oz, dx, dy, dz], d of length 1
+    mouse_ray() { return mouseMode === 2 ? screenRay(SCREEN / 2, SCREEN / 2) : screenRay(mx, my); },
     // stick(0) = left, stick(1) = right: [x, y], -1..1, right and down positive
     stick(i = 0, p = 0) { return readStick(i | 0, p | 0); },
     btnp(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0] && !prevP[p | 0][i | 0]); },
@@ -491,6 +499,66 @@ export function createEngine({
   };
 
   // Sphere vs voxels in map space. Returns the deepest hit with a world-space push-out.
+  // First solid block along a ray, in map space: [t, xi, yi, zi, nx, ny, nz, d] with the face hit
+  // as a grid direction (n) and the distance along the ray (d, in world units, since map transforms
+  // don't scale). Steps through the grid one cell at a time (Amanatides & Woo), after clipping the
+  // ray to the map's box. A ray starting inside a solid block hits it at d = 0 with n = 0.
+  const _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
+  function rayQuery(map, ox, oy, oz, dx, dy, dz, maxd) {
+    const MISS = [0, 0, 0, 0, 0, 0, 0, 0];
+    if (!(dx || dy || dz)) return MISS;
+    updateTransform(map);
+    const o = _ro.set(ox, oy, oz).applyMatrix4(map._inv);
+    const d = _rd.set(dx, dy, dz).transformDirection(map._inv);   // unit length, map space
+    const O = [o.x, o.y, o.z], D = [d.x, d.y, d.z], size = [map.w, map.h, map.d];
+    let t0 = 0, t1 = maxd, enter = -1;
+    for (let a = 0; a < 3; a++) {               // clip to the map's box [0, size]
+      if (Math.abs(D[a]) < 1e-12) {
+        if (O[a] < 0 || O[a] >= size[a]) return MISS;
+        continue;
+      }
+      let ta = (0 - O[a]) / D[a], tb = (size[a] - O[a]) / D[a];
+      if (ta > tb) [ta, tb] = [tb, ta];
+      if (ta > t0) { t0 = ta; enter = a; }
+      if (tb < t1) t1 = tb;
+      if (t0 > t1) return MISS;
+    }
+    const cell = [0, 0, 0], step = [0, 0, 0], tMax = [0, 0, 0], tDelta = [0, 0, 0], n = [0, 0, 0];
+    for (let a = 0; a < 3; a++) {
+      const p = O[a] + D[a] * t0;
+      cell[a] = Math.min(size[a] - 1, Math.max(0, Math.floor(a === enter ? p + Math.sign(D[a]) * 1e-7 : p)));
+      step[a] = Math.sign(D[a]);
+      tDelta[a] = step[a] ? Math.abs(1 / D[a]) : Infinity;
+      tMax[a] = step[a] > 0 ? (cell[a] + 1 - O[a]) / D[a] : step[a] < 0 ? (cell[a] - O[a]) / D[a] : Infinity;
+    }
+    if (enter >= 0) n[enter] = -step[enter];  // entered through this face of the box
+    let t = t0;
+    for (;;) {
+      const tile = mapGet(map, cell[0], cell[1], cell[2]);
+      if (tile) return [tile, cell[0], cell[1], cell[2], n[0], n[1], n[2], t];
+      const a = tMax[0] < tMax[1] ? (tMax[0] < tMax[2] ? 0 : 2) : (tMax[1] < tMax[2] ? 1 : 2);
+      t = tMax[a];
+      if (t > t1) return MISS;
+      cell[a] += step[a];
+      if (cell[a] < 0 || cell[a] >= size[a]) return MISS;
+      tMax[a] += tDelta[a];
+      n[0] = n[1] = n[2] = 0; n[a] = -step[a];
+    }
+  }
+
+  // The ray from the camera through a screen point (in screen pixels), using the camera as last set.
+  const rayCam = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
+  const _rp = new THREE.Vector3();
+  function screenRay(sx, sy) {
+    rayCam.fov = camera.fov;
+    rayCam.position.set(...camPos);
+    rayCam.lookAt(...camLook);
+    rayCam.updateMatrixWorld();
+    rayCam.updateProjectionMatrix();
+    _rp.set((sx / SCREEN) * 2 - 1, 1 - (sy / SCREEN) * 2, 0.5).unproject(rayCam).sub(rayCam.position).normalize();
+    return [camPos[0], camPos[1], camPos[2], _rp.x, _rp.y, _rp.z];
+  }
+
   function sphereQuery(map, cx, cy, cz, r) {
     let best = null, bestDepth = -1;
     const x0 = Math.floor(cx - r), x1 = Math.floor(cx + r);

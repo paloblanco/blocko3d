@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `mouse_ray()` gives the ray from the camera through the cursor (the screen center when the mouse is captured), and `mray(m, ox, oy, oz, dx, dy, dz, maxd)` finds the first block of map m along any ray, with the face it hit, so clicking or tapping on blocks takes two lines.
 - `outline(c, false)` draws only the outer outline of maps and vox models: no lines at corners, steps or overlaps inside them. Useful for round voxel shapes. `outline(c)` is unchanged.
 
 ## 0.1.0-alpha (2026-10-26)

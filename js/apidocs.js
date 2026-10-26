@@ -30,6 +30,7 @@ export const API_SECTIONS = [
       ['mgetw(m, x, y, z)', 'Look up the world point (x, y, z) in map m. Returns [t, xi, yi, zi].'],
       ['mgetw(m, x, y, z, r)', 'Sphere query. Returns [t, xi, yi, zi, nx, ny, nz, d]: the deepest block hit, plus the world-space direction (nx, ny, nz) and distance d to push the sphere out. t is 0 when nothing is hit.'],
       ['msetw(m, x, y, z, t)', 'Set the block of map m at a world point.'],
+      ['mray(m, ox, oy, oz, dx, dy, dz, maxd?)', 'The first block of map m along a ray from (ox, oy, oz) in direction (dx, dy, dz), within maxd (default 100). Returns [t, xi, yi, zi, nx, ny, nz, d]: the tile, its grid cell, the face it hit as a grid direction (n), and the distance d along the ray. t is 0 when nothing is hit. Works on moved and rotated maps. Use it with mouse_ray() to click on blocks, or for line of sight.'],
     ],
     code: `let [t, xi, yi, zi, nx, ny, nz, d] = mgetw(0, px, py, pz, 0.4)
 if (t) { px += nx*d; py += ny*d; pz += nz*d }`,
@@ -154,6 +155,7 @@ if (secs < data.best) save({ best: secs })`,
       ['mouse_delta()', 'How far the mouse moved since the last update, as [dx, dy] in pixels; right and down are positive. Works in both modes; use it for mouse-look in mode 2.'],
       ['mouse_wheel()', 'Wheel scroll since the last update, in notches (about 1 per click of the wheel); down is positive.'],
       ['mouse_locked()', 'Is the mouse captured right now (mode 2)? Handy for showing "click to play".'],
+      ['mouse_ray()', 'The line from the camera through the cursor, as [ox, oy, oz, dx, dy, dz] (a start point and a direction of length 1), using the camera as last set. In mode 2 it goes through the middle of the screen, like a crosshair. Pass it to mray() to find the block under the cursor.'],
       ['Touch', 'Mode 1: a tap is a left click (button 19) at that spot. Mode 2: dragging a finger gives mouse_delta(), so mouse-look works on a phone. In either mode, the pause menu can be clicked or tapped.'],
     ],
     code: `let yaw = 0, pitch = 0
@@ -162,7 +164,12 @@ function _update() {
   let [dx, dy] = mouse_delta()
   yaw += dx / 1000; pitch = mid(-0.2, pitch - dy / 1000, 0.2)
   if (btnp(19)) sfx(0)   // left click
-}`,
+}
+
+// click to build, right-click to dig (mode 1)
+let [t, xi, yi, zi, nx, ny, nz] = mray(0, ...mouse_ray())
+if (t && btnp(19)) mset(0, xi + nx, yi + ny, zi + nz, 5)
+if (t && btnp(20)) mset(0, xi, yi, zi, 0)`,
   },
   {
     title: 'Math',

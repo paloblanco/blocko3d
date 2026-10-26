@@ -45,6 +45,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
   - `mgetw(m, x, y, z)` takes a world point and returns `[t, xi, yi, zi]`. It works for any rotation.
   - `mgetw(m, x, y, z, r)` is a sphere query. It returns the deepest hit, `[t, xi, yi, zi, nx, ny, nz, d]`, with a world-space push-out direction and depth, so collision is one line. `t` is 0 when nothing is hit.
   - `msetw` sets a block at a world point.
+  - `mray(m, ox, oy, oz, dx, dy, dz, maxd = 100)` (agreed with the owner) returns the first solid block along a ray, `[t, xi, yi, zi, nx, ny, nz, d]`, same shape as the sphere query; all zeros on a miss. **n is the face hit as a grid direction** (the owner's choice, so `mset(m, xi+nx, yi+ny, zi+nz, t)` places a block on it; on rotated maps it differs from a world direction). d is in world units (map transforms only rotate and move). `rayQuery` in `js/engine.js` moves the ray into map space, clips it to the map's box and steps cell by cell (Amanatides & Woo). A ray starting inside a solid block hits it at d = 0 with n = 0. The direction needn't be normalized.
 
 **Angles and axes**
 
@@ -138,7 +139,9 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 - Touch (pointer events with `pointerType !== 'mouse'`, one finger tracked): mode 1 a tap is button 19 at that spot; mode 2 dragging gives deltas (no button). The overlay gets `touch-action: none` in modes 1/2.
 - The pause menu is clickable/tappable in modes 1 and 2: hover selects, click chooses (`menuRects` from `drawMenu`).
 - **Short presses are latched** (`tapped[]`): a key or mouse press that starts and ends between two updates still reads as down for one update, so `btnp` never misses it.
-- Audio still unlocks on any pointerdown in every mode. Deferred: `mouse_ray()` / map picking.
+- `mouse_ray()` → `[ox, oy, oz, dx, dy, dz]`: the ray from the camera through `mouse_pos()` (the screen center in mode 2, like a crosshair), direction normalized, built from the camera as last set (`camPos`, `camLook`, fov) with a spare three.js camera and `unproject`, so it matches the render. `mray(m, ...mouse_ray())` is the block under the cursor.
+- Audio still unlocks on any pointerdown in every mode.
+- **Deferred (discussed with the owner): `mouse_pick()`.** Draw calls would return their draw id, and `mouse_pick()` would read the id under the cursor from the info target (pixel-exact clicks on vox models and primitives, one frame late, a 1-pixel `readPixels` only when called). Set aside until games want it; distance checks cover most cases.
 
 **Game page: touch controls and system buttons** (asked for by the owner, PICO-8 style): `js/shell.js`, bundled into the runtime, builds the page around the game for both Run (`player.html`) and exports, so they match. `install()` calls `mountShell()` when no canvas is passed, and `wireShell(engine)` connects it. It's plain HTML and CSS around the canvases, never drawn on the game screen; the style sheet goes first in `<head>`, so an exported `index.html` can restyle it.
 - **Layout** (CSS grid, by `orientation`): landscape puts the d-pad left of the screen, O and X right, system buttons at the top of the right column; portrait puts the screen on top, the system buttons under it, then the d-pad and O/X. The screen stays square and as big as fits (`--g`), safe areas respected.
@@ -222,6 +225,7 @@ What was checked:
   - Sphere push-out for pitched, yawed and rolled maps.
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
+- Rays: `mray` on an unrotated map (straight down onto a block and the floor, from the side, up and out of range for a miss, starting inside a block, an unnormalized direction); 400 random rays through a pitched, yawed and rolled map with a moved pivot against brute-force stepping with `mgetw` (all 209 hits on the same block and face, distance within 0.001); clicking on three projected points of a rendered map gives the expected blocks and faces; `mouse_ray` in mode 2 points straight down the view, and a corner ray matches the field of view.
 - Outer-only outlines: a voxel ball, a figure with an arm in front of its body and a rounded map hill, with `outline(0)` and `outline(0, false)` side by side at 1× and 3× (the ball and hill lose their step lines, the arm loses its overlap line, edges against the background stay); the default renders identically to the previous runtime.
 - Outlines: the demo with `outline(0)` (silhouettes, creases, primitives, a different outline color on the player), a box-shaped map with a notch (every visible edge outlined), and a castle wall with carved notches. Frame time under SwiftShader is the same with outlines on and off (about 16.5 ms).
 - UI: `rect`/`rectfill` (including reversed corners and `pal`), `print` at scale 2, stretched (4×2, 2×5) and with/without outline, the return value, and the demo title card.
