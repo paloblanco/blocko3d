@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `mtow(m, x, y, z)` gives where a point in map m's own grid is in the world right now, and `wtom(m, x, y, z)` goes the other way (not rounded to a cell). Tilt Maze and Scrambler now use them instead of their own rotation math.
+- Three more demos: **Builder** (place and dig blocks, the build is saved), **Bumper Arena** (up to 4 players on gamepads, the computer drives the rest) and **Third Person** (floating islands, an orbit camera, and riding moving platforms with `wtom`/`mtow`).
 - Four new demos, in the IDE's Demos menu and as standalone pages: **Block Pop** (clicking blocks), **Tilt Maze** (collision on a rotated map), **Scrambler** (maps spinning on pivots) and **First Person** (mouse-look and a dungeon).
 - In mouse mode 2, moving the mouse no longer counts toward `mouse_delta()` until it's captured, so reaching for the game to click doesn't spin a mouse-look view. Touch drags still count.
 - Every demo is exported to its own page under `standalone_demo/`, and `standalone_demo/` itself is now a page linking to them (the castle moved to `standalone_demo/castle/`).
@@ -42,4 +43,4 @@ The first version ready for testing by people other than its makers. Everything 
 
 - Not yet tried on real iPhones or iPads (Safari), nor on most Android browsers; the touch controls and pause were fixed from reports on one real phone.
 - No fullscreen button on iPhone Safari, which doesn't allow it.
-- No riding on moving maps, no undo in the map and tile editors, no palette editor (change `palette[i]` in code), no custom pause menu items, no clicking on blocks with the mouse (`mouse_ray`), and no analog trigger values.
+- No undo in the map and tile editors, no palette editor (change `palette[i]` in code), no custom pause menu items, no clicking on blocks with the mouse (`mouse_ray`), and no analog trigger values.

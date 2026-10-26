@@ -23,5 +23,20 @@
     "file": "firstperson.b3d.json",
     "name": "First Person",
     "about": "Find the key in a dungeon maze and escape. Shows a first-person camera with mouse capture (or a finger drag), sphere collision, mray() to see what you face, and gates that are maps of their own."
+  },
+  {
+    "file": "builder.b3d.json",
+    "name": "Builder",
+    "about": "Build on a plot block by block: place on the face you point at, dig, pick from a hotbar. Shows mray() with its face direction, a clickable 2D hotbar, and save()/load() keeping your build."
+  },
+  {
+    "file": "bumper.b3d.json",
+    "name": "Bumper Arena",
+    "about": "Bump the other cars off a crumbling platform, with up to 4 players on gamepads and the computer filling empty seats. Shows input for players 0-3, pal() and outline() per player, and mset() changing the arena."
+  },
+  {
+    "file": "thirdperson.b3d.json",
+    "name": "Third Person",
+    "about": "Hop across floating islands for 5 stars, riding a sliding platform, a turning bridge and an elevator. Shows an orbit camera kept out of walls with mray(), and riding moving maps with wtom() and mtow()."
   }
 ]
