@@ -558,7 +558,18 @@ export function createGrowPasses(paletteUniform) {
 
 export function setupRenderer(canvas, size) {
   THREE.ColorManagement.enabled = false;  // palette colors go to the screen untouched
-  const r = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  let r;
+  try {
+    r = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  } catch (e) {
+    // three.js fails with cryptic messages when the browser won't give a working WebGL 2 context
+    // (seen on iPhones: "getShaderPrecisionFormat(...).precision" means the context came back lost).
+    const why = typeof WebGL2RenderingContext === 'undefined'
+      ? 'This browser has no WebGL 2, which blocky3D needs. Try updating it.'
+      : 'This browser would not start 3D graphics (WebGL 2). Try closing other tabs and reloading, ' +
+        'restarting the browser, or updating it. On iPhone and iPad, Lockdown Mode turns WebGL off.';
+    throw new Error(why + ' (' + ((e && e.message) || e) + ')');
+  }
   r.outputColorSpace = THREE.LinearSRGBColorSpace;
   r.setPixelRatio(1);
   if (size) r.setSize(size, size, false);

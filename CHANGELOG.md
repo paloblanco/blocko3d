@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- When the browser won't start 3D graphics (WebGL 2), the game now says so in plain words with things to try, instead of a cryptic three.js error. Reported on an iPhone as `getShaderPrecisionFormat(...).precision`.
+- `webgl-check.html`: a page to open on a device where games won't start; it shows whether WebGL 2 works there, for a screenshot.
 - `mtow(m, x, y, z)` gives where a point in map m's own grid is in the world right now, and `wtom(m, x, y, z)` goes the other way (not rounded to a cell). Tilt Maze and Scrambler now use them instead of their own rotation math.
 - Three more demos: **Builder** (place and dig blocks, the build is saved), **Bumper Arena** (up to 4 players on gamepads, the computer drives the rest) and **Third Person** (floating islands, an orbit camera, and riding moving platforms with `wtom`/`mtow`).
 - Four new demos, in the IDE's Demos menu and as standalone pages: **Block Pop** (clicking blocks), **Tilt Maze** (collision on a rotated map), **Scrambler** (maps spinning on pivots) and **First Person** (mouse-look and a dungeon).

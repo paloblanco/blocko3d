@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blocky3D WebGL check</title>
+<style>
+  body { background: #1d2b53; color: #fff1e8; font: 16px/1.45 -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; color: #c2c3c7; }
+  #verdict { font-size: 18px; font-weight: 700; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; }
+  .ok { background: #008751; } .bad { background: #7e2553; }
+  table { border-collapse: collapse; width: 100%; }
+  td { border-top: 1px solid #5f574f; padding: 6px 4px; vertical-align: top; word-break: break-word; }
+  td:first-child { color: #c2c3c7; width: 40%; }
+</style>
+</head>
+<body>
+<h1>blocky3D WebGL check</h1>
+<p>Open this page on the device with the problem, wait a few seconds, then take a screenshot of the whole page.</p>
+<div id="verdict">Checking…</div>
+<table id="out"></table>
+<script>
+// Checks what blocky3D needs from the browser (a working WebGL 2 context) without using the engine.
+const rows = [];
+const out = document.getElementById('out');
+function row(k, v) { rows.push([k, String(v)]); out.innerHTML = rows.map(([a, b]) => '<tr><td>' + a + '</td><td>' + b.replace(/</g, '&lt;') + '</td></tr>').join(''); }
+function safe(f) { try { return f(); } catch (e) { return 'error: ' + e.message; } }
+
+row('Browser', navigator.userAgent);
+row('Screen', screen.width + '×' + screen.height + ' at ' + devicePixelRatio + 'x');
+row('WebGL 2 in this browser', typeof WebGL2RenderingContext !== 'undefined' ? 'yes' : 'no');
+
+function probe(kind, attrs) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  let lostEvents = 0, restored = 0;
+  c.addEventListener('webglcontextlost', (e) => { lostEvents++; e.preventDefault(); });
+  c.addEventListener('webglcontextrestored', () => { restored++; });
+  let gl = null, err = '';
+  c.addEventListener('webglcontextcreationerror', (e) => { err = e.statusMessage || 'creation error'; });
+  try { gl = c.getContext(kind, attrs); } catch (e) { err = e.message; }
+  const r = { c, gl, err, lost: () => lostEvents, restored: () => restored };
+  return r;
+}
+
+// the same settings blocky3D asks for
+const p2 = probe('webgl2', { antialias: false, preserveDrawingBuffer: true, alpha: false, depth: true, stencil: false });
+const gl = p2.gl;
+row('WebGL 2 context', gl ? 'created' : 'NOT created' + (p2.err ? ' (' + p2.err + ')' : ''));
+let ok = !!gl;
+if (gl) {
+  const lost = gl.isContextLost();
+  row('Lost right after creation', lost ? 'YES (this is the iPhone error)' : 'no');
+  if (lost) ok = false;
+  const hp = safe(() => { const f = gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT); return f ? f.precision : 'null (context is lost)'; });
+  row('Vertex shader high precision', hp);
+  if (typeof hp !== 'number') ok = false;
+  const dbg = safe(() => gl.getExtension('WEBGL_debug_renderer_info'));
+  row('Graphics', safe(() => dbg && dbg.UNMASKED_RENDERER_WEBGL ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  row('Max texture size', safe(() => gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+  row('Float render targets (2x/3x)', safe(() => gl.getExtension('EXT_color_buffer_float') ? 'yes' : 'no'));
+  // draw one frame: clear to a color and read a pixel back
+  row('Draw test', safe(() => {
+    gl.clearColor(1, 0, 0.3, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    const px = new Uint8Array(4); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const good = px[0] === 255 && px[2] > 60 && px[2] < 90;
+    if (!good) ok = false;
+    return good ? 'passed' : 'failed (read ' + Array.from(px).join(',') + ')';
+  }));
+}
+const p1 = probe('webgl', {});
+row('WebGL 1 context (for comparison)', p1.gl ? (p1.gl.isContextLost() ? 'created but lost' : 'works') : 'NOT created');
+
+function verdict(final) {
+  const v = document.getElementById('verdict');
+  v.className = ok ? 'ok' : 'bad';
+  v.textContent = ok ? (final ? 'WebGL 2 works here: blocky3D should run.' : 'So far so good…')
+    : 'WebGL 2 is not working here, so blocky3D can\'t run.';
+}
+verdict(false);
+// iPhones sometimes lose the context a moment later; watch for a few seconds
+setTimeout(() => {
+  row('Context lost events (3 s)', p2.lost() + (p2.restored() ? ', restored ' + p2.restored() : ''));
+  if (gl && gl.isContextLost()) { ok = false; row('Lost after 3 s', 'YES'); }
+  verdict(true);
+}, 3000);
+</script>
+</body>
+</html>

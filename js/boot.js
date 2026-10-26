@@ -64,6 +64,7 @@ export function showError(err) {
   console.error(err);
   if (engine) engine.stop();
   if (!overlay) return;
+  if (overlay.width !== 256) overlay.width = overlay.height = 256;   // the engine may have failed before sizing it
   const ctx = overlay.getContext('2d');
   const words = ('Error: ' + String((err && err.message) || err)).split(/\s+/);
   const lines = [''];
