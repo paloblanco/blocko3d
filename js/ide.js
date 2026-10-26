@@ -1296,6 +1296,44 @@ function download(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// ================================================================= demos
+// The Demos menu lists demos/index.json: [{ file, name, about }], each file a normal .b3d.json cart
+// (what Save makes). To add a demo: make it here, Save it, put the file in demos/ and add a line to
+// the list. The castle is generated in code (demoCart) and written to demos/ by `npm run build`; it is
+// also the built-in fallback if the list can't be fetched (e.g. the IDE opened from disk).
+const DEMO_FALLBACK = [{ file: null, name: 'Castle', about: '' }];
+
+async function setupDemos() {
+  const sel = $('demoSelect');
+  let demos = DEMO_FALLBACK;
+  try {
+    const res = await fetch('demos/index.json', { cache: 'no-cache' });
+    if (res.ok) demos = await res.json();
+  } catch { /* offline or opened from disk: just the castle */ }
+  for (const [i, d] of demos.entries()) {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = d.name;
+    if (d.about) o.title = d.about;
+    sel.append(o);
+  }
+  sel.onchange = async () => {
+    const d = demos[+sel.value];
+    sel.value = '';                          // back to "Demos", so the same demo can be picked again
+    if (!d || !confirm(`Load the ${d.name} demo? The current cart in this browser will be replaced.`)) return;
+    try {
+      let c;
+      if (d.file) {
+        const res = await fetch('demos/' + d.file, { cache: 'no-cache' });
+        if (!res.ok) throw new Error(`couldn't load demos/${d.file} (${res.status})`);
+        c = await res.json();
+      } else c = demoCart();
+      stop(); loadCart(c, c.name || d.name.toLowerCase()); dirty();
+      log(`loaded the ${d.name} demo` + (d.about ? `: ${d.about}` : ''), 'info');
+    } catch (err) { log('Demo failed to load: ' + err.message, 'error'); }
+  };
+}
+
 function setupTopBar() {
   $('btnRun').onclick = run;
   $('btnStop').onclick = () => stop();
@@ -1304,10 +1342,7 @@ function setupTopBar() {
     if (!confirm('Start a new, empty cart? The current cart in this browser will be replaced (Save it first if you want to keep it).')) return;
     stop(); loadCart(emptyCart(), 'untitled'); dirty();
   };
-  $('btnDemo').onclick = () => {
-    if (!confirm('Load the demo cart? The current cart in this browser will be replaced.')) return;
-    stop(); loadCart(demoCart(), 'demo'); dirty();
-  };
+  setupDemos();
   $('btnSave').onclick = () => {
     const blob = new Blob([JSON.stringify(serialize())], { type: 'application/json' });
     download(blob, (cart.name || 'cart').replace(/[^\w.-]+/g, '_') + '.b3d.json');
@@ -1393,6 +1428,6 @@ renderInfo();
 document.body.dataset.tab = activeTab;
 let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
-loadCart(saved || demoCart(), saved ? saved.name : 'demo');
+loadCart(saved || demoCart(), saved ? saved.name : 'castle');
 showSaveData();
 log(`blocky3D ${VERSION} ready. Press Run or Ctrl+Enter.`, 'info');

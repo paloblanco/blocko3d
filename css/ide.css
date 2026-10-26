@@ -25,6 +25,11 @@ button {
   padding: 4px 10px; cursor: pointer; white-space: nowrap;
 }
 button:hover { border-color: var(--muted); }
+select.demos {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 6px; cursor: pointer; max-width: 9em;
+}
+select.demos:hover { border-color: var(--muted); }
 button.on { background: var(--blue); border-color: var(--blue); color: #0d1222; }
 input, select {
   background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px;
@@ -278,7 +283,8 @@ kbd {
   .group.play { grid-column: 3; grid-row: 1; }
   .group.files { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; scrollbar-width: none; }
   .group.files::-webkit-scrollbar { display: none; }
-  .group.files button { flex: 1 0 auto; }
+  .group.files button, .group.files select { flex: 1 0 auto; }
+  select.demos { min-height: 38px; }
 
   .layout { display: flex; flex-direction: column; }
   .left { flex: 1; min-height: 0; border-right: none; }

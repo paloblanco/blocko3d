@@ -15,7 +15,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 
 ## Testing the alpha
 
-- **Try the IDE:** open https://paloblanco.github.io/demo_blocky_3d/, press **Demo**, then **Run**.
+- **Try the IDE:** open https://paloblanco.github.io/demo_blocky_3d/, pick a demo from **Demos**, then press **Run**.
 - **Try an exported game:** open https://paloblanco.github.io/demo_blocky_3d/standalone_demo/, the castle demo exactly as **Export** makes it. It's the easiest thing to try on a phone or tablet.
 - **Things worth trying:** the touch controls in portrait and landscape, pause, mute, fullscreen and Restart (fullscreen should stay on), a gamepad, and making a small game of your own.
 - **When something goes wrong,** please note the version (it's at the top of the Info tab and in the console), your device and browser, whether you were in the IDE or an exported game, and what you did just before.
@@ -32,7 +32,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
-The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, sounds, a looping song, a saved best time, palette tricks).
+The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demos** is a menu of sample games to load and pick apart. For now it holds the castle (a title card, a drawbridge, voxel characters, sounds, a looping song, a saved best time, palette tricks).
 
 Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
 
@@ -97,8 +97,17 @@ The Info tab has the full reference.
 - `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
 - `index.html`, `js/ide.js`, `css/ide.css`: the IDE. `js/preview.js` is the orbit viewer used by the editors.
 - `js/audio.js`: the sound synth (8 waveforms, 8 effects, loops), the sound and pattern string formats, a 4-channel sfx player and the music scheduler; used by the game and the Sfx and Music tabs.
-- `js/cart.js`: cart format and the demo cart.
+- `js/cart.js`: cart format and the castle demo, generated in code.
+- `demos/`: the carts in the **Demos** menu, each an ordinary `.b3d.json` file, listed in `demos/index.json`.
 - `js/version.js`: the version number shown in the IDE and exported games.
+
+## Adding a demo
+
+1. Make the game in the IDE and press **Save** to download its `.b3d.json` file.
+2. Put the file in `demos/`.
+3. Add a line for it to `demos/index.json`: the file name, the name shown in the menu, and a sentence about what it shows (shown as a tooltip and in the console when it loads).
+
+No build is needed. The castle is the exception: it's generated in code (`js/cart.js`), and `npm run build` writes it to `demos/castle.b3d.json`.
 
 ## Changing the engine
 
@@ -109,7 +118,7 @@ npm install      # once
 npm run build    # rewrites runtime/blocky3d.runtime.js and standalone_demo/
 ```
 
-The build also exports the castle demo to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
+The build also writes the castle demo to `demos/castle.b3d.json` and exports it to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
 
 ## Not in this version
 

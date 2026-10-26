@@ -1,0 +1,7 @@
+[
+  {
+    "file": "castle.b3d.json",
+    "name": "Castle",
+    "about": "Lower the drawbridge, collect the gems and get into the castle. Shows maps, a moving map, vox characters with a walk cycle, pal() recolors, outlines, sound, music, a title card and a saved best time."
+  }
+]
