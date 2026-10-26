@@ -7,7 +7,7 @@ import {
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass,
 } from './core.js';
-import { drawText } from './font.js';
+import { drawText, LINE_H } from './font.js';
 
 export const SCREEN = 256;          // square render target, scaled up with crisp pixels
 const STEP = 1000 / 60;             // _update runs at a fixed 60 per second
@@ -181,11 +181,13 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
       o.material.uniforms.uColor.value = c & 31;
     },
 
-    // --- 2D overlay text (screen is 256 x 256)
-    print(str, x, y, c = 7) {
+    // --- 2D overlay text (screen is 256 x 256; 7 x 10 pixel character cells)
+    print(str, x, y, c = 7, outlineColor) {
       if (x === undefined) { x = 0; y = cursorY; }
-      drawText(ctx, str, x | 0, y | 0, hexColor(palette[remap[c & 31]] ?? 0));
-      cursorY = (y | 0) + 6 * (String(str).split('\n').length);
+      const col = (i) => hexColor(palette[remap[i & 31]] ?? 0);
+      const oc = outlineColor === undefined || outlineColor === null ? null : col(outlineColor);
+      drawText(ctx, str, x | 0, y | 0, col(c), oc);
+      cursorY = (y | 0) + LINE_H * (String(str).split('\n').length);
     },
     printh(...args) { onLog(args.map(String).join(' ')); },
 

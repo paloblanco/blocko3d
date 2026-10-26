@@ -19,7 +19,7 @@ function _draw() {
   cam_set_pos([4, 6, -6])
   cam_set_lookat([4, 0, 4])
   map(0)
-  print('HELLO BLOCKY3D', 4, 4, 7)
+  print('Hello, blocky3D!', 4, 4, 7)
 }
 `,
     tiles: [null, makeTile((r, c) => ((r + c) % 2 ? 6 : 13))],
@@ -226,9 +226,10 @@ function _draw() {
     if (!g.got) cube(g.x, g.y + sin(time()) * 0.1, g.z, 0.35, 11)
   }
 
-  print('GEMS ' + score + '/' + gems.length, 4, 4, 7)
-  print('Z: BRIDGE   X: JUMP', 4, 246, 7)
-  if (score == gems.length) print('YOU GOT THEM ALL!', 94, 120, 10)
+  // text: color 7 with a black (0) outline so it reads over anything
+  print('Gems ' + score + '/' + gems.length, 4, 4, 7, 0)
+  print('Z: bridge   X: jump', 4, 244, 7, 0)
+  if (score == gems.length) print('You got them all!', 68, 120, 10, 0)
 }
 `;
 

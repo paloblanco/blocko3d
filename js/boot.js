@@ -1,7 +1,7 @@
 // Boot helpers shared by the IDE's player (player.html) and exported games.
 // Bundled with the engine and three.js into runtime/blocky3d.runtime.js as window.Blocky3D.
 import { createEngine } from './engine.js';
-import { drawText } from './font.js';
+import { drawText, textWidth } from './font.js';
 
 let engine = null;
 let overlay = null;
@@ -35,15 +35,13 @@ export function showError(err) {
   if (engine) engine.stop();
   if (!overlay) return;
   const ctx = overlay.getContext('2d');
-  const words = String((err && err.message) || err).toUpperCase().split(/\s+/);
-  const lines = ['ERROR:'];
+  const words = ('Error: ' + String((err && err.message) || err)).split(/\s+/);
+  const lines = [''];
   for (const w of words) {
     const last = lines[lines.length - 1];
-    if ((last + ' ' + w).length * 4 > 240) lines.push(w); else lines[lines.length - 1] = last + ' ' + w;
+    if (last && textWidth(last + ' ' + w) > 248) lines.push(w); else lines[lines.length - 1] = last ? last + ' ' + w : w;
   }
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, 256, lines.length * 6 + 6);
-  drawText(ctx, lines.join('\n'), 4, 4, '#ff004d');
+  drawText(ctx, lines.join('\n'), 4, 4, '#ff004d', '#000000');
 }
 
 // For exported games: report errors thrown at load time or outside the game loop.

@@ -86,10 +86,12 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - The pass fetches each depth and info texel once per neighbor; keep it that way. Under SwiftShader (CPU rendering), the demo runs at the same frame rate with outlines on or off.
 - Background is detected by the depth buffer still holding its cleared value. Don't clear the color with alpha 0: three.js premultiplies the clear color, which turns the background black.
 
+**Text** (agreed with the owner): `print(str, x, y, c, oc)` draws on a 2D overlay canvas on top of the 3D view, in screen pixels. The font (`js/font.js`) uses 7×10 cells: 5-wide glyphs, 7-tall capitals, 2-row descenders, a 1-pixel margin all round, upper and lower case and all printable ASCII. Glyphs are written as `#`/`.` rows in that file, so they're easy to edit. `oc` is an optional outline color (8-direction ring, drawn under all the text first); leaving it off means no outline. Both colors go through `pal`.
+
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
-- The extras: `print` (a 3×5 font on a 2D overlay), `printh`, `btn`/`btnp` (0–5, PICO-8 mapping plus WASD), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
+- The extras: `printh`, `btn`/`btnp` (0–5, PICO-8 mapping plus WASD), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
 - `_update` runs at a fixed 60 per second.
 - Nothing is transparent by default.
 
@@ -107,7 +109,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | `js/preview.js` | The orbit viewer used by both editors. |
 | Mobile layout | Phone layout below 820px wide (`MOBILE` in `js/ide.js` must match the `max-width: 820px` block in `css/ide.css`): one panel at a time, compact two-row header, and the game pane becomes a **Game** tab (`body[data-tab="game"]`) that Run switches to. Touch screens (`pointer: coarse`) get on-screen buttons (`#touchpad`); the IDE posts `{type: 'key', code, down}` to the player iframe, which dispatches a matching `KeyboardEvent`, so the engine needs no touch code. Touch stand-ins for right-click: tile 0 erases on the map, the **Pick** tool is the eyedropper. |
 | `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (castle, drawbridge, guards, gems). |
-| `js/font.js` | The 3×5 pixel font. |
+| `js/font.js` | The 7×10 pixel font, `drawText` (with optional outline) and `textWidth`. |
 | `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
 
 **Rendering details**

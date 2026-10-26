@@ -49,7 +49,7 @@ function _draw() {
   cam_set_lookat([8, 0, 8])
   map(0)
   sphere(8, 4, 8, 0.5, 10)
-  print('HELLO', 4, 4, 7)
+  print('Hello!', 4, 4, 7, 0)
 }
 ```
 
@@ -61,7 +61,8 @@ function _draw() {
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps, every visible edge is outlined. Off by default.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
-- **Extras:** `print`, `printh`, `btn`, `btnp`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
+- **Text:** `print(str, x, y, c, oc)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline.
+- **Extras:** `printh`, `btn`, `btnp`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
 The Info tab has the full reference.
 

@@ -74,7 +74,7 @@ outline()`,
   {
     title: 'Text, input and time',
     items: [
-      ['print(str, x, y, c?)', 'Draw text on top of the 3D view in screen pixels (0-255).'],
+      ['print(str, x, y, c?, oc?)', 'Draw text on top of the 3D view, at screen pixels (0-255). Each character is a 7 × 10 cell (upper and lower case). c is the color (default 7); oc, if given, adds a 1-pixel outline in that color.'],
       ['printh(...)', 'Write a line to the IDE console, for debugging.'],
       ['btn(i)', 'Is button i held? 0 left, 1 right, 2 up, 3 down (arrows or WASD), 4 O (Z, C, N, space), 5 X (X, V, M).'],
       ['btnp(i)', 'Was button i pressed this update?'],
