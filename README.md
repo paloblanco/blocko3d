@@ -71,7 +71,7 @@ function _draw() {
 - **Sound:** `sfx(n, ch, offset, length)` plays sound n (0-63) from the Sfx tab on one of 4 channels; `sfx(-1)` stops, `sfx(-2, ch)` ends a loop.
 - **Music:** `music(n, fade)` plays the song from pattern n of the Music tab (fade in milliseconds); `music(-1, fade)` stops.
 - **Save data:** `save(value)` stores any JSON value for this game in the browser; `load()` reads it back.
-- **Input:** `btn(i, p)` / `btnp(i, p)` for up to 4 players, PICO-8 style: player 0 is the keyboard plus the first gamepad, and the 2nd-4th gamepads are players 1-3.
+- **Input:** `btn(i, p)` / `btnp(i, p)` for up to 4 players, PICO-8 style: player 0 is the keyboard plus the first gamepad, and the 2nd-4th gamepads are players 1-3. Buttons 0-5 work everywhere; 6-18 are the rest of a modern gamepad (Start, A/B/X/Y, bumpers, triggers, Select, stick clicks, Home). `stick(i, p)` returns a stick as `[x, y]`.
 - **Extras:** `printh`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
 The Info tab has the full reference.

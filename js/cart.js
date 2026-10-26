@@ -178,15 +178,13 @@ function _update() {
     return
   }
   if (!done) ticks++
-  // the camera looks down +z, so screen-right is -x
+  // left stick (or arrows / d-pad): right and down are positive.
+  // The camera looks down +z, so pushing right moves toward -x and pushing up toward +z.
+  let [sx, sy] = stick(0)
   let s = 0.08
-  let dx = 0, dz = 0
-  if (btn(0)) dx += s
-  if (btn(1)) dx -= s
-  if (btn(2)) dz += s
-  if (btn(3)) dz -= s
+  let dx = -sx * s, dz = -sy * s
   px += dx; pz += dz
-  if (dx != 0 || dz != 0) {
+  if (abs(dx) + abs(dz) > 0.01) {
     facing = atan2(dz, dx)   // yaw that turns the model's front (+z) toward the movement
     walk += 1
   } else walk = 0

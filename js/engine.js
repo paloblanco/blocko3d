@@ -146,40 +146,69 @@ export function createEngine({
 
   // ---- input
   // Up to 4 players, PICO-8 style. Player 0 = the keyboard plus the first gamepad; the 2nd, 3rd
-  // and 4th connected gamepads are players 1-3. Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X,
-  // 6 pause (handled by the engine).
-  const PLAYERS = 4;
-  const down = new Array(8).fill(false);                                   // keyboard (player 0)
-  const prevP = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
-  const nowP = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
+  // and 4th connected gamepads are players 1-3. Buttons:
+  //   0 left, 1 right, 2 up, 3 down, 4 O, 5 X        (keyboard and gamepad)
+  //   6 Start / pause (handled by the engine; Enter or P on the keyboard)
+  //   7 A, 8 B, 9 X, 10 Y, 11 LB, 12 RB, 13 LT, 14 RT, 15 Select, 16 L3, 17 R3, 18 Home   (gamepad only)
+  const PLAYERS = 4, NBTN = 19;
+  const down = new Array(NBTN).fill(false);                                  // keyboard (player 0)
+  const prevP = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
+  const nowP = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
+  const sticks = Array.from({ length: PLAYERS }, () => [[0, 0], [0, 0]]);   // raw left / right sticks
 
-  // Standard gamepad layout: d-pad 12-15, face buttons 0 A, 1 B, 2 X, 3 Y, 9 Start; left stick axes 0/1.
+  // Browser "standard" gamepad layout: face buttons 0 A, 1 B, 2 X, 3 Y; 4 LB, 5 RB, 6 LT, 7 RT,
+  // 8 Select, 9 Start, 10 L3, 11 R3, 12-15 d-pad up/down/left/right, 16 Home; axes 0/1 left
+  // stick, 2/3 right stick.
   const DEAD = 0.5;
-  function readPad(pad, out) {
+  const EXTRA = [[7, 0], [8, 1], [9, 2], [10, 3], [11, 4], [12, 5], [13, 6], [14, 7], [15, 8], [16, 10], [17, 11], [18, 16]];
+  function readPad(pad, out, st) {
     const b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
-    const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
-    out[0] = b(14) || ax < -DEAD;
-    out[1] = b(15) || ax > DEAD;
-    out[2] = b(12) || ay < -DEAD;
-    out[3] = b(13) || ay > DEAD;
+    const ax = (i) => (Number.isFinite(pad.axes[i]) ? pad.axes[i] : 0);
+    out[0] = b(14) || ax(0) < -DEAD;
+    out[1] = b(15) || ax(0) > DEAD;
+    out[2] = b(12) || ax(1) < -DEAD;
+    out[3] = b(13) || ax(1) > DEAD;
     out[4] = b(0) || b(2);          // O: A or X
     out[5] = b(1) || b(3);          // X: B or Y
     out[6] = b(9);                  // Start: pause
+    for (const [i, j] of EXTRA) out[i] = b(j);
+    st[0][0] = ax(0); st[0][1] = ax(1);
+    st[1][0] = ax(2); st[1][1] = ax(3);
   }
 
-  const padState = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
+  const padState = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
   function pollInput() {
-    for (const st of padState) st.fill(false);
+    for (const s of padState) s.fill(false);
+    for (const st of sticks) { st[0][0] = st[0][1] = st[1][0] = st[1][1] = 0; }
     let pads = [];
     try { pads = navigator.getGamepads ? [...navigator.getGamepads()] : []; } catch { pads = []; }
     pads.filter((pd) => pd && pd.connected).sort((a, c) => a.index - c.index).slice(0, PLAYERS)
-      .forEach((pd, p) => readPad(pd, padState[p]));
+      .forEach((pd, p) => readPad(pd, padState[p], sticks[p]));
     for (let p = 0; p < PLAYERS; p++) {
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < NBTN; i++) {
         prevP[p][i] = nowP[p][i];
         nowP[p][i] = padState[p][i] || (p === 0 && down[i]);
       }
     }
+  }
+
+  // A stick as [x, y], each -1..1 (right and down are positive). A small round dead zone reads as
+  // exactly 0, and the rest is rescaled so the edge of the dead zone is 0. If the left stick is
+  // centered, it falls back to the d-pad / arrow keys, so analog code also works on a keyboard.
+  const STICK_DEAD = 0.15;
+  function readStick(i, p) {
+    const pl = nowP[p];
+    if (!pl) return [0, 0];
+    const [x, y] = sticks[p][i ? 1 : 0];
+    const m = Math.hypot(x, y);
+    if (m > STICK_DEAD) {
+      const k = Math.min(1, (m - STICK_DEAD) / (1 - STICK_DEAD)) / m;
+      return [x * k, y * k];
+    }
+    if (i) return [0, 0];
+    const dx = (pl[1] ? 1 : 0) - (pl[0] ? 1 : 0), dy = (pl[3] ? 1 : 0) - (pl[2] ? 1 : 0);
+    const n = dx && dy ? Math.SQRT1_2 : 1;   // diagonals have length 1 too
+    return [dx * n, dy * n];
   }
   const pauseTapped = () => nowP.some((pl, p) => pl[6] && !prevP[p][6]);
 
@@ -344,6 +373,8 @@ export function createEngine({
     // --- input
     // p: player 0-3 (0 = keyboard + first gamepad)
     btn(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0]); },
+    // stick(0) = left, stick(1) = right: [x, y], -1..1, right and down positive
+    stick(i = 0, p = 0) { return readStick(i | 0, p | 0); },
     btnp(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0] && !prevP[p | 0][i | 0]); },
 
     // --- time + math helpers (angles in turns, like PICO-8)
