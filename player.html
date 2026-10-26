@@ -51,6 +51,8 @@ window.addEventListener('message', (e) => {
   const d = e.data || {};
   if (d.type === 'run' && !started) run(d.cart);
   if (d.type === 'stop') Blocky3D.stop();
+  // on-screen touch buttons in the IDE arrive as key presses
+  if (d.type === 'key') window.dispatchEvent(new KeyboardEvent(d.down ? 'keydown' : 'keyup', { code: d.code }));
 });
 window.addEventListener('error', (e) => reportError(e.error || e.message));
 send({ type: 'ready' });

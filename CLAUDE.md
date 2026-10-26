@@ -105,6 +105,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | `js/export.js`, `js/zip.js` | **Export**: `<slug>.zip` (slug from the cart name) with `index.html` and `<slug>.js` = runtime bundle + `Blocky3D.install(<cart data>)` + the cart's code as plain top-level script + `Blocky3D.start()`. Syntax-checks the code first. `zip.js` is a dependency-free zip writer using the browser's `CompressionStream('deflate-raw')` when available. |
 | `index.html`, `js/ide.js`, `css/ide.css` | The IDE: CodeMirror 5 code tab (falls back to a textarea), map editor (layer grid with a ghost of the layer below, orbit preview), tile editor (three face canvases, pencil and fill, right-click eyedropper), Info tab, console. Autosaves to `localStorage` under `blocky3d.cart.v1`. Save and Open use `.b3d.json`. |
 | `js/preview.js` | The orbit viewer used by both editors. |
+| Mobile layout | Phone layout below 820px wide (`MOBILE` in `js/ide.js` must match the `max-width: 820px` block in `css/ide.css`): one panel at a time, compact two-row header, and the game pane becomes a **Game** tab (`body[data-tab="game"]`) that Run switches to. Touch screens (`pointer: coarse`) get on-screen buttons (`#touchpad`); the IDE posts `{type: 'key', code, down}` to the player iframe, which dispatches a matching `KeyboardEvent`, so the engine needs no touch code. Touch stand-ins for right-click: tile 0 erases on the map, the **Pick** tool is the eyedropper. |
 | `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (castle, drawbridge, guards, gems). |
 | `js/font.js` | The 3×5 pixel font. |
 | `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
@@ -165,6 +166,7 @@ A small `tests/` folder built this way would be a good addition.
 - Undo in the map and tile editors.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
 - Faces between two solid blocks are always culled, even if a tile has `palt` transparency. That's fine for now.
+- Exported games have no on-screen touch controls yet (only the IDE does), so they need a keyboard.
 - GitHub Pages isn't enabled yet; the owner can turn it on in Settings → Pages → deploy from `main`.
 
 ## Working with the owner

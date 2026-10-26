@@ -24,6 +24,10 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a castle, a drawbridge, palette tricks).
 
+### On a phone
+
+On narrow screens the IDE shows one panel at a time, and the game gets its own **Game** tab, which **Run** switches to. Touch screens get on-screen controls under the game: a d-pad plus O and X, which send the same input as the keyboard. In the map editor, pick tile 0 to erase. In the tile editor, the **Pick** tool takes a color from the image, standing in for right-click.
+
 ## Exporting a game
 
 **Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). It holds exactly two files:

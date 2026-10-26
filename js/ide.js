@@ -8,6 +8,8 @@ import { exportGame } from './export.js';
 const $ = (id) => document.getElementById(id);
 const STORE = 'blocky3d.cart.v1';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// Phone layout (matches the max-width: 820px block in ide.css): one panel at a time, the game is a tab.
+const MOBILE = window.matchMedia('(max-width: 820px)');
 
 // ================================================================= state
 let cart = null;   // { name, code, palette?, tiles }
@@ -158,6 +160,7 @@ function run() {
   frame.title = 'Game';
   $('placeholder').hidden = true;
   $('screen').append(frame);
+  if (MOBILE.matches) showTab('game');
 }
 
 function stop(showPlaceholder = true) {
@@ -177,7 +180,9 @@ window.addEventListener('message', (e) => {
 
 // ================================================================= tabs
 function showTab(name) {
+  if (name === 'game' && !MOBILE.matches) name = 'code';   // the game tab only exists on phones
   activeTab = name;
+  document.body.dataset.tab = name;
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('on', p.id === 'tab-' + name));
   if (name === 'code' && cm) cm.refresh();
@@ -223,7 +228,8 @@ function drawGrid() {
   const ctx = cv.getContext('2d');
   if (!m) { cv.width = cv.height = 0; return; }
   const box = $('gridScroll');
-  const availW = Math.max(100, box.clientWidth - 4), availH = Math.max(100, box.clientHeight - 4);
+  // on phones the grid only has to fit the width; the page scrolls
+  const availW = Math.max(100, box.clientWidth - 4), availH = MOBILE.matches ? 1e9 : Math.max(100, box.clientHeight - 4);
   cell = clamp(Math.floor(Math.min(availW / m.w, availH / m.d)), 8, 34);
   const dpr = window.devicePixelRatio || 1;
   const W = m.w * cell + 1, H = m.d * cell + 1;
@@ -393,7 +399,11 @@ function buildFaces() {
       const i = at(e);
       if (i < 0) return;
       const px = cart.tiles[curTile][f];
-      if (e.button === 2) { color = px[i]; drawPalette(); return; }
+      if (e.button === 2 || tool === 'pick') {
+        color = px[i]; drawPalette();
+        if (tool === 'pick') setTool('pencil');   // back to drawing after a pick
+        return;
+      }
       if (tool === 'fill') { floodFill(px, i, color); tileEdited(); return; }
       drawing = true;
       cv.setPointerCapture(e.pointerId);
@@ -483,14 +493,14 @@ function tileEdited() {
   dirty();
 }
 
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.toolpick button').forEach((o) => o.classList.toggle('on', o.dataset.tool === t));
+}
+
 function setupSprEditor() {
   buildFaces();
-  document.querySelectorAll('.toolpick button').forEach((b) => {
-    b.onclick = () => {
-      tool = b.dataset.tool;
-      document.querySelectorAll('.toolpick button').forEach((o) => o.classList.toggle('on', o === b));
-    };
-  });
+  document.querySelectorAll('.toolpick button').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
   $('tileAdd').onclick = () => {
     if (cart.tiles.length >= MAX_TILES) return;
     cart.tiles.push(emptyTile(6));
@@ -581,12 +591,37 @@ function setupTopBar() {
   });
 }
 
+// ================================================================= touch game buttons
+// Each on-screen button sends a key to the game iframe, so the game sees the same input as a keyboard.
+const BTN_CODES = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyZ', 'KeyX'];
+
+function setupTouchpad() {
+  document.querySelectorAll('#touchpad button').forEach((b) => {
+    const code = BTN_CODES[+b.dataset.btn];
+    const send = (down) => {
+      b.classList.toggle('on', down);
+      if (frame) frame.contentWindow.postMessage({ type: 'key', code, down }, '*');
+    };
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); send(true); });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, () => send(false));
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+}
+
+// Leaving the phone layout while on the game tab: go back to the code.
+MOBILE.addEventListener('change', () => {
+  if (!MOBILE.matches && activeTab === 'game') showTab('code');
+  if (activeTab === 'map') drawGrid();
+});
+
 // ================================================================= boot
 setupCode();
 setupTopBar();
 setupMapEditor();
 setupSprEditor();
+setupTouchpad();
 renderInfo();
+document.body.dataset.tab = activeTab;
 let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
 loadCart(saved || demoCart(), saved ? saved.name : 'demo');

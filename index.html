@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141b30">
 <title>blocky3D</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +21,7 @@
   <div class="brand"><span class="cube" aria-hidden="true"></span><span>blocky<b>3D</b></span></div>
   <input id="cartName" class="cartname" spellcheck="false" aria-label="Cart name">
   <div class="spacer"></div>
-  <div class="group">
+  <div class="group files">
     <button id="btnNew" title="Start an empty cart">New</button>
     <button id="btnDemo" title="Load the demo cart">Demo</button>
     <button id="btnOpen" title="Open a .json cart file">Open</button>
@@ -28,7 +29,7 @@
     <button id="btnExport" title="Download a standalone game: name.zip with index.html and name.js">Export</button>
     <input type="file" id="fileInput" accept=".json,application/json" hidden>
   </div>
-  <div class="group">
+  <div class="group play">
     <button id="btnRun" class="run" title="Run (Ctrl+Enter)">▶ Run</button>
     <button id="btnStop" class="stop" title="Stop">■ Stop</button>
   </div>
@@ -41,6 +42,7 @@
       <button data-tab="map">Map</button>
       <button data-tab="spr">Spr</button>
       <button data-tab="info">Info</button>
+      <button data-tab="game" class="mobile-only">Game</button>
     </nav>
 
     <div class="panel on" id="tab-code">
@@ -74,7 +76,7 @@
             <button id="layerClear">Clear layer</button>
           </div>
           <div class="gridscroll" id="gridScroll"><canvas id="mapGrid"></canvas></div>
-          <div class="hint">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer. Seen from above: +x right, +z down.</div>
+          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> Seen from above: +x right, +z down.</div>
         </div>
         <div class="previewwrap">
           <canvas id="mapPreview"></canvas>
@@ -99,8 +101,9 @@
             <span class="toolpick">
               <button data-tool="pencil" class="on">Pencil</button>
               <button data-tool="fill">Fill</button>
+              <button data-tool="pick" title="Tap a pixel to pick its color">Pick</button>
             </span>
-            <span class="hint">Right-click picks a color.</span>
+            <span class="hint desktop-only">Right-click picks a color.</span>
           </div>
           <div class="faces" id="faces"></div>
           <div class="palette" id="sprPalette"></div>
@@ -123,6 +126,18 @@
       <div class="placeholder" id="placeholder">
         <div class="cube big" aria-hidden="true"></div>
         <p>Press <b>Run</b> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd></p>
+      </div>
+    </div>
+    <div class="touchpad" id="touchpad" aria-label="Game buttons">
+      <div class="dpad">
+        <button data-btn="2" class="d-up" aria-label="Up">▲</button>
+        <button data-btn="0" class="d-left" aria-label="Left">◀</button>
+        <button data-btn="1" class="d-right" aria-label="Right">▶</button>
+        <button data-btn="3" class="d-down" aria-label="Down">▼</button>
+      </div>
+      <div class="ab">
+        <button data-btn="4" aria-label="O button">O</button>
+        <button data-btn="5" aria-label="X button">X</button>
       </div>
     </div>
     <div class="controls">Arrows / WASD move · <kbd>Z</kbd> O · <kbd>X</kbd> X · click the game to focus it</div>
