@@ -567,7 +567,7 @@ export function createEngine({
 
   // ---- pause menu (Enter or P), drawn on the 2D overlay over the frozen game
   const MENU = canHires ? ['Resume', 'Restart', 'Screenshot', 'Resolution'] : ['Resume', 'Restart', 'Screenshot'];
-  let paused = false, menuSel = 0, frozen = null, note = '', noteUntil = 0;
+  let paused = false, menuSel = 0, frozen = null, note = '', noteUntil = 0, menuAge = 0;
 
   function setPaused(p) {
     paused = p;
@@ -575,7 +575,7 @@ export function createEngine({
     for (const b of [19, 20, 21]) down[b] = false;
     if (p) {
       frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);   // the game's own overlay, kept for screenshots
-      menuSel = 0; note = '';
+      menuSel = 0; note = ''; menuAge = 0;
       audio.suspend();
       if (locked()) document.exitPointerLock();          // pausing frees the mouse
     } else {
@@ -634,8 +634,10 @@ export function createEngine({
   }
 
   function menuUpdate() {
-    // any player can drive the pause menu
+    // Any player can drive the pause menu. For a moment after pausing, choosing is ignored, so
+    // a doubled press (a pause button reporting one tap twice) can't resume straight away.
     const pressed = (i) => nowP.some((pl, p) => pl[i] && !prevP[p][i]);
+    if (++menuAge < 15) return;
     if (menuHover >= 0) { menuSel = menuHover; menuHover = -1; }
     if (menuClick >= 0) {                     // a click or tap on an item chooses it
       menuSel = menuClick; menuClick = -1;

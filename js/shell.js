@@ -183,10 +183,23 @@ export function wireShell(engine, doc = document) {
 
   // System buttons act on click (fullscreen needs one). They never take keyboard focus, so
   // Space or Enter keep going to the game instead of pressing the button again.
+  // A finger acts on pointerup (it counts as a user gesture, which fullscreen needs) and the
+  // click a phone may send after it is ignored; a mouse or keyboard acts on click. Either way one
+  // tap is one action: anything within 500 ms of the last one is dropped.
   const sys = (sel, fn) => {
     const b = $(sel);
+    let last = -1e9;
+    const fire = () => {
+      const now = performance.now();
+      if (now - last < 500) return;
+      last = now;
+      fn();
+      b.blur();
+    };
     b.addEventListener('mousedown', (e) => e.preventDefault());
-    b.addEventListener('click', () => { fn(); b.blur(); });
+    b.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') e.preventDefault(); });
+    b.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') fire(); });
+    b.addEventListener('click', fire);
     return b;
   };
   sys('.b3d-pause', () => { engine.setButton(6, true); engine.setButton(6, false); });   // one press of Start

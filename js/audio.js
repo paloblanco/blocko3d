@@ -217,6 +217,7 @@ export class SfxPlayer {
     this.cache = new Map();
     this.volume = 1;
     this.muted = false;
+    this.held = false;   // paused by the game: nothing may resume the audio until resume()
   }
 
   // Mute everything (sfx and music) without stopping it.
@@ -235,8 +236,19 @@ export class SfxPlayer {
       this.gain.connect(this.ctx.destination);
       this.gain.gain.value = this.muted ? 0 : 1;
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume().then(() => this.startPendingMusic());
-    else if (this.pendingMusic) this.startPendingMusic();
+    if (this.held) { this.suspend(); return; }   // the game is paused: unlock, but stay silent
+    this.wake();
+  }
+
+  // Resume the context, then start any music that was waiting. If the game paused while the
+  // browser was still resuming, suspend again, so a late resume never plays during a pause.
+  wake() {
+    if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') {
+      this.ctx.resume().then(() => {
+        if (this.held) this.ctx.suspend();
+        else this.startPendingMusic();
+      });
+    } else if (this.pendingMusic) this.startPendingMusic();
   }
 
   get ready() { return !!this.ctx && this.ctx.state === 'running'; }
@@ -400,6 +412,14 @@ export class SfxPlayer {
     return null;
   }
 
-  suspend() { if (this.ctx && this.ctx.state === 'running') this.ctx.suspend(); }
-  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+  // Pause and unpause all sound. While suspended, key presses and clicks (which call unlock)
+  // can't bring the sound back; only resume() can.
+  suspend() {
+    this.held = true;
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+  }
+  resume() {
+    this.held = false;
+    if (this.ctx) this.wake();
+  }
 }
