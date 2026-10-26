@@ -152,7 +152,7 @@ if (secs < data.best) save({ best: secs })`,
     items: [
       ['mouse_set_mode(m)', '0 off (the default; mouse and touch are ignored). 1 click: the cursor stays free, for pointing and clicking. 2 capture: the mouse is hidden and locked to the game, for mouse-look; it locks on the first click on the game (that click is not reported). Esc or switching away releases it and pauses the game; Resume captures it again.'],
       ['mouse_pos()', 'Cursor position as [x, y] in screen pixels, like print and rect (0-255 on the screen; it can go past that when the cursor is off the screen). Doesn\'t change while captured.'],
-      ['mouse_delta()', 'How far the mouse moved since the last update, as [dx, dy] in pixels; right and down are positive. Works in both modes; use it for mouse-look in mode 2.'],
+      ['mouse_delta()', 'How far the mouse moved since the last update, as [dx, dy] in pixels; right and down are positive. Works in both modes; use it for mouse-look in mode 2, where it only counts once the mouse is captured (or a finger drags on a touch screen), so moving the mouse to the game to click doesn\'t turn the view.'],
       ['mouse_wheel()', 'Wheel scroll since the last update, in notches (about 1 per click of the wheel); down is positive.'],
       ['mouse_locked()', 'Is the mouse captured right now (mode 2)? Handy for showing "click to play".'],
       ['mouse_ray()', 'The line from the camera through the cursor, as [ox, oy, oz, dx, dy, dz] (a start point and a direction of length 1), using the camera as last set. In mode 2 it goes through the middle of the screen, like a crosshair. Pass it to mray() to find the block under the cursor.'],

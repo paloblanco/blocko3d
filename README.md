@@ -32,7 +32,15 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
-The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demos** is a menu of sample games to load and pick apart. For now it holds the castle (a title card, a drawbridge, voxel characters, sounds, a looping song, a saved best time, palette tricks).
+The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demos** is a menu of sample games to load and pick apart, each showing off a core feature:
+
+| Demo | What it shows |
+| --- | --- |
+| Castle | The tour: maps, a drawbridge that's a moving map, vox characters with a walk cycle, `pal` recolors, outlines, sound, music, a title card and a saved best time. |
+| Block Pop | Click or tap a group of same-colored blocks to pop it. `mouse_ray()` + `mray()` find the block under the cursor; `mget`/`mset` change the map while playing. |
+| Tilt Maze | Tilt the maze to roll a marble to the flag. Collision on a rotated map: `mgetw` pushes the marble out of a maze that tilts under it. |
+| Scrambler | A carnival ride of maps spinning on their pivots. One arm map and one car map are each drawn several times a frame; hop in a car for the ride view. |
+| First Person | Find the key in a dungeon maze. A first-person camera with mouse capture (or a finger drag), sphere collision, `mray()` to see what you face, gates that are maps of their own, `palt()` for see-through bars. |
 
 Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
 

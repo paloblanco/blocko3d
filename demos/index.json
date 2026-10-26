@@ -3,5 +3,25 @@
     "file": "castle.b3d.json",
     "name": "Castle",
     "about": "Lower the drawbridge, collect the gems and get into the castle. Shows maps, a moving map, vox characters with a walk cycle, pal() recolors, outlines, sound, music, a title card and a saved best time."
+  },
+  {
+    "file": "blockpop.b3d.json",
+    "name": "Block Pop",
+    "about": "Click or tap a group of same-colored blocks to pop it. Shows mouse_ray() and mray() for clicking blocks, and mget/mset to change a map while playing."
+  },
+  {
+    "file": "tiltmaze.b3d.json",
+    "name": "Tilt Maze",
+    "about": "Tilt the maze to roll a marble to the flag. Shows collision on a rotated map: mgetw() pushes the marble out of a maze that tilts under it."
+  },
+  {
+    "file": "scrambler.b3d.json",
+    "name": "Scrambler",
+    "about": "A carnival ride built from maps that spin on their pivots; one arm map and one car map are each drawn several times a frame. Hop in a car for the ride view."
+  },
+  {
+    "file": "firstperson.b3d.json",
+    "name": "First Person",
+    "about": "Find the key in a dungeon maze and escape. Shows a first-person camera with mouse capture (or a finger drag), sphere collision, mray() to see what you face, and gates that are maps of their own."
   }
 ]

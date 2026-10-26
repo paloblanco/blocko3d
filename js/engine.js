@@ -265,7 +265,9 @@ export function createEngine({
       [mx, my] = toScreen(e);
       if (paused) { const i = menuItemAt(mx, my); if (i >= 0) menuHover = i; }
     }
-    if (!paused) { dxAcc += e.movementX || 0; dyAcc += e.movementY || 0; }
+    // in capture mode, a mouse that isn't captured yet doesn't turn anything (moving it to the game
+    // to click would spin the view); touch drags still count, they come through pointermove
+    if (!paused && (mouseMode !== 2 || locked())) { dxAcc += e.movementX || 0; dyAcc += e.movementY || 0; }
   });
   overlay.addEventListener('wheel', (e) => {
     if (!mouseMode) return;

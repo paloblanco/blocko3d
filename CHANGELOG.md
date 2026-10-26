@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Four new demos, in the IDE's Demos menu and as standalone pages: **Block Pop** (clicking blocks), **Tilt Maze** (collision on a rotated map), **Scrambler** (maps spinning on pivots) and **First Person** (mouse-look and a dungeon).
+- In mouse mode 2, moving the mouse no longer counts toward `mouse_delta()` until it's captured, so reaching for the game to click doesn't spin a mouse-look view. Touch drags still count.
 - Every demo is exported to its own page under `standalone_demo/`, and `standalone_demo/` itself is now a page linking to them (the castle moved to `standalone_demo/castle/`).
 - The IDE's **Demo** button is now a **Demos** menu, listing the carts in `demos/` (see the README for adding one). The castle demo's cart name is now `castle`, so a best time saved under the old name `demo` doesn't carry over.
 - `mouse_ray()` gives the ray from the camera through the cursor (the screen center when the mouse is captured), and `mray(m, ox, oy, oz, dx, dy, dz, maxd)` finds the first block of map m along any ray, with the face it hit, so clicking or tapping on blocks takes two lines.
