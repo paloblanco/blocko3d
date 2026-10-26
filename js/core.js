@@ -366,6 +366,7 @@ export function createOutlinePass(target, paletteUniform) {
       uNear: { value: 0.05 },
       uFar: { value: 2000 },
       uAny: { value: 0 },
+      uMode: { value: 0 },
     },
     vertexShader: /* glsl */`
       void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
@@ -378,6 +379,7 @@ export function createOutlinePass(target, paletteUniform) {
       uniform float uNear;
       uniform float uFar;
       uniform int uAny;
+      uniform int uMode;   // 0: paint outlines directly (1x); 1: write the edge mask for growing (2x, 3x)
       layout(location = 0) out highp vec4 outColor;
 
       // depth-buffer value to distance from the camera
@@ -387,7 +389,7 @@ export function createOutlinePass(target, paletteUniform) {
 
       ivec2 size;
       vec4 iP; float zP, idP, fP; bool drawnP;
-      int best; float bestZ;
+      int best; float bestZ, bestId, bestKind;
 
       // Off-screen lookups clamp to the edge pixel, which compares as "same surface": no outline.
       ivec2 clampQ(ivec2 q) { return clamp(q, ivec2(0), size - 1); }
@@ -401,16 +403,19 @@ export function createOutlinePass(target, paletteUniform) {
         if (oc < 0.0) return;                           // neighbor has no outline
         float zN = linZ(dN);
         bool edge;
+        float kind = 1.0;                               // 1: over something else, 2: depth jump in one draw, 3: crease
         if (!drawnP) {
           edge = true;                                  // background next to an outlined draw
         } else if (drawId(iN) != idP) {
           edge = zN < zP - 0.002 * zP;                  // a different draw, in front of this pixel
         } else if (fP > 0.0 && faceDir(iN) > 0.0 && fP != faceDir(iN)) {
+          kind = 3.0;
           // Same map, faces pointing different ways: a crease (a box's corner edges, the foot of
           // a pillar). Only the pixel with the larger direction index takes the line, so it stays
           // 1 pixel wide.
           edge = fP > faceDir(iN);
         } else if (zN < zP) {
+          kind = 2.0;
           // Same draw: extend the neighbor's surface one more pixel (1/z is linear across a flat
           // face) and check whether this pixel lies well behind it (the rim of a divot).
           ivec2 q2 = clampQ(q + dir);
@@ -424,13 +429,13 @@ export function createOutlinePass(target, paletteUniform) {
         } else {
           edge = false;
         }
-        if (edge && zN < bestZ) { bestZ = zN; best = int(oc); }
+        if (edge && zN < bestZ) { bestZ = zN; best = int(oc); bestId = drawId(iN); bestKind = kind; }
       }
 
       void main() {
         ivec2 p = ivec2(gl_FragCoord.xy);
-        outColor = vec4(texelFetch(tColor, p, 0).rgb, 1.0);
-        if (uAny == 0) return;   // no outlined draws this frame: plain copy
+        outColor = uMode == 1 ? vec4(0.0) : vec4(texelFetch(tColor, p, 0).rgb, 1.0);
+        if (uAny == 0) return;   // no outlined draws this frame: plain copy (or an empty mask)
 
         size = textureSize(tInfo, 0);
         float dP = texelFetch(tDepth, p, 0).r;
@@ -440,19 +445,109 @@ export function createOutlinePass(target, paletteUniform) {
         idP = drawnP ? drawId(iP) : -1.0;
         fP = faceDir(iP);
         best = -1;
-        bestZ = 1e9;
+        bestZ = 1e9; bestId = 0.0; bestKind = 0.0;
         check(ivec2(1, 0));
         check(ivec2(-1, 0));
         check(ivec2(0, 1));
         check(ivec2(0, -1));
-        if (best >= 0) outColor = vec4(uPalette[best], 1.0);
+        if (best < 0) return;
+        // mask: outline color + 1, the outlined (front) surface's distance, its draw id, the edge kind
+        if (uMode == 1) outColor = vec4(float(best) + 1.0, bestZ, bestId, bestKind);
+        else outColor = vec4(uPalette[best], 1.0);
       }`,
   });
+  return { scene: fullScreen(mat), camera: new THREE.Camera(), uniforms: mat.uniforms };
+}
+
+// ---------------------------------------------------------------- outlines at 2x and 3x
+// At scale k the 3D view is 256k pixels square. Outlines keep the thickness of one 256-pixel:
+// the edge pass writes a 1-pixel edge mask (createOutlinePass, uMode 1), two grow passes widen
+// it by k - 1 pixels (across, then down; the nearest outlined surface wins), and a final pass
+// paints a pixel only where its edge kind allows, so outlines spread over what's behind an
+// object, never into the object itself:
+//   1 (over something else): onto the background, or another draw farther away
+//   2 (depth jump in one draw): onto the same draw, well behind the outlined surface
+//   3 (crease): onto the same draw; creases grow one way only (+x, +y) so they stay k wide
+
+export function createMaskTarget(size) {
+  return new THREE.WebGLRenderTarget(size, size, {
+    type: THREE.FloatType, format: THREE.RGBAFormat,
+    minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, depthBuffer: false,
+  });
+}
+
+function fullScreen(mat) {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
   quad.frustumCulled = false;
   const scene = new THREE.Scene();
   scene.add(quad);
-  return { scene, camera: new THREE.Camera(), uniforms: mat.uniforms };
+  return scene;
+}
+
+const FS_VERT = /* glsl */`void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+
+export function createGrowPasses(paletteUniform) {
+  const grow = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
+    uniforms: { tMask: { value: null }, uDir: { value: new THREE.Vector2(1, 0) }, uR: { value: 1 } },
+    vertexShader: FS_VERT,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform sampler2D tMask;
+      uniform vec2 uDir;
+      uniform int uR;
+      layout(location = 0) out highp vec4 outColor;
+      void main() {
+        ivec2 p = ivec2(gl_FragCoord.xy), size = textureSize(tMask, 0);
+        vec4 best = vec4(0.0);
+        for (int d = -2; d <= 2; d++) {
+          if (d < -uR || d > uR) continue;
+          vec4 m = texelFetch(tMask, clamp(p + ivec2(uDir) * d, ivec2(0), size - 1), 0);
+          if (m.r < 0.5) continue;
+          if (m.a > 2.5 && d > 0) continue;               // creases only grow toward +x / +y
+          if (best.r < 0.5 || m.g < best.g) best = m;     // nearest outlined surface wins
+        }
+        outColor = best;
+      }`,
+  });
+  const paint = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
+    uniforms: {
+      tColor: { value: null }, tInfo: { value: null }, tDepth: { value: null }, tMask: { value: null },
+      uPalette: paletteUniform, uNear: { value: 0.05 }, uFar: { value: 2000 },
+    },
+    vertexShader: FS_VERT,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform sampler2D tColor;
+      uniform sampler2D tInfo;
+      uniform sampler2D tDepth;
+      uniform sampler2D tMask;
+      uniform vec3 uPalette[32];
+      uniform float uNear;
+      uniform float uFar;
+      layout(location = 0) out highp vec4 outColor;
+      float linZ(float d) { return uNear * uFar / (uFar - d * (uFar - uNear)); }
+      float drawId(vec4 i) { return floor(i.g * 255.0 + 0.5) + 256.0 * floor(i.b * 255.0 + 0.5); }
+      void main() {
+        ivec2 p = ivec2(gl_FragCoord.xy);
+        outColor = vec4(texelFetch(tColor, p, 0).rgb, 1.0);
+        vec4 m = texelFetch(tMask, p, 0);
+        if (m.r < 0.5) return;
+        float d = texelFetch(tDepth, p, 0).r;
+        bool ok;
+        if (d >= 1.0) ok = m.a < 2.5;                     // background: silhouettes only
+        else {
+          float z = linZ(d), id = drawId(texelFetch(tInfo, p, 0));
+          bool same = abs(id - m.b) < 0.5;
+          if (m.a > 2.5) ok = same;
+          else if (m.a > 1.5) ok = same ? z > m.g + 0.05 + 0.005 * z : z > m.g * 1.002;   // behind the rim
+          else ok = !same && z > m.g * 1.002;
+        }
+        if (ok) outColor = vec4(uPalette[int(m.r - 0.5)], 1.0);
+      }`,
+  });
+  return { growScene: fullScreen(grow), grow: grow.uniforms, paintScene: fullScreen(paint), paint: paint.uniforms, camera: new THREE.Camera() };
 }
 
 export function setupRenderer(canvas, size) {

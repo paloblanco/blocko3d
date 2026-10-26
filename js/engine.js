@@ -5,7 +5,7 @@ import {
   createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureGeometry,
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
-  createSceneTarget, createOutlinePass,
+  createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
   voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
@@ -32,9 +32,16 @@ export function createEngine({
   onRestart = () => location.reload(), onSave = () => {},
 }) {
   const renderer = setupRenderer(canvas, SCREEN);
+  // Resolution: the 3D view renders at SCREEN * scale (1x, 2x or 3x); text and rectangles stay on
+  // the SCREEN-sized overlay. 2x and 3x need float render targets for the outline mask.
+  const canHires = renderer.extensions.has('EXT_color_buffer_float');
+  const RES_KEY = 'blocky3d.res';   // the player's choice, remembered on this device
+  let scale = 1;
+  try { scale = canHires ? Math.min(3, Math.max(1, parseInt(localStorage.getItem(RES_KEY), 10) || 1)) : 1; } catch { /* storage blocked */ }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
-  const target = createSceneTarget(SCREEN);
+  let target = createSceneTarget(SCREEN * scale);
+  let masks = null;   // two float targets for growing outlines at 2x / 3x
   const camPos = [0, 6, -10], camLook = [0, 0, 0];
   const ctx = overlay.getContext('2d');
   overlay.width = overlay.height = SCREEN;
@@ -44,6 +51,23 @@ export function createEngine({
   const outlinePass = createOutlinePass(target, palU);
   outlinePass.uniforms.uNear.value = camera.near;
   outlinePass.uniforms.uFar.value = camera.far;
+  const growPasses = createGrowPasses(palU);
+  growPasses.paint.uNear.value = camera.near;
+  growPasses.paint.uFar.value = camera.far;
+
+  function setScale(k) {
+    scale = canHires ? Math.min(3, Math.max(1, k | 0)) : 1;
+    try { localStorage.setItem(RES_KEY, String(scale)); } catch { /* storage blocked */ }
+    const size = SCREEN * scale;
+    renderer.setSize(size, size, false);
+    target.dispose();
+    target = createSceneTarget(size);
+    if (masks) { masks[0].dispose(); masks[1].dispose(); masks = null; }
+    if (scale > 1) masks = [createMaskTarget(size), createMaskTarget(size)];
+    const u = outlinePass.uniforms;
+    u.tColor.value = target.textures[0]; u.tInfo.value = target.textures[1]; u.tDepth.value = target.depthTexture;
+  }
+  setScale(scale);
   const atlas = createAtlas();
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
@@ -62,7 +86,7 @@ export function createEngine({
 
   // ---- per-frame object pools (immediate mode: everything is re-submitted each _draw)
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  const sphereGeo = new THREE.SphereGeometry(1, 12, 8);
+  const sphereGeo = new THREE.SphereGeometry(1, 24, 16);   // round enough to look smooth at 3x
   const pools = { map: [], vox: [], cube: [], sphere: [], line: [] };
   const used = { map: 0, vox: 0, cube: 0, sphere: 0, line: 0 };
 
@@ -341,9 +365,30 @@ export function createEngine({
     renderer.clear();
     renderer.render(scene, camera);
     // 2) copy to the screen, painting outlines when any draw asked for one
-    renderer.setRenderTarget(null);
-    outlinePass.uniforms.uAny.value = anyOutline ? 1 : 0;
+    const u = outlinePass.uniforms;
+    u.uAny.value = anyOutline ? 1 : 0;
+    if (scale === 1 || !anyOutline) {
+      u.uMode.value = 0;
+      renderer.setRenderTarget(null);
+      renderer.render(outlinePass.scene, outlinePass.camera);
+      return;
+    }
+    // 2x / 3x: 1-pixel edge mask -> grow across -> grow down -> paint where allowed
+    const g = growPasses;
+    u.uMode.value = 1;
+    renderer.setRenderTarget(masks[0]);
     renderer.render(outlinePass.scene, outlinePass.camera);
+    g.grow.uR.value = scale - 1;
+    g.grow.tMask.value = masks[0].texture; g.grow.uDir.value.set(1, 0);
+    renderer.setRenderTarget(masks[1]);
+    renderer.render(g.growScene, g.camera);
+    g.grow.tMask.value = masks[1].texture; g.grow.uDir.value.set(0, 1);
+    renderer.setRenderTarget(masks[0]);
+    renderer.render(g.growScene, g.camera);
+    g.paint.tColor.value = target.textures[0]; g.paint.tInfo.value = target.textures[1];
+    g.paint.tDepth.value = target.depthTexture; g.paint.tMask.value = masks[0].texture;
+    renderer.setRenderTarget(null);
+    renderer.render(g.paintScene, g.camera);
   }
 
   function guard(fn) {
@@ -351,7 +396,7 @@ export function createEngine({
   }
 
   // ---- pause menu (Enter or P), drawn on the 2D overlay over the frozen game
-  const MENU = ['Resume', 'Restart', 'Screenshot'];
+  const MENU = canHires ? ['Resume', 'Restart', 'Screenshot', 'Resolution'] : ['Resume', 'Restart', 'Screenshot'];
   let paused = false, menuSel = 0, frozen = null, note = '', noteUntil = 0;
 
   function setPaused(p) {
@@ -370,23 +415,24 @@ export function createEngine({
     ctx.putImageData(frozen, 0, 0);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.fillRect(0, 0, SCREEN, SCREEN);
-    const w = 132, h = 26 + MENU.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
+    const w = 156, h = 26 + MENU.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[0]); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
     ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
     drawText(ctx, 'Paused', x + ((w - textWidth('Paused')) >> 1), y + 4, hexColor(DEFAULT_PALETTE[6]));
     MENU.forEach((label, i) => {
       const on = i === menuSel;
-      drawText(ctx, (on ? '> ' : '  ') + label, x + 14, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
+      const text = label === 'Resolution' ? `Resolution < ${scale}x >` : label;
+      drawText(ctx, (on ? '> ' : '  ') + text, x + 8, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
     });
     if (note && performance.now() < noteUntil) {
       drawText(ctx, note, (SCREEN - textWidth(note)) >> 1, y + h + 6, hexColor(DEFAULT_PALETTE[11]), hexColor(DEFAULT_PALETTE[0]));
     }
   }
 
-  // The game screen without the menu, scaled up 4x with crisp pixels, as a PNG download.
+  // The game screen without the menu, at the active resolution (256, 512 or 768 square), as a PNG.
   function screenshot() {
-    const S = SCREEN * 4;
+    const S = SCREEN * scale;
     const out = document.createElement('canvas');
     out.width = out.height = S;
     const o = out.getContext('2d');
@@ -416,12 +462,24 @@ export function createEngine({
     const pressed = (i) => now[i] && !prev[i];
     if (pressed(2)) menuSel = (menuSel + MENU.length - 1) % MENU.length;
     if (pressed(3)) menuSel = (menuSel + 1) % MENU.length;
+    if (MENU[menuSel] === 'Resolution' && (pressed(0) || pressed(1))) changeRes(pressed(1) ? 1 : -1);
     if (pressed(4) || pressed(5) || pressed(6)) {
       const choice = pressed(6) ? 'Resume' : MENU[menuSel];
       if (choice === 'Resume') setPaused(false);
       else if (choice === 'Restart') { stop(); audio.stop(); onRestart(); }
       else if (choice === 'Screenshot') screenshot();
+      else if (choice === 'Resolution') changeRes(1);
     }
+  }
+
+  // Cycle 1x -> 2x -> 3x, and redraw the paused frame at the new resolution.
+  function changeRes(step) {
+    setScale(((scale - 1 + step + 3) % 3) + 1);
+    ctx.clearRect(0, 0, SCREEN, SCREEN);
+    beginDraw();
+    if (hooks._draw && !guard(hooks._draw)) return;
+    endDraw();
+    frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);
   }
 
   function tick(t) {
@@ -468,5 +526,5 @@ export function createEngine({
     e.preventDefault();
   }
 
-  return { api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), get paused() { return paused; } };
+  return { api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), get paused() { return paused; }, get scale() { return scale; }, setScale };
 }

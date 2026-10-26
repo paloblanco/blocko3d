@@ -99,7 +99,7 @@ if (secs < data.best) save({ best: secs })`,
   },
   {
     title: 'Pause menu',
-    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start) and Screenshot (saves the game screen as a PNG, without the menu, at 4× size). Up/down choose; O, X or Enter select; Enter again resumes.',
+    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start), Screenshot (saves the game screen as a PNG, without the menu) and Resolution. Up/down choose; O, X or Enter select; Enter again resumes. Resolution (left/right) renders the 3D view at 1×, 2× or 3× (256, 512 or 768 pixels square) for smoother edges; text and rectangles stay at 256, and outlines keep the same thickness. The choice is remembered on that device, and screenshots use it.',
     items: [],
   },
   {

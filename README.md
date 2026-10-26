@@ -26,7 +26,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, sounds, a saved best time, palette tricks).
 
-While a game runs, **Enter** pauses it, PICO-8 style, with Resume, Restart and Screenshot (a PNG of the game screen). Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
+While a game runs, **Enter** pauses it, PICO-8 style, with Resume, Restart, Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
 
 ### On a phone
 
