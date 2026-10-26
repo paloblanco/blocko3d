@@ -8,7 +8,7 @@ A small, deliberately limited 3D game engine for JavaScript with a PICO-8-style 
 
 It's a static site with no build step. ES modules need a web server, so either:
 
-- **Online:** the IDE is live at https://paloblanco.github.io/demo_blocky_3d/ (GitHub Pages, deployed from `main`), and the exported demo at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/.
+- **Online:** the IDE is live at https://paloblanco.github.io/demo_blocky_3d/ (GitHub Pages, deployed from `main`), and the exported demos at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/ (a page linking to each one).
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
 The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from CDNs, so it needs an internet connection. Games themselves run on the bundled runtime in `runtime/` (see below).
@@ -16,7 +16,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 ## Testing the alpha
 
 - **Try the IDE:** open https://paloblanco.github.io/demo_blocky_3d/, pick a demo from **Demos**, then press **Run**.
-- **Try an exported game:** open https://paloblanco.github.io/demo_blocky_3d/standalone_demo/, the castle demo exactly as **Export** makes it. It's the easiest thing to try on a phone or tablet.
+- **Try an exported game:** open https://paloblanco.github.io/demo_blocky_3d/standalone_demo/ and pick a demo. Each is exactly what **Export** makes. It's the easiest thing to try on a phone or tablet.
 - **Things worth trying:** the touch controls in portrait and landscape, pause, mute, fullscreen and Restart (fullscreen should stay on), a gamepad, and making a small game of your own.
 - **When something goes wrong,** please note the version (it's at the top of the Info tab and in the console), your device and browser, whether you were in the IDE or an exported game, and what you did just before.
 
@@ -107,7 +107,7 @@ The Info tab has the full reference.
 2. Put the file in `demos/`.
 3. Add a line for it to `demos/index.json`: the file name, the name shown in the menu, and a sentence about what it shows (shown as a tooltip and in the console when it loads).
 
-No build is needed. The castle is the exception: it's generated in code (`js/cart.js`), and `npm run build` writes it to `demos/castle.b3d.json`.
+That's enough for the IDE's menu. Then run `npm run build` (see below): it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`.
 
 ## Changing the engine
 
@@ -118,7 +118,7 @@ npm install      # once
 npm run build    # rewrites runtime/blocky3d.runtime.js and standalone_demo/
 ```
 
-The build also writes the castle demo to `demos/castle.b3d.json` and exports it to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
+The build also writes the castle demo to `demos/castle.b3d.json` and exports every demo in `demos/index.json` to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
 
 ## Not in this version
 

@@ -2,15 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>castle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>blocky3D demos</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #000; }
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0d1222; color: #d6dcf0; font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { margin: 0 0 4px; font-size: 28px; }
+  h1 b { color: #ff004d; }
+  .sub { margin: 0 0 24px; color: #8a93b2; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  li a { display: block; padding: 14px 16px; border: 1px solid #2a3352; border-radius: 10px; background: #151c33; color: inherit; text-decoration: none; }
+  li a:hover, li a:focus-visible { border-color: #29adff; }
+  .name { font-weight: 600; font-size: 18px; color: #fff; }
+  .name::after { content: " ▶"; color: #00e436; font-size: 14px; }
+  .about { margin-top: 2px; color: #a9b1cc; font-size: 15px; }
+  footer { margin-top: 28px; color: #8a93b2; font-size: 14px; }
+  footer a { color: #29adff; }
 </style>
 </head>
 <body>
-<script src="castle.js"></script>
+<main>
+  <h1>blocky<b>3D</b> demos</h1>
+  <p class="sub">Exported games, exactly as the IDE's Export makes them. Version 0.1.0-alpha. On a phone or tablet, the touch controls appear around the game.</p>
+  <ul>
+    <li><a href="castle/index.html"><div class="name">Castle</div><div class="about">Lower the drawbridge, collect the gems and get into the castle. Shows maps, a moving map, vox characters with a walk cycle, pal() recolors, outlines, sound, music, a title card and a saved best time.</div></a></li>
+  </ul>
+  <footer>Want to see how they're made? Open the <a href="../index.html">blocky3D IDE</a> and pick one from <b>Demos</b>.</footer>
+</main>
 </body>
 </html>

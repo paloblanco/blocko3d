@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Every demo is exported to its own page under `standalone_demo/`, and `standalone_demo/` itself is now a page linking to them (the castle moved to `standalone_demo/castle/`).
 - The IDE's **Demo** button is now a **Demos** menu, listing the carts in `demos/` (see the README for adding one). The castle demo's cart name is now `castle`, so a best time saved under the old name `demo` doesn't carry over.
 - `mouse_ray()` gives the ray from the camera through the cursor (the screen center when the mouse is captured), and `mray(m, ox, oy, oz, dx, dy, dz, maxd)` finds the first block of map m along any ray, with the face it hit, so clicking or tapping on blocks takes two lines.
 - `outline(c, false)` draws only the outer outline of maps and vox models: no lines at corners, steps or overlaps inside them. Useful for round voxel shapes. `outline(c)` is unchanged.
