@@ -70,15 +70,23 @@ function wave(w, ph, ph2) {
 
 // Renders notes [from, to) of a sound to Float32 samples at RATE.
 export function renderSfx(s, from = 0, to = NOTES) {
+  const seq = [];
+  for (let i = from; i < to; i++) seq.push(i);
+  return renderNotes(s, seq);
+}
+
+// Renders a sequence of note indices (-1 = a silent note) to Float32 samples at RATE.
+export function renderNotes(s, seq) {
   const per = Math.max(1, Math.round(noteSeconds(s) * RATE));
-  const count = Math.max(0, to - from);
-  const out = new Float32Array(per * count);
+  const out = new Float32Array(per * seq.length);
   let ph = 0, ph2 = 0, amp = 0, noise = 0, noisePh = 0;
-  for (let k = 0; k < count; k++) {
-    const i = from + k;
-    const n = s.notes[i];
-    const prev = s.notes[i - 1] || n;
-    const group = s.notes.slice(i - (i % 4), i - (i % 4) + 4);
+  const silent = { pitch: 0, wave: 0, vol: 0, fx: 0 };
+  for (let k = 0; k < seq.length; k++) {
+    const i = seq[k];
+    const n = i >= 0 ? s.notes[i] : silent;
+    const prev = k > 0 && seq[k - 1] >= 0 ? s.notes[seq[k - 1]] : n;
+    const g0 = i >= 0 ? i - (i % 4) : 0;
+    const group = s.notes.slice(g0, g0 + 4);
     for (let j = 0; j < per; j++) {
       const t = j / per;                       // 0..1 through this note
       const secs = (k * per + j) / RATE;       // since the start of the render
@@ -123,6 +131,82 @@ export function playRange(s) {
   return [0, last];
 }
 
+// ---------------------------------------------------------------- music
+// A pattern plays up to 4 sounds at once, one per channel. Saved as a 9-character hex string:
+//   F  flags: 1 = loop start, 2 = loop back (jump to the nearest loop start), 4 = stop after
+//   CC x 4   the sound on each channel, 00-3f, or 40 for an empty channel
+// A pattern lasts as long as its longest non-looping sound (32 notes); looping sounds repeat to
+// fill it. Music has its own 4 voices, so sound effects never cut it off.
+
+export const MAX_PATTERNS = 64;
+export const EMPTY_CH = 64;
+export const emptyPattern = () => ({ loopStart: false, loopBack: false, stop: false, ch: [EMPTY_CH, EMPTY_CH, EMPTY_CH, EMPTY_CH] });
+
+export function encodePattern(p) {
+  const flags = (p.loopStart ? 1 : 0) | (p.loopBack ? 2 : 0) | (p.stop ? 4 : 0);
+  return hex(flags, 1) + p.ch.map((c) => hex(c >= 0 && c < MAX_SFX ? c : EMPTY_CH, 2)).join('');
+}
+
+export function decodePattern(str) {
+  const s = String(str || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{9}$/.test(s)) return null;
+  const f = parseInt(s[0], 16);
+  const ch = [0, 1, 2, 3].map((i) => { const c = parseInt(s.substr(1 + i * 2, 2), 16); return c < MAX_SFX ? c : EMPTY_CH; });
+  return { loopStart: !!(f & 1), loopBack: !!(f & 2), stop: !!(f & 4), ch };
+}
+
+export const patternEmpty = (p) => !p || p.ch.every((c) => c >= MAX_SFX);
+const loops = (s) => s.loopEnd > s.loopStart;
+
+// sounds: decoded sounds by number. Returns seconds, or 0 for an empty pattern.
+export function patternSeconds(p, sounds) {
+  let longest = 0, first = 0;
+  for (const c of p.ch) {
+    const s = c < MAX_SFX ? sounds[c] : null;
+    if (!s) continue;
+    const len = NOTES * noteSeconds(s);
+    if (!first) first = len;
+    if (!loops(s)) longest = Math.max(longest, len);
+  }
+  return longest || first;
+}
+
+// The note order a sound plays for count notes: straight through, or around its loop.
+function noteSequence(s, count) {
+  const seq = [];
+  for (let i = 0; seq.length < count; i++) {
+    if (loops(s) && i >= s.loopEnd) i = s.loopStart;
+    seq.push(i < NOTES ? i : -1);
+  }
+  return seq;
+}
+
+// Mixes a pattern's channels into one buffer of exactly its length.
+export function renderPattern(p, sounds) {
+  const secs = patternSeconds(p, sounds);
+  const len = Math.round(secs * RATE);
+  const out = new Float32Array(Math.max(1, len));
+  for (const c of p.ch) {
+    const s = c < MAX_SFX ? sounds[c] : null;
+    if (!s) continue;
+    const data = renderNotes(s, noteSequence(s, Math.ceil(secs / noteSeconds(s))));
+    for (let i = 0; i < len && i < data.length; i++) out[i] += data[i] * 0.8;
+  }
+  return out;
+}
+
+// After pattern i: the next pattern to play, or -1 to stop.
+export function nextPattern(patterns, i, start) {
+  const p = patterns[i];
+  if (!p || p.stop) return -1;
+  if (p.loopBack) {
+    for (let j = i; j >= 0; j--) if (patterns[j] && patterns[j].loopStart) return j;
+    return start;
+  }
+  const n = i + 1;
+  return n < MAX_PATTERNS && !patternEmpty(patterns[n]) ? n : -1;
+}
+
 // ---------------------------------------------------------------- player
 // Plays decoded sounds on CHANNELS channels through Web Audio. Rendered buffers are cached by
 // their string, so playing the same sound again is cheap.
@@ -143,7 +227,8 @@ export class SfxPlayer {
       this.gain = this.ctx.createGain();
       this.gain.connect(this.ctx.destination);
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended') this.ctx.resume().then(() => this.startPendingMusic());
+    else if (this.pendingMusic) this.startPendingMusic();
   }
 
   get ready() { return !!this.ctx && this.ctx.state === 'running'; }
@@ -227,6 +312,84 @@ export class SfxPlayer {
       if (t >= ch.sfx.loopEnd - ch.from) t = intro + ((t - intro) % len);
     }
     return ch.from + Math.floor(t);
+  }
+
+  // ---- music: getPatterns() / getSounds() return the current decoded arrays, so edits in the
+  // IDE are heard the next time a pattern is scheduled.
+  music(getPatterns, getSounds, n, fadeMs = 0) {
+    this.musicStop();
+    if (n < 0) return;
+    // Before the browser allows sound, remember the request and start on unlock.
+    this.pendingMusic = { getPatterns, getSounds, n, fadeMs };
+    if (this.ready) this.startPendingMusic();
+  }
+
+  startPendingMusic() {
+    const req = this.pendingMusic;
+    this.pendingMusic = null;
+    if (!req || !this.ready) return;
+    const patterns = req.getPatterns();
+    if (patternEmpty(patterns[req.n])) return;
+    const gain = this.ctx.createGain();
+    gain.connect(this.gain);
+    const now = this.ctx.currentTime;
+    if (req.fadeMs > 0) { gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(1, now + req.fadeMs / 1000); }
+    const m = { ...req, gain, cur: req.n, start: req.n, time: now + 0.05, sources: [], timeline: [] };
+    this.song = m;
+    const schedule = () => {
+      if (this.song !== m) return;
+      const pats = m.getPatterns(), sounds = m.getSounds();
+      while (m.cur >= 0 && m.time < this.ctx.currentTime + 0.4) {
+        const p = pats[m.cur];
+        const secs = patternEmpty(p) ? 0 : patternSeconds(p, sounds);
+        if (!secs) { m.cur = -1; break; }
+        const key = 'p' + encodePattern(p) + p.ch.map((c) => (sounds[c] ? encodeSfx(sounds[c]) : '')).join('|');
+        let buf = this.cache.get(key);
+        if (!buf) {
+          const data = renderPattern(p, sounds);
+          buf = this.ctx.createBuffer(1, data.length, RATE);
+          buf.copyToChannel(data, 0);
+          this.cache.set(key, buf);
+          if (this.cache.size > 256) this.cache.delete(this.cache.keys().next().value);
+        }
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(m.gain);
+        src.start(m.time);
+        m.sources.push(src);
+        if (m.sources.length > 8) m.sources.shift();
+        m.timeline.push({ time: m.time, pattern: m.cur, secs });
+        if (m.timeline.length > 8) m.timeline.shift();
+        m.time += secs;
+        m.cur = nextPattern(pats, m.cur, m.start);
+      }
+      if (m.cur < 0 && this.ctx.currentTime > m.time) { this.musicStop(); return; }
+      m.timer = setTimeout(schedule, 100);
+    };
+    schedule();
+  }
+
+  musicStop(fadeMs = 0) {
+    this.pendingMusic = null;
+    const m = this.song;
+    if (!m) return;
+    this.song = null;
+    clearTimeout(m.timer);
+    const end = this.ctx.currentTime + fadeMs / 1000;
+    if (fadeMs > 0) { m.gain.gain.setValueAtTime(m.gain.gain.value, this.ctx.currentTime); m.gain.gain.linearRampToValueAtTime(0, end); }
+    for (const src of m.sources) { try { src.stop(end); } catch { /* not started */ } }
+  }
+
+  // The pattern playing now and how far through it (0..1), or null.
+  musicPosition() {
+    const m = this.song;
+    if (!m || !this.ctx) return null;
+    const t = this.ctx.currentTime;
+    for (let i = m.timeline.length - 1; i >= 0; i--) {
+      const e = m.timeline[i];
+      if (t >= e.time) return t < e.time + e.secs ? { pattern: e.pattern, frac: (t - e.time) / e.secs } : null;
+    }
+    return null;
   }
 
   suspend() { if (this.ctx && this.ctx.state === 'running') this.ctx.suspend(); }

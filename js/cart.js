@@ -1,8 +1,9 @@
 // Cart format + the built-in demo cart.
 // A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}],
-//   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}], sfx: [string or null, ...] }
+//   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}], sfx: [string or null, ...],
+//   music: [pattern string or null, ...], scale?: {snap, root, type} (Sfx tab snapping) }
 import { MAX_TILES, bytesToB64, emptyTile } from './core.js';
-import { emptySfx, encodeSfx } from './audio.js';
+import { emptySfx, encodeSfx, encodePattern, emptyPattern } from './audio.js';
 
 export const CART_VERSION = 1;
 
@@ -48,6 +49,8 @@ export function normalizeCart(c) {
   if (!Array.isArray(cart.vox)) cart.vox = [];
   if (!Array.isArray(cart.sfx)) cart.sfx = [];
   cart.sfx = cart.sfx.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
+  if (!Array.isArray(cart.music)) cart.music = [];
+  cart.music = cart.music.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
   cart.vox = cart.vox.slice(0, 64);
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
   cart.version = CART_VERSION;
@@ -131,7 +134,7 @@ const DEMO_CODE = `// blocky3D demo
 // arrows or WASD move, X jumps, Z raises / lowers the drawbridge
 // Enter pauses (resume, restart, screenshot)
 // vox models: 0 hero, 1-2 hero steps, 3-4 guard steps, 5 gem
-// sounds: 0 jump, 1 gem, 2 hit, 3 bridge, 4 start, 5 win
+// sounds: 0 jump, 1 gem, 2 hit, 3 bridge, 4 start, 5 win; 6-10 the song (Music tab, patterns 0-1)
 // map 0 = the level, map 1 = the drawbridge, hinged at its castle end
 
 let px, py, pz, vy, grounded
@@ -147,6 +150,7 @@ function _init() {
   bg(12)
   let data = load()            // whatever this game saved last time, or null
   if (data) best = data.best
+  music(0, 1500)               // the song fades in; browsers start sound on the first key press
   // the bridge's origin is the middle of its castle-side top edge;
   // put that hinge at the castle shore, level with the grass
   map_set_pos(1, [8.5, 3, 14])
@@ -379,6 +383,42 @@ function demoSfx() {
     makeSfx(9, [[14, 1, 4, 2], [13, 1, 4, 2], [12, 1, 3, 2], [12, 1, 2, 5]]),                       // 3 bridge creak
     makeSfx(5, [[24, 4, 5, 0], [28, 4, 5, 0], [31, 4, 5, 0], [36, 4, 5, 5]]),                       // 4 start
     makeSfx(7, [[36, 5, 6, 0], [40, 5, 6, 0], [43, 5, 6, 0], [48, 5, 6, 0], [43, 5, 5, 0], [48, 5, 6, 2], [48, 5, 5, 2], [48, 5, 3, 5]]), // 5 win
+    ...demoSongSfx(),                                                                                // 6-10 the song
+  ];
+}
+
+// The demo song, in C minor pentatonic (C Eb F G Bb). Speed 16: 32 notes = two bars of 16ths.
+function demoSongSfx() {
+  // 8th-note bass: a note, then a softer fading repeat
+  const bassLine = [12, 12, 24, 12, 15, 15, 27, 15, 10, 10, 22, 10, 7, 7, 19, 10];
+  const bass = bassLine.flatMap((p) => [[p, 0, 5, 0], [p, 0, 3, 5]]);
+  // lead: quarter notes, held for 3 sixteenths and released on the 4th
+  const lead = (line) => line.flatMap((p) => [[p, 4, 3, 0], [p, 4, 3, 0], [p, 4, 3, 2], [p, 4, 1, 5]]);
+  // drums: kick on the beat, snare on 2 and 4, soft hats between
+  const drums = Array.from({ length: 32 }, (_, i) =>
+    i % 8 === 0 ? [14, 6, 6, 3] : i % 8 === 4 ? [40, 6, 4, 5] : i % 2 === 0 ? [60, 6, 2, 5] : [0, 0, 0, 0]);
+  // slow arpeggio pad: each group of 4 notes cycles through a chord
+  const pad = [[24, 27, 31, 34], [22, 27, 29, 34]].flatMap((chord) => Array(4).fill(chord.map((p) => [p, 5, 2, 7])).flat());
+  return [
+    makeSfx(16, bass),                                              // 6 bass
+    makeSfx(16, lead([31, 27, 29, 31, 34, 31, 29, 27])),            // 7 lead, first half
+    makeSfx(16, lead([36, 34, 31, 34, 31, 29, 27, 24])),            // 8 lead, second half
+    makeSfx(16, drums),                                             // 9 drums
+    makeSfx(16, pad),                                               // 10 arpeggio pad
+  ];
+}
+
+// ch: up to 4 sound numbers; flags: loopStart, loopBack, stop
+function makePattern(ch, flags = {}) {
+  const p = emptyPattern();
+  ch.forEach((c, i) => { p.ch[i] = c; });
+  return encodePattern(Object.assign(p, flags));
+}
+
+function demoMusic() {
+  return [
+    makePattern([6, 7, 9], { loopStart: true }),
+    makePattern([6, 8, 9, 10], { loopBack: true }),
   ];
 }
 
@@ -393,5 +433,6 @@ export function demoCart() {
     ],
     vox: demoVox(),
     sfx: demoSfx(),
+    music: demoMusic(),
   };
 }

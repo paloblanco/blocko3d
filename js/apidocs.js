@@ -88,6 +88,15 @@ outline()`,
     ],
   },
   {
+    title: 'Music',
+    intro: 'Songs come from the Music tab: 64 patterns, each playing up to 4 sounds at once. A pattern lasts as long as its longest non-looping sound; looping sounds repeat to fill it. Patterns play in order until one marked stop, a loop back (which jumps to the nearest loop start), or an empty pattern. Music has its own 4 voices, so sfx() never cuts it off.',
+    items: [
+      ['music(n)', 'Play the song from pattern n. If the player hasn\'t pressed a key or clicked yet, it starts as soon as they do.'],
+      ['music(n, fade)', 'Fade in over fade milliseconds.'],
+      ['music(-1, fade?)', 'Stop the music, optionally fading out over fade milliseconds.'],
+    ],
+  },
+  {
     title: 'Save data',
     intro: 'Keep data between plays, like a best time or unlocked levels. It is stored in the player\'s browser under the game\'s name, so renaming the game starts fresh. The IDE shows it under the game and can clear it.',
     items: [

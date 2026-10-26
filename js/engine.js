@@ -9,7 +9,7 @@ import {
   voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
-import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx } from './audio.js';
+import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
 
 export const SCREEN = 256;          // square render target, scaled up with crisp pixels
 const STEP = 1000 / 60;             // _update runs at a fixed 60 per second
@@ -72,6 +72,8 @@ export function createEngine({
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
   const sounds = Array.from({ length: MAX_SFX }, (_, i) => (cart.sfx && cart.sfx[i]) || null);
+  const decodedSounds = sounds.map((str) => (str ? decodeSfx(str) : null));
+  const patterns = Array.from({ length: MAX_PATTERNS }, (_, i) => decodePattern(cart.music && cart.music[i]));
   const audio = new SfxPlayer();
   const saveKey = 'blocky3d.save.' + slug(cart.name);
   const voxels = voxFromCart(cart);
@@ -278,6 +280,14 @@ export function createEngine({
       audio.play(str, channel < CHANNELS ? channel : -1, offset, length);
     },
 
+    // music(n) plays from pattern n of the Music tab; music(-1) stops.
+    // fade: milliseconds to fade in (or out, with -1).
+    music(n, fade = 0) {
+      if (n < 0) { audio.musicStop(fade); return; }
+      if ((n | 0) >= MAX_PATTERNS) throw new Error(`music ${n} does not exist (patterns are 0-${MAX_PATTERNS - 1})`);
+      audio.music(() => patterns, () => decodedSounds, n | 0, fade);
+    },
+
     // --- persistent data: any JSON value, kept in this browser, per game name
     save(value) {
       try {
@@ -466,7 +476,7 @@ export function createEngine({
     if (pressed(4) || pressed(5) || pressed(6)) {
       const choice = pressed(6) ? 'Resume' : MENU[menuSel];
       if (choice === 'Resume') setPaused(false);
-      else if (choice === 'Restart') { stop(); audio.stop(); onRestart(); }
+      else if (choice === 'Restart') { stop(); onRestart(); }
       else if (choice === 'Screenshot') screenshot();
       else if (choice === 'Resolution') changeRes(1);
     }
@@ -516,7 +526,7 @@ export function createEngine({
     return true;
   }
 
-  function stop() { running = false; cancelAnimationFrame(raf); audio.stop(); }
+  function stop() { running = false; cancelAnimationFrame(raf); audio.stop(); audio.musicStop(); }
 
   function key(e, isDown) {
     if (isDown) audio.unlock();   // browsers only allow sound after the player does something

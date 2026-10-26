@@ -43,6 +43,7 @@
       <button data-tab="tile">Tile</button>
       <button data-tab="vox">Vox</button>
       <button data-tab="sfx">Sfx</button>
+      <button data-tab="music">Music</button>
       <button data-tab="info">Info</button>
       <button data-tab="game" class="mobile-only">Game</button>
     </nav>
@@ -180,6 +181,12 @@
             <label title="Notes from the first number up to (not including) the second repeat; set both to 0 for no loop">Loop <input id="sfxLoopA" type="number" min="0" max="32"> to <input id="sfxLoopB" type="number" min="0" max="32"></label>
             <button id="sfxClear">Clear</button>
           </div>
+          <div class="scalebar">
+            <label class="check" title="Notes you draw land on the scale"><input type="checkbox" id="snapOn"> Snap to scale</label>
+            <select id="scaleRoot" aria-label="Root note"></select>
+            <select id="scaleType" aria-label="Scale"></select>
+            <button id="snapAll" title="Move every note of this sound onto the scale">Snap this sound</button>
+          </div>
           <div class="sfxbrush">
             <div class="brushrow"><span>Wave</span><span class="pick" id="brushWave"></span></div>
             <div class="brushrow"><span>Volume</span><span class="pick" id="brushVol"></span></div>
@@ -199,6 +206,25 @@
             <input id="sfxString" spellcheck="false" title="Paste a sound string here to load it into this slot">
             <button id="sfxCopy">Copy</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-music">
+      <div class="sfxwork">
+        <aside class="sfxlist" id="patList" aria-label="Patterns"></aside>
+        <div class="sfxeditor">
+          <div class="sfxhead">
+            <span>Pattern <b id="patIndex">0</b></span>
+            <button id="musPlay" title="Play the song from this pattern (Space)">▶ Play</button>
+            <label class="check" title="Loop back jumps to the nearest pattern marked loop start"><input type="checkbox" id="patLoopStart"> loop start</label>
+            <label class="check" title="After this pattern, jump back to the nearest loop start"><input type="checkbox" id="patLoopBack"> loop back</label>
+            <label class="check" title="Stop the music after this pattern"><input type="checkbox" id="patStop"> stop</label>
+            <button id="patClear">Clear</button>
+          </div>
+          <div class="hint" id="patLen"></div>
+          <div class="channels" id="channels"></div>
+          <div class="hint">Each pattern plays up to 4 sounds at once and lasts as long as its longest non-looping sound. Looping sounds repeat to fill it. Patterns play in order until a stop, a loop back, or an empty pattern. Play it in code with <code>music(n)</code>.</div>
         </div>
       </div>
     </div>

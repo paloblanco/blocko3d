@@ -8,7 +8,8 @@ import { Preview } from './preview.js';
 import { API_SECTIONS } from './apidocs.js';
 import { exportGame } from './export.js';
 import {
-  SfxPlayer, NOTES, MAX_SFX, WAVES, EFFECTS, noteName, emptySfx, encodeSfx, decodeSfx, isSilent, noteSeconds,
+  SfxPlayer, NOTES, MAX_SFX, WAVES, EFFECTS, NOTE_NAMES, noteName, emptySfx, encodeSfx, decodeSfx, isSilent, noteSeconds,
+  MAX_PATTERNS, EMPTY_CH, emptyPattern, encodePattern, decodePattern, patternEmpty, patternSeconds,
 } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +27,9 @@ let voxModels = [];   // editable vox models: { name, pivot, data: Uint8Array(51
 let curVox = 0, voxLayer = 0, voxColor = 8, voxTool = 'pencil';
 let sounds = [];   // 64 decoded sounds (see js/audio.js)
 let curSfx = 0, brush = { wave: 0, vol: 5, fx: 0 };
+let patterns = [];   // 64 decoded music patterns
+let curPat = 0;
+let scale = { snap: false, root: 0, type: 'minor pentatonic' };   // Sfx tab note snapping, saved in the cart
 let activeTab = 'code';
 
 const palette = () => cart.palette || DEFAULT_PALETTE;
@@ -49,6 +53,11 @@ function loadCart(c, name) {
   sounds = Array.from({ length: MAX_SFX }, (_, i) => decodeSfx((cart.sfx || [])[i]) || emptySfx());
   delete cart.sfx;
   curSfx = 0;
+  patterns = Array.from({ length: MAX_PATTERNS }, (_, i) => decodePattern((cart.music || [])[i]) || emptyPattern());
+  delete cart.music;
+  curPat = 0;
+  scale = { snap: false, root: 0, type: 'minor pentatonic', ...(cart.scale || {}) };
+  if (!SCALES[scale.type]) scale.type = 'minor pentatonic';
   if (!voxModels.length) voxModels.push(newVox());
   curVox = 0; voxLayer = 0;
   voxThumbs.clear();
@@ -63,6 +72,7 @@ function loadCart(c, name) {
   refreshSprUI();
   refreshVoxUI();
   refreshSfxUI();
+  refreshMusicUI();
 }
 
 function serialize() {
@@ -74,6 +84,8 @@ function serialize() {
     maps: maps.map((m) => ({ name: m.name, w: m.w, h: m.h, d: m.d, origin: m.origin, data: bytesToB64(m.data) })),
     vox: voxModels.map((v) => ({ name: v.name, pivot: v.pivot, data: bytesToB64(v.data) })),
     sfx: trimSounds(),
+    music: trimPatterns(),
+    scale,
   };
   if (cart.palette) out.palette = cart.palette;
   return out;
@@ -221,6 +233,8 @@ function showTab(name) {
   if (name === 'vox') refreshVoxUI();
   if (name === 'sfx') refreshSfxUI();
   if (name !== 'sfx') stopSfxPreview();
+  if (name === 'music') refreshMusicUI();
+  if (name !== 'music') stopMusicPreview();
   if (name !== 'vox') stopPlayback();
 }
 
@@ -868,6 +882,53 @@ function setupVoxEditor() {
   cv.addEventListener('pointerup', () => { painting = null; });
 }
 
+// ================================================================= scales (Sfx tab snapping)
+// Semitones above the root. Snapping moves a drawn pitch to the nearest note in the scale.
+const SCALES = {
+  'minor pentatonic': [0, 3, 5, 7, 10],
+  'major pentatonic': [0, 2, 4, 7, 9],
+  'major': [0, 2, 4, 5, 7, 9, 11],
+  'minor': [0, 2, 3, 5, 7, 8, 10],
+  'harmonic minor': [0, 2, 3, 5, 7, 8, 11],
+  'dorian': [0, 2, 3, 5, 7, 9, 10],
+  'mixolydian': [0, 2, 4, 5, 7, 9, 10],
+  'blues': [0, 3, 5, 6, 7, 10],
+  'whole tone': [0, 2, 4, 6, 8, 10],
+};
+const inScale = (pitch) => SCALES[scale.type].includes((((pitch - scale.root) % 12) + 12) % 12);
+function snapPitch(pitch) {
+  if (!scale.snap) return pitch;
+  for (let d = 0; d < 12; d++) {             // nearest scale note; ties go down
+    if (pitch - d >= 0 && inScale(pitch - d)) return pitch - d;
+    if (pitch + d <= 63 && inScale(pitch + d)) return pitch + d;
+  }
+  return pitch;
+}
+
+function setupScale() {
+  NOTE_NAMES.forEach((n, i) => $('scaleRoot').append(new Option(n, i)));
+  Object.keys(SCALES).forEach((k) => $('scaleType').append(new Option(k, k)));
+  const changed = () => { drawSfx(); dirty(); };
+  $('snapOn').onchange = (e) => { scale.snap = e.target.checked; showScale(); changed(); };
+  $('scaleRoot').onchange = (e) => { scale.root = +e.target.value; changed(); };
+  $('scaleType').onchange = (e) => { scale.type = e.target.value; changed(); };
+  $('snapAll').onclick = () => {
+    const was = scale.snap;
+    scale.snap = true;
+    curS().notes.forEach((n) => { n.pitch = snapPitch(n.pitch); });
+    scale.snap = was;
+    sfxEdited();
+    log(`snapped sfx ${curSfx} to ${NOTE_NAMES[scale.root]} ${scale.type}`, 'info');
+  };
+}
+
+function showScale() {
+  $('snapOn').checked = scale.snap;
+  $('scaleRoot').value = scale.root;
+  $('scaleType').value = scale.type;
+  $('scaleRoot').disabled = $('scaleType').disabled = !scale.snap;
+}
+
 // ================================================================= sfx editor
 // PICO-8 style: 64 sounds of 32 notes. The brush (wave, volume, effect) is applied when drawing
 // pitches; the volume graph and the wave/effect rows change just that part of a note.
@@ -906,6 +967,7 @@ function refreshSfxUI() {
   $('sfxLoopA').value = s.loopStart;
   $('sfxLoopB').value = s.loopEnd;
   $('sfxString').value = encodeSfx(s);
+  showScale();
   drawBrush();
   drawSfx();
 }
@@ -934,6 +996,13 @@ function drawSfx(playing = -1) {
   // pitch graph
   let ctx = $('sfxPitch').getContext('2d');
   ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, PW, PH);
+  if (scale.snap) {                             // the scale's notes as faint rows, the root brighter
+    for (let pitch = 0; pitch < 64; pitch++) {
+      if (!inScale(pitch)) continue;
+      ctx.fillStyle = (pitch - scale.root) % 12 === 0 ? 'rgba(41,173,255,0.22)' : 'rgba(41,173,255,0.09)';
+      ctx.fillRect(0, PH - (pitch + 1) * 4, PW, 4);
+    }
+  }
   for (let oct = 1; oct < 6; oct++) {           // a faint line at each C
     ctx.fillStyle = 'rgba(141,147,173,0.18)';
     ctx.fillRect(0, PH - oct * 12 * 4, PW, 1);
@@ -998,7 +1067,7 @@ function graphDrag(canvas, fn) {
     else if (canvas.id === 'sfxPitch') {
       const r = canvas.getBoundingClientRect();
       const pitch = Math.floor((1 - (e.clientY - r.top) / r.height) * 64);
-      $('sfxNote').textContent = pitch >= 0 && pitch < 64 ? noteName(pitch) : '';
+      $('sfxNote').textContent = pitch >= 0 && pitch < 64 ? noteName(snapPitch(pitch)) : '';
     }
   });
   canvas.addEventListener('pointerup', () => { active = false; });
@@ -1034,6 +1103,7 @@ function toggleSfxPreview() {
 }
 
 function setupSfxEditor() {
+  setupScale();
   $('sfxPlay').onclick = toggleSfxPreview;
   $('sfxSpeed').oninput = (e) => { curS().speed = clamp(+e.target.value | 0, 1, 255); sfxEdited(); };
   $('sfxLoopA').oninput = (e) => { curS().loopStart = clamp(+e.target.value | 0, 0, NOTES); sfxEdited(); };
@@ -1060,7 +1130,7 @@ function setupSfxEditor() {
   graphDrag($('sfxPitch'), (i, f, e) => {
     const n = curS().notes[i];
     if (e.buttons === 2 || e.button === 2) n.vol = 0;
-    else Object.assign(n, { pitch: clamp(Math.floor((1 - f) * 64), 0, 63), wave: brush.wave, vol: brush.vol, fx: brush.fx });
+    else Object.assign(n, { pitch: snapPitch(clamp(Math.floor((1 - f) * 64), 0, 63)), wave: brush.wave, vol: brush.vol, fx: brush.fx });
     sfxEdited();
   });
   graphDrag($('sfxVol'), (i, f) => { curS().notes[i].vol = clamp(Math.round((1 - f) * 7.5), 0, 7); sfxEdited(); });
@@ -1069,6 +1139,142 @@ function setupSfxEditor() {
     if (f < 0.5) n.wave = brush.wave; else n.fx = brush.fx;
     sfxEdited();
   });
+}
+
+// ================================================================= music editor
+// 64 patterns; each plays up to 4 sounds at once. Playing follows the song through the patterns.
+let musicAnim = 0;
+const curP = () => patterns[curPat];
+
+function trimPatterns() {
+  const out = patterns.map((p) => (patternEmpty(p) && !p.loopStart && !p.loopBack && !p.stop ? null : encodePattern(p)));
+  while (out.length && out[out.length - 1] === null) out.pop();
+  return out;
+}
+
+function refreshMusicUI(playing = null) {
+  if (!cart) return;
+  const list = $('patList');
+  if (!list.children.length) {
+    for (let i = 0; i < MAX_PATTERNS; i++) {
+      const b = document.createElement('button');
+      b.textContent = i;
+      b.onclick = () => { curPat = i; refreshMusicUI(); };
+      list.append(b);
+    }
+  }
+  [...list.children].forEach((b, i) => {
+    b.classList.toggle('on', i === curPat);
+    b.classList.toggle('has', !patternEmpty(patterns[i]));
+    b.classList.toggle('playing', !!playing && i === playing.pattern);
+  });
+  const p = curP();
+  $('patIndex').textContent = curPat;
+  $('patLoopStart').checked = p.loopStart;
+  $('patLoopBack').checked = p.loopBack;
+  $('patStop').checked = p.stop;
+  const secs = patternEmpty(p) ? 0 : patternSeconds(p, sounds);
+  $('patLen').textContent = secs ? `Length: ${secs.toFixed(2)} s` : 'Empty pattern: pick a sound for a channel.';
+  drawChannels(playing && playing.pattern === curPat ? playing.frac : -1);
+}
+
+function drawChannels(frac = -1) {
+  const wrap = $('channels'), p = curP(), pal = palette();
+  if (!wrap.children.length) {
+    for (let c = 0; c < 4; c++) {
+      const card = document.createElement('div');
+      card.className = 'chan';
+      card.innerHTML = `
+        <div class="chanhead"><label class="check"><input type="checkbox"> Ch ${c + 1}</label>
+          <span class="chanpick"><button aria-label="Previous sound">−</button><input type="number" min="0" max="63" aria-label="Sound"><button aria-label="Next sound">+</button></span></div>
+        <canvas width="160" height="64" title="Click to edit this sound"></canvas>
+        <button class="edit">Edit sound</button>`;
+      const [check, minus, num, plus, cv, edit] = ['input[type=checkbox]', 'button[aria-label="Previous sound"]', 'input[type=number]', 'button[aria-label="Next sound"]', 'canvas', '.edit'].map((q) => card.querySelector(q));
+      const setCh = (v) => { curP().ch[c] = v; musicEdited(); };
+      check.onchange = () => setCh(check.checked ? clamp(+num.value | 0, 0, 63) : EMPTY_CH);
+      num.oninput = () => { if (curP().ch[c] < MAX_SFX || num.value !== '') setCh(clamp(+num.value | 0, 0, 63)); };
+      minus.onclick = () => setCh(clamp((curP().ch[c] < MAX_SFX ? curP().ch[c] : +num.value | 0) - 1, 0, 63));
+      plus.onclick = () => setCh(clamp((curP().ch[c] < MAX_SFX ? curP().ch[c] : (+num.value | 0) - 1) + 1, 0, 63));
+      const openSfx = () => { const v = curP().ch[c]; if (v < MAX_SFX) { curSfx = v; showTab('sfx'); } };
+      cv.onclick = openSfx;
+      edit.onclick = openSfx;
+      wrap.append(card);
+    }
+  }
+  [...wrap.children].forEach((card, c) => {
+    const v = p.ch[c], on = v < MAX_SFX;
+    card.classList.toggle('off', !on);
+    card.querySelector('input[type=checkbox]').checked = on;
+    const num = card.querySelector('input[type=number]');
+    if (on) num.value = v; else if (num.value === '') num.value = c;
+    card.querySelector('.edit').disabled = !on;
+    // a small pitch view of the sound, with a cursor while playing
+    const ctx = card.querySelector('canvas').getContext('2d');
+    ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, 160, 64);
+    if (!on) return;
+    const s = sounds[v], cw = 160 / NOTES;
+    if (s.loopEnd > s.loopStart) { ctx.fillStyle = 'rgba(41,173,255,0.12)'; ctx.fillRect(s.loopStart * cw, 0, (s.loopEnd - s.loopStart) * cw, 64); }
+    s.notes.forEach((n, i) => {
+      if (!n.vol) return;
+      ctx.fillStyle = hexColor(pal[WAVE_COLORS[n.wave]]);
+      const y = 64 - (n.pitch + 1);
+      ctx.fillRect(i * cw + 0.5, y, cw - 1, 2);
+      ctx.globalAlpha = 0.3; ctx.fillRect(i * cw + 0.5, y + 2, cw - 1, 64 - y); ctx.globalAlpha = 1;
+    });
+    if (frac >= 0) {
+      // where this channel's sound is: it repeats if it loops, otherwise plays once
+      const secs = patternSeconds(p, sounds), t = frac * secs, per = noteSeconds(s);
+      let note = Math.floor(t / per);
+      if (s.loopEnd > s.loopStart && note >= s.loopEnd) note = s.loopStart + ((note - s.loopStart) % (s.loopEnd - s.loopStart));
+      if (note < NOTES) { ctx.fillStyle = 'rgba(255,236,39,0.35)'; ctx.fillRect(note * cw, 0, cw, 64); }
+    }
+  });
+}
+
+function musicEdited() {
+  refreshMusicUI();
+  dirty();
+}
+
+function stopMusicPreview() {
+  ideAudio.musicStop();
+  cancelAnimationFrame(musicAnim);
+  musicAnim = 0;
+  $('musPlay').textContent = '▶ Play';
+  $('musPlay').classList.remove('on');
+  if (cart) refreshMusicUI();
+}
+
+function toggleMusicPreview() {
+  if (musicAnim) { stopMusicPreview(); return; }
+  if (patternEmpty(curP())) { log('This pattern is empty: pick a sound for at least one channel.', 'info'); return; }
+  ideAudio.unlock();
+  ideAudio.music(() => patterns, () => sounds, curPat);
+  $('musPlay').textContent = '■ Stop';
+  $('musPlay').classList.add('on');
+  let started = false;
+  const frame = () => {
+    const pos = ideAudio.musicPosition();
+    if (pos) {
+      started = true;
+      if (pos.pattern !== curPat) curPat = pos.pattern;   // follow the song
+      refreshMusicUI(pos);
+    } else if (started && !ideAudio.song) { stopMusicPreview(); return; }
+    musicAnim = requestAnimationFrame(frame);
+  };
+  musicAnim = requestAnimationFrame(frame);
+}
+
+function setupMusicEditor() {
+  $('musPlay').onclick = toggleMusicPreview;
+  $('patLoopStart').onchange = (e) => { curP().loopStart = e.target.checked; musicEdited(); };
+  $('patLoopBack').onchange = (e) => { curP().loopBack = e.target.checked; musicEdited(); };
+  $('patStop').onchange = (e) => { curP().stop = e.target.checked; musicEdited(); };
+  $('patClear').onclick = () => {
+    if (!confirm(`Clear pattern ${curPat}?`)) return;
+    patterns[curPat] = emptyPattern();
+    musicEdited();
+  };
 }
 
 // ================================================================= info
@@ -1140,6 +1346,7 @@ function setupTopBar() {
       if (e.key === ']') setLayer(layer + 1);
     }
     if (activeTab === 'sfx' && !typing && e.code === 'Space') { e.preventDefault(); toggleSfxPreview(); }
+    if (activeTab === 'music' && !typing && e.code === 'Space') { e.preventDefault(); toggleMusicPreview(); }
     if (activeTab === 'vox' && !typing) {
       if (e.key === '[') setVoxLayer(voxLayer - 1);
       if (e.key === ']') setVoxLayer(voxLayer + 1);
@@ -1197,6 +1404,7 @@ setupMapEditor();
 setupSprEditor();
 setupVoxEditor();
 setupSfxEditor();
+setupMusicEditor();
 setupTouchpad();
 setupSaveData();
 renderInfo();

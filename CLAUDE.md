@@ -107,12 +107,19 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - Spheres use 24×16 segments so they look round at 3×. `line3` stays 1 real pixel wide.
 - Performance: under SwiftShader (CPU rendering) frame time grows with pixel count (about 23/116/247 ms for 1×/2×/3× in the demo); on a real GPU 768² is small.
 
-**Sound** (asked for by the owner; music is deferred): PICO-8-style SFX in `js/audio.js`, shared by the engine and the IDE.
+**Sound** (asked for by the owner): PICO-8-style SFX in `js/audio.js`, shared by the engine and the IDE.
 - 64 sounds × 32 notes; each note has pitch 0-63 (33 = A 440 Hz), wave 0-7 (triangle, tilted saw, saw, square, pulse, organ, noise, phaser), volume 0-7 and effect 0-7 (none, slide, vibrato, drop, fade in, fade out, arp fast, arp slow). Speed: each note lasts speed/120 s. Loop: notes loopStart up to loopEnd repeat.
 - **Saved as a string** (the owner wanted Playload-like strings): 166 hex characters, `SS LL EE` then `PP W V E` per note. The cart's `sfx` is an array of these strings (null for empty slots, trailing empties dropped).
 - Sounds are synthesized in JS to a 22050 Hz buffer (cached per string) and played with Web Audio on 4 channels. Looping uses the buffer source's loop points. `sfx(n, ch, offset, length)`, `sfx(-1[, ch])` stop, `sfx(-2, ch)` releases a loop, and `sfx(str)` plays a string directly.
 - Browsers block audio until a user gesture: the engine unlocks on keydown/pointerdown, and the IDE's iframe has `allow="autoplay"`. Sounds requested before the unlock are dropped, not delayed.
 - Sfx tab: slot list, Play (Space), speed, loop, a brush (wave, volume, effect) applied when drawing in the pitch graph, separate volume graph and wave/effect rows, a playback cursor, and a string field to copy or paste a sound.
+
+**Music** (asked for by the owner):
+- 64 **patterns**; each has 4 channels (an sfx number, or empty) and flags: loop start, loop back (jump to the nearest loop start at or before it, else the pattern the song started on), stop (end after it). Saved as 9 hex characters: flags (1 = loop start, 2 = loop back, 4 = stop), then 2 hex digits per channel (00-3f, or 40 = empty). The cart's `music` is an array of these strings.
+- A pattern lasts as long as its longest **non-looping** sound's 32 notes (if all loop, the first channel's). Looping sounds repeat their loop to fill it. The song also ends at an empty pattern or after pattern 63.
+- Playback: each pattern's channels are mixed into one buffer (`renderPattern`, cached) and scheduled back-to-back on the audio clock, 0.4 s ahead, by `SfxPlayer.music`. **Music has its own 4 voices** separate from the 4 sfx channels, so effects never cut out the song (a simplification from PICO-8, where they share channels). `music(n, fade)` fades in; `music(-1, fade)` fades out. A music request made before the browser allows sound is kept and starts on the first key press or click. Pausing suspends the audio clock, so music pauses too.
+- **Music tab:** pattern list (playing pattern highlighted), Play (Space) from the current pattern that follows the song, flag checkboxes, 4 channel cards (enable, −/+ sound number, a mini pitch view with a playhead, click or Edit sound to open it in the Sfx tab), and the pattern length.
+- **Scale snapping** in the Sfx tab: "Snap to scale" with a root note and one of 9 scales (minor/major pentatonic, major, minor, harmonic minor, dorian, mixolydian, blues, whole tone). The default when enabled is **C minor pentatonic**, like PICO-8. Drawn pitches snap to the nearest scale note (ties go down), scale rows are highlighted in the pitch graph (root brighter), and "Snap this sound" moves an existing sound's notes onto the scale. Settings are saved in the cart as `scale: {snap, root, type}`; the engine ignores them.
 
 **Save data** (asked for by the owner): `save(value)` / `load()` store one JSON value per game in `localStorage` under `blocky3d.save.<slug of the cart name>`, up to 64 KB. `save(null)` deletes it. Web pages can't silently write real files, so the browser's storage is the "file". It works in the IDE, from `file://` and on itch.io. The IDE shows the current save under the game with a Clear button (the player posts `save` when a game saves). Renaming the cart changes the key.
 
@@ -136,8 +143,8 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | `index.html`, `js/ide.js`, `css/ide.css` | The IDE: CodeMirror 5 code tab (falls back to a textarea), map editor (layer grid with a ghost of the layer below, orbit preview), tile editor (three face canvases, pencil and fill, right-click eyedropper), Info tab, console. Autosaves to `localStorage` under `blocky3d.cart.v1`. Save and Open use `.b3d.json`. |
 | `js/preview.js` | The orbit viewer used by the Map, Tile and Vox editors. `setVox` shows a model with an onion-skin ghost and the pivot; `hitVox` raycasts a click to a voxel face (or the floor grid). |
 | Mobile layout | Phone layout below 820px wide (`MOBILE` in `js/ide.js` must match the `max-width: 820px` block in `css/ide.css`): one panel at a time, compact two-row header, and the game pane becomes a **Game** tab (`body[data-tab="game"]`) that Run switches to. Touch screens (`pointer: coarse`) get on-screen buttons (`#touchpad`); the IDE posts `{type: 'key', code, down}` to the player iframe, which dispatches a matching `KeyboardEvent`, so the engine needs no touch code. Touch stand-ins for right-click: tile 0 erases on the map, the **Pick** tool is the eyedropper. |
-| `js/audio.js` | Sound: synth, string encode/decode, `SfxPlayer` (4 channels, caching, loop release, current-note lookup for the editor cursor). No Three.js dependency, so the IDE imports it directly. |
-| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (a title card made with `rectfill`/`rect`/scaled `print`, castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems, six sounds, a run timer and a best time kept with `save`/`load`). The demo models and sounds are generated in code (`figure`, `makeVox`, `makeSfx`). |
+| `js/audio.js` | Sound and music: synth (`renderNotes`), sound and pattern string formats, `renderPattern`/`nextPattern`, `SfxPlayer` (4 sfx channels, caching, loop release, the music scheduler, positions for the editors' cursors). No Three.js dependency, so the IDE imports it directly. |
+| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (a title card made with `rectfill`/`rect`/scaled `print`, castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems, six sound effects, a two-pattern looping song in C minor pentatonic, a run timer and a best time kept with `save`/`load`). The demo models, sounds and song are generated in code (`figure`, `makeVox`, `makeSfx`, `makePattern`). |
 | `js/font.js` | The 7×10 pixel font, `drawText` (optional outline and scale) and `textWidth`. |
 | `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
 
@@ -154,7 +161,8 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 ```
 { version, name, code, palette?, tiles: [null, {top, side, bottom}...], maps: [{name, w, h, d, origin, data(base64)}],
-  vox: [{name, pivot, data(base64, 512 bytes)}], sfx: [string or null, ...] }
+  vox: [{name, pivot, data(base64, 512 bytes)}], sfx: [string or null, ...],
+  music: [pattern string or null, ...], scale?: {snap, root, type} }
 ```
 
 - Map data is flattened as `x + w * (y + h * z)`.
@@ -191,6 +199,7 @@ What was checked:
 - Vox: a test model drawn plain, yawed, pitched, scaled, squashed, recolored with `pal` and with/without outlines; the demo's hero walks and turns, guards march; editor painting (grid and 3D click, mirror, Erase, Fill, Pick), onion skin, playback, on desktop and at phone size.
 - Pause/sound/save: every demo sound renders to non-silent audio; finishing a run saves the best time and the IDE shows it; Enter pauses, Screenshot downloads a PNG at the active resolution without the menu, Resume and Restart work (Restart shows the saved best on the title card); the Sfx tab draws, loops, plays with a cursor and accepts a pasted string; the exported game pauses offline.
 - Resolution: the demo with outlines at 1×, 2× and 3× (canvas 256/512/768, outline thickness matched, smoother edges); switching from the pause menu and the stored choice; a 2× screenshot is 512×512.
+- Music: both demo patterns render at 4.27 s with no clipping (peak under 0.5); the song flows 0 > 1 > 0 > 1; stop and end-of-song work; the Music tab plays, follows into the next pattern, and edits are saved; snapping to C minor pentatonic keeps drawn notes in {C, Eb, F, G, Bb}, and "Snap this sound" to A major moves them all into that scale; layouts checked on desktop and phone.
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.
@@ -202,7 +211,6 @@ A small `tests/` folder built this way would be a good addition.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
 - Faces between two solid blocks are always culled, even if a tile has `palt` transparency. That's fine for now.
 - Exported games have no on-screen touch controls yet (only the IDE does), so they need a keyboard.
-- Music (patterns that sequence sounds across channels) is deferred; the owner said SFX first.
 - Games can't add their own pause menu items yet (PICO-8's `menuitem`).
 - GitHub Pages isn't enabled yet; the owner can turn it on in Settings → Pages → deploy from `main`.
 
