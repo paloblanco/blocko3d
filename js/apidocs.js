@@ -76,6 +76,33 @@ sphere(px, py, pz, 0.4, 10)
 outline()`,
   },
   {
+    title: 'Sound',
+    intro: 'Sounds come from the Sfx tab, numbered 0-63: 32 notes each, with a pitch, waveform, volume and effect per note. There are 4 channels. Browsers only allow sound after the player presses a key or clicks, so the very first sound may be silent.',
+    items: [
+      ['sfx(n)', 'Play sound n on a free channel (or the one that has played longest).'],
+      ['sfx(n, ch)', 'Play sound n on channel ch (0-3), replacing what was playing there.'],
+      ['sfx(n, ch, offset, length)', 'Play only some notes: start at note offset, play length notes.'],
+      ['sfx(-1) / sfx(-1, ch)', 'Stop all sounds / stop channel ch.'],
+      ['sfx(-2, ch)', 'Let a looping sound on channel ch finish instead of looping again.'],
+      ['sfx(str)', 'Play a sound string copied from the Sfx tab, without using a slot.'],
+    ],
+  },
+  {
+    title: 'Save data',
+    intro: 'Keep data between plays, like a best time or unlocked levels. It is stored in the player\'s browser under the game\'s name, so renaming the game starts fresh. The IDE shows it under the game and can clear it.',
+    items: [
+      ['save(value)', 'Store any JSON value: a number, string, array or object (up to 64 KB). save(null) deletes it.'],
+      ['load()', 'The value saved last time, or null if there is none.'],
+    ],
+    code: `let data = load() || { best: 999 }
+if (secs < data.best) save({ best: secs })`,
+  },
+  {
+    title: 'Pause menu',
+    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start) and Screenshot (saves the game screen as a PNG, without the menu, at 4× size). Up/down choose; O, X or Enter select; Enter again resumes.',
+    items: [],
+  },
+  {
     title: 'Camera',
     intro: 'One camera. The screen is square, 256 × 256 pixels.',
     items: [

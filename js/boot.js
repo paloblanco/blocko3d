@@ -7,12 +7,13 @@ let engine = null;
 let overlay = null;
 
 // Create the engine for a cart and put its whole API in the global namespace.
-export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log } = {}) {
+export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart, onSave } = {}) {
   overlay = ui;
-  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog });
+  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave });
   Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
   window.addEventListener('keydown', (e) => engine.key(e, true));
   window.addEventListener('keyup', (e) => engine.key(e, false));
+  window.addEventListener('pointerdown', () => engine.unlockAudio());
   return engine;
 }
 

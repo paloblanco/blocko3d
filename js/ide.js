@@ -7,6 +7,9 @@ import { demoCart, emptyCart, normalizeCart, CART_VERSION } from './cart.js';
 import { Preview } from './preview.js';
 import { API_SECTIONS } from './apidocs.js';
 import { exportGame } from './export.js';
+import {
+  SfxPlayer, NOTES, MAX_SFX, WAVES, EFFECTS, noteName, emptySfx, encodeSfx, decodeSfx, isSilent, noteSeconds,
+} from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const STORE = 'blocky3d.cart.v1';
@@ -21,6 +24,8 @@ let curMap = 0, layer = 0, mapTile = 1;
 let curTile = 1, color = 7, tool = 'pencil';
 let voxModels = [];   // editable vox models: { name, pivot, data: Uint8Array(512) }, 0 = empty, else color + 1
 let curVox = 0, voxLayer = 0, voxColor = 8, voxTool = 'pencil';
+let sounds = [];   // 64 decoded sounds (see js/audio.js)
+let curSfx = 0, brush = { wave: 0, vol: 5, fx: 0 };
 let activeTab = 'code';
 
 const palette = () => cart.palette || DEFAULT_PALETTE;
@@ -41,6 +46,9 @@ function loadCart(c, name) {
     return { name: (v && v.name) || '', pivot: [...((v && v.pivot) || DEFAULT_PIVOT)], data };
   });
   delete cart.vox;
+  sounds = Array.from({ length: MAX_SFX }, (_, i) => decodeSfx((cart.sfx || [])[i]) || emptySfx());
+  delete cart.sfx;
+  curSfx = 0;
   if (!voxModels.length) voxModels.push(newVox());
   curVox = 0; voxLayer = 0;
   voxThumbs.clear();
@@ -50,9 +58,11 @@ function loadCart(c, name) {
   thumbs.clear();
   $('cartName').value = cart.name;
   setCode(cart.code);
+  if ($('saveData')) showSaveData();
   refreshMapUI();
   refreshSprUI();
   refreshVoxUI();
+  refreshSfxUI();
 }
 
 function serialize() {
@@ -63,6 +73,7 @@ function serialize() {
     tiles: cart.tiles,
     maps: maps.map((m) => ({ name: m.name, w: m.w, h: m.h, d: m.d, origin: m.origin, data: bytesToB64(m.data) })),
     vox: voxModels.map((v) => ({ name: v.name, pivot: v.pivot, data: bytesToB64(v.data) })),
+    sfx: trimSounds(),
   };
   if (cart.palette) out.palette = cart.palette;
   return out;
@@ -174,6 +185,7 @@ function run() {
   frame = document.createElement('iframe');
   frame.src = 'player.html';
   frame.title = 'Game';
+  frame.allow = 'autoplay';   // lets the game play sound once you've clicked Run
   $('placeholder').hidden = true;
   $('screen').append(frame);
   if (MOBILE.matches) showTab('game');
@@ -192,6 +204,8 @@ window.addEventListener('message', (e) => {
   else if (d.type === 'started') { log('running', 'info'); frame.focus(); frame.contentWindow.focus(); }
   else if (d.type === 'error') logError(d.message, d.line);
   else if (d.type === 'log') log(d.text);
+  else if (d.type === 'restart') run();
+  else if (d.type === 'save') showSaveData();
 });
 
 // ================================================================= tabs
@@ -205,6 +219,8 @@ function showTab(name) {
   if (name === 'map') refreshMapUI();
   if (name === 'tile') refreshSprUI();
   if (name === 'vox') refreshVoxUI();
+  if (name === 'sfx') refreshSfxUI();
+  if (name !== 'sfx') stopSfxPreview();
   if (name !== 'vox') stopPlayback();
 }
 
@@ -852,13 +868,216 @@ function setupVoxEditor() {
   cv.addEventListener('pointerup', () => { painting = null; });
 }
 
+// ================================================================= sfx editor
+// PICO-8 style: 64 sounds of 32 notes. The brush (wave, volume, effect) is applied when drawing
+// pitches; the volume graph and the wave/effect rows change just that part of a note.
+const WAVE_COLORS = [12, 9, 8, 14, 11, 13, 6, 10];
+const PW = 448, PH = 256, COLW = PW / NOTES;   // pitch canvas size, column width
+const ideAudio = new SfxPlayer();
+let sfxAnim = 0;
+
+const curS = () => sounds[curSfx];
+
+// Saved as strings; trailing empty slots are dropped and empty ones in between become null.
+function trimSounds() {
+  const out = sounds.map((s) => (isSilent(s) && s.loopEnd === 0 && s.speed === 16 ? null : encodeSfx(s)));
+  while (out.length && out[out.length - 1] === null) out.pop();
+  return out;
+}
+
+function refreshSfxUI() {
+  if (!cart) return;
+  const list = $('sfxList');
+  if (!list.children.length) {
+    for (let i = 0; i < MAX_SFX; i++) {
+      const b = document.createElement('button');
+      b.textContent = i;
+      b.onclick = () => { stopSfxPreview(); curSfx = i; refreshSfxUI(); };
+      list.append(b);
+    }
+  }
+  [...list.children].forEach((b, i) => {
+    b.classList.toggle('on', i === curSfx);
+    b.classList.toggle('has', !isSilent(sounds[i]));
+  });
+  const s = curS();
+  $('sfxIndex').textContent = curSfx;
+  $('sfxSpeed').value = s.speed;
+  $('sfxLoopA').value = s.loopStart;
+  $('sfxLoopB').value = s.loopEnd;
+  $('sfxString').value = encodeSfx(s);
+  drawBrush();
+  drawSfx();
+}
+
+function drawBrush() {
+  const p = palette();
+  const fill = (id, labels, key, swatch) => {
+    const wrap = $(id);
+    if (!wrap.children.length) {
+      labels.forEach((label, i) => {
+        const b = document.createElement('button');
+        b.innerHTML = (swatch ? `<i style="background:${hexColor(p[WAVE_COLORS[i]])}"></i>` : '') + label;
+        b.onclick = () => { brush[key] = id === 'brushVol' ? i + 1 : i; drawBrush(); };
+        wrap.append(b);
+      });
+    }
+    [...wrap.children].forEach((b, i) => b.classList.toggle('on', (id === 'brushVol' ? i + 1 : i) === brush[key]));
+  };
+  fill('brushWave', WAVES.map((w, i) => `${i} ${w}`), 'wave', true);
+  fill('brushVol', ['1', '2', '3', '4', '5', '6', '7'], 'vol', false);
+  fill('brushFx', EFFECTS.map((f, i) => `${i} ${f}`), 'fx', false);
+}
+
+function drawSfx(playing = -1) {
+  const s = curS(), p = palette();
+  // pitch graph
+  let ctx = $('sfxPitch').getContext('2d');
+  ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, PW, PH);
+  for (let oct = 1; oct < 6; oct++) {           // a faint line at each C
+    ctx.fillStyle = 'rgba(141,147,173,0.18)';
+    ctx.fillRect(0, PH - oct * 12 * 4, PW, 1);
+  }
+  if (s.loopEnd > s.loopStart) {
+    ctx.fillStyle = 'rgba(41,173,255,0.10)';
+    ctx.fillRect(s.loopStart * COLW, 0, (s.loopEnd - s.loopStart) * COLW, PH);
+  }
+  s.notes.forEach((n, i) => {
+    const x = i * COLW;
+    if (i === playing) { ctx.fillStyle = 'rgba(255,236,39,0.18)'; ctx.fillRect(x, 0, COLW, PH); }
+    if (!n.vol) return;
+    const y = PH - (n.pitch + 1) * 4;
+    ctx.fillStyle = hexColor(p[WAVE_COLORS[n.wave]]);
+    ctx.globalAlpha = 0.35; ctx.fillRect(x + 2, y, COLW - 4, PH - y); ctx.globalAlpha = 1;
+    ctx.fillRect(x + 1, y, COLW - 2, 4);
+  });
+  // volume graph: 7 steps
+  ctx = $('sfxVol').getContext('2d');
+  ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, PW, 64);
+  s.notes.forEach((n, i) => {
+    if (i === playing) { ctx.fillStyle = 'rgba(255,236,39,0.18)'; ctx.fillRect(i * COLW, 0, COLW, 64); }
+    ctx.fillStyle = hexColor(p[WAVE_COLORS[n.wave]]);
+    for (let v = 0; v < n.vol; v++) ctx.fillRect(i * COLW + 2, 64 - (v + 1) * 9, COLW - 4, 7);
+  });
+  // wave and effect numbers
+  ctx = $('sfxWF').getContext('2d');
+  ctx.fillStyle = '#0a0f1d'; ctx.fillRect(0, 0, PW, 36);
+  ctx.font = '11px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  s.notes.forEach((n, i) => {
+    const cx = i * COLW + COLW / 2;
+    ctx.fillStyle = n.vol ? hexColor(p[WAVE_COLORS[n.wave]]) : '#3a4466';
+    ctx.fillText(n.wave, cx, 14);
+    ctx.fillStyle = n.fx ? '#fff1e8' : '#3a4466';
+    ctx.fillText(n.fx, cx, 31);
+  });
+  ctx.fillStyle = 'rgba(141,147,173,0.25)'; ctx.fillRect(0, 18, PW, 1);
+}
+
+function sfxEdited() {
+  $('sfxString').value = encodeSfx(curS());
+  const b = $('sfxList').children[curSfx];
+  if (b) b.classList.toggle('has', !isSilent(curS()));
+  drawSfx();
+  dirty();
+}
+
+// Drag handling shared by the three graphs: fn(noteIndex, yFraction 0 top .. 1 bottom, event)
+function graphDrag(canvas, fn) {
+  let active = false;
+  const at = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const i = Math.floor((e.clientX - r.left) / r.width * NOTES);
+    const f = (e.clientY - r.top) / r.height;
+    if (i >= 0 && i < NOTES) fn(i, Math.max(0, Math.min(0.999, f)), e);
+  };
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('pointerdown', (e) => { active = true; canvas.setPointerCapture(e.pointerId); at(e); });
+  canvas.addEventListener('pointermove', (e) => {
+    if (active) at(e);
+    else if (canvas.id === 'sfxPitch') {
+      const r = canvas.getBoundingClientRect();
+      const pitch = Math.floor((1 - (e.clientY - r.top) / r.height) * 64);
+      $('sfxNote').textContent = pitch >= 0 && pitch < 64 ? noteName(pitch) : '';
+    }
+  });
+  canvas.addEventListener('pointerup', () => { active = false; });
+  canvas.addEventListener('pointerleave', () => { if (canvas.id === 'sfxPitch') $('sfxNote').textContent = ''; });
+}
+
+function stopSfxPreview() {
+  ideAudio.stop();
+  cancelAnimationFrame(sfxAnim);
+  sfxAnim = 0;
+  $('sfxPlay').textContent = '▶ Play';
+  $('sfxPlay').classList.remove('on');
+  if (cart) drawSfx();
+}
+
+function toggleSfxPreview() {
+  if (sfxAnim) { stopSfxPreview(); return; }
+  ideAudio.unlock();
+  const go = () => {
+    if (ideAudio.play(encodeSfx(curS()), 0) < 0) { log('That sound is silent: draw some notes first.', 'info'); return; }
+    $('sfxPlay').textContent = '■ Stop';
+    $('sfxPlay').classList.add('on');
+    const frame = () => {
+      const n = ideAudio.noteAt(0);
+      if (n < 0) { stopSfxPreview(); return; }
+      drawSfx(n);
+      sfxAnim = requestAnimationFrame(frame);
+    };
+    sfxAnim = requestAnimationFrame(frame);
+  };
+  // the audio context may take a moment to start after the first click
+  if (ideAudio.ready) go(); else setTimeout(go, 60);
+}
+
+function setupSfxEditor() {
+  $('sfxPlay').onclick = toggleSfxPreview;
+  $('sfxSpeed').oninput = (e) => { curS().speed = clamp(+e.target.value | 0, 1, 255); sfxEdited(); };
+  $('sfxLoopA').oninput = (e) => { curS().loopStart = clamp(+e.target.value | 0, 0, NOTES); sfxEdited(); };
+  $('sfxLoopB').oninput = (e) => { curS().loopEnd = clamp(+e.target.value | 0, 0, NOTES); sfxEdited(); };
+  $('sfxClear').onclick = () => {
+    if (!confirm(`Clear sfx ${curSfx}?`)) return;
+    stopSfxPreview();
+    sounds[curSfx] = emptySfx();
+    refreshSfxUI(); dirty();
+  };
+  $('sfxCopy').onclick = async () => {
+    const str = encodeSfx(curS());
+    try { await navigator.clipboard.writeText(str); log(`copied sfx ${curSfx} (${str.length} characters)`, 'info'); }
+    catch { $('sfxString').select(); log('Select the sound string and copy it.', 'info'); }
+  };
+  $('sfxString').addEventListener('focus', (e) => e.target.select());
+  $('sfxString').addEventListener('input', (e) => {
+    const s = decodeSfx(e.target.value);
+    if (!s) return;
+    sounds[curSfx] = s;
+    refreshSfxUI(); dirty();
+    log(`loaded a sound string into sfx ${curSfx}`, 'info');
+  });
+  graphDrag($('sfxPitch'), (i, f, e) => {
+    const n = curS().notes[i];
+    if (e.buttons === 2 || e.button === 2) n.vol = 0;
+    else Object.assign(n, { pitch: clamp(Math.floor((1 - f) * 64), 0, 63), wave: brush.wave, vol: brush.vol, fx: brush.fx });
+    sfxEdited();
+  });
+  graphDrag($('sfxVol'), (i, f) => { curS().notes[i].vol = clamp(Math.round((1 - f) * 7.5), 0, 7); sfxEdited(); });
+  graphDrag($('sfxWF'), (i, f) => {
+    const n = curS().notes[i];
+    if (f < 0.5) n.wave = brush.wave; else n.fx = brush.fx;
+    sfxEdited();
+  });
+}
+
 // ================================================================= info
 function renderInfo() {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   $('info').innerHTML = API_SECTIONS.map((s) => `
     <h2>${esc(s.title)}</h2>
     ${s.intro ? `<p>${esc(s.intro)}</p>` : ''}
-    <table>${s.items.map(([sig, desc]) => `<tr><td><code>${esc(sig)}</code></td><td>${esc(desc)}</td></tr>`).join('')}</table>
+    ${s.items.length ? `<table>${s.items.map(([sig, desc]) => `<tr><td><code>${esc(sig)}</code></td><td>${esc(desc)}</td></tr>`).join('')}</table>` : ''}
     ${s.code ? `<pre>${esc(s.code)}</pre>` : ''}`).join('');
 }
 
@@ -874,7 +1093,7 @@ function download(blob, filename) {
 function setupTopBar() {
   $('btnRun').onclick = run;
   $('btnStop').onclick = () => stop();
-  $('cartName').oninput = (e) => { cart.name = e.target.value; dirty(); };
+  $('cartName').oninput = (e) => { cart.name = e.target.value; dirty(); showSaveData(); };
   $('btnNew').onclick = () => {
     if (!confirm('Start a new, empty cart? The current cart in this browser will be replaced (Save it first if you want to keep it).')) return;
     stop(); loadCart(emptyCart(), 'untitled'); dirty();
@@ -920,6 +1139,7 @@ function setupTopBar() {
       if (e.key === '[') setLayer(layer - 1);
       if (e.key === ']') setLayer(layer + 1);
     }
+    if (activeTab === 'sfx' && !typing && e.code === 'Space') { e.preventDefault(); toggleSfxPreview(); }
     if (activeTab === 'vox' && !typing) {
       if (e.key === '[') setVoxLayer(voxLayer - 1);
       if (e.key === ']') setVoxLayer(voxLayer + 1);
@@ -927,9 +1147,29 @@ function setupTopBar() {
   });
 }
 
+// ================================================================= save data
+// Games store JSON with save(); it lives in this browser under the game's name.
+const saveKeyFor = (name) => 'blocky3d.save.' + (String(name || 'game').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'game');
+
+function showSaveData() {
+  let json = null;
+  try { json = localStorage.getItem(saveKeyFor(cart.name)); } catch { /* storage blocked */ }
+  $('saveData').textContent = json === null ? 'none' : json.length > 60 ? json.slice(0, 57) + '...' : json;
+  $('saveData').title = json === null ? '' : json;
+  $('saveClear').disabled = json === null;
+}
+
+function setupSaveData() {
+  $('saveClear').onclick = () => {
+    if (!confirm(`Clear the save data for "${cart.name}"?`)) return;
+    try { localStorage.removeItem(saveKeyFor(cart.name)); } catch { /* storage blocked */ }
+    showSaveData();
+  };
+}
+
 // ================================================================= touch game buttons
 // Each on-screen button sends a key to the game iframe, so the game sees the same input as a keyboard.
-const BTN_CODES = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyZ', 'KeyX'];
+const BTN_CODES = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyZ', 'KeyX', 'Enter'];
 
 function setupTouchpad() {
   document.querySelectorAll('#touchpad button').forEach((b) => {
@@ -956,10 +1196,13 @@ setupTopBar();
 setupMapEditor();
 setupSprEditor();
 setupVoxEditor();
+setupSfxEditor();
 setupTouchpad();
+setupSaveData();
 renderInfo();
 document.body.dataset.tab = activeTab;
 let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
 loadCart(saved || demoCart(), saved ? saved.name : 'demo');
+showSaveData();
 log('blocky3D ready. Press Run or Ctrl+Enter.', 'info');

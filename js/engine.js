@@ -8,7 +8,8 @@ import {
   createSceneTarget, createOutlinePass,
   voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX,
 } from './core.js';
-import { drawText, LINE_H } from './font.js';
+import { drawText, LINE_H, textWidth } from './font.js';
+import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx } from './audio.js';
 
 export const SCREEN = 256;          // square render target, scaled up with crisp pixels
 const STEP = 1000 / 60;             // _update runs at a fixed 60 per second
@@ -17,11 +18,19 @@ const STEP = 1000 / 60;             // _update runs at a fixed 60 per second
 const KEYMAP = {
   ArrowLeft: 0, KeyA: 0, ArrowRight: 1, KeyD: 1, ArrowUp: 2, KeyW: 2, ArrowDown: 3, KeyS: 3,
   KeyZ: 4, KeyC: 4, KeyN: 4, Space: 4, KeyX: 5, KeyV: 5, KeyM: 5,
+  Enter: 6, NumpadEnter: 6, KeyP: 6,   // 6 = pause (handled by the engine, like PICO-8)
 };
+
+const SAVE_LIMIT = 64 * 1024;   // characters of JSON per game
+
+const slug = (name) => String(name || 'game').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'game';
 
 const vec = (a, b, c) => (Array.isArray(a) ? [+a[0] || 0, +a[1] || 0, +a[2] || 0] : [+a || 0, +b || 0, +c || 0]);
 
-export function createEngine({ canvas, overlay, cart, onError = console.error, onLog = console.log }) {
+export function createEngine({
+  canvas, overlay, cart, onError = console.error, onLog = console.log,
+  onRestart = () => location.reload(), onSave = () => {},
+}) {
   const renderer = setupRenderer(canvas, SCREEN);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
@@ -38,6 +47,9 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
   const atlas = createAtlas();
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
+  const sounds = Array.from({ length: MAX_SFX }, (_, i) => (cart.sfx && cart.sfx[i]) || null);
+  const audio = new SfxPlayer();
+  const saveKey = 'blocky3d.save.' + slug(cart.name);
   const voxels = voxFromCart(cart);
 
   // ---- draw state (PICO-8 style: persists until changed)
@@ -230,6 +242,37 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     },
     printh(...args) { onLog(args.map(String).join(' ')); },
 
+    // --- sound: n is a sound number (0-63) or a sound string from the Sfx tab
+    // sfx(n) plays on a free channel; sfx(n, ch) on channel ch (0-3);
+    // sfx(-1) stops everything, sfx(-1, ch) stops a channel, sfx(-2, ch) lets a loop finish.
+    sfx(n, channel = -1, offset = 0, length = 32) {
+      if (n === -1) { audio.stop(channel); return; }
+      if (n === -2) { audio.release(channel); return; }
+      const str = typeof n === 'string' ? n : sounds[n | 0];
+      if (typeof n === 'string' && !decodeSfx(n)) throw new Error('sfx: that string is not a sound from the Sfx tab');
+      if (!str) return;                  // an empty slot plays nothing
+      audio.play(str, channel < CHANNELS ? channel : -1, offset, length);
+    },
+
+    // --- persistent data: any JSON value, kept in this browser, per game name
+    save(value) {
+      try {
+        if (value === undefined || value === null) { localStorage.removeItem(saveKey); onSave(null); return true; }
+        const json = JSON.stringify(value);
+        if (json.length > SAVE_LIMIT) throw new Error(`save: data is too big (${json.length} characters, the limit is ${SAVE_LIMIT})`);
+        localStorage.setItem(saveKey, json);
+        onSave(json);
+        return true;
+      } catch (e) {
+        if (e.message.startsWith('save:')) throw e;
+        return false;                    // storage blocked (private window, etc.)
+      }
+    },
+    load() {
+      try { const json = localStorage.getItem(saveKey); return json === null ? null : JSON.parse(json); }
+      catch { return null; }
+    },
+
     // --- input
     btn(i) { return !!now[i]; },
     btnp(i) { return !!now[i] && !prev[i]; },
@@ -307,6 +350,80 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     try { fn(); return true; } catch (e) { stop(); onError(e); return false; }
   }
 
+  // ---- pause menu (Enter or P), drawn on the 2D overlay over the frozen game
+  const MENU = ['Resume', 'Restart', 'Screenshot'];
+  let paused = false, menuSel = 0, frozen = null, note = '', noteUntil = 0;
+
+  function setPaused(p) {
+    paused = p;
+    if (p) {
+      frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);   // the game's own overlay, kept for screenshots
+      menuSel = 0; note = '';
+      audio.suspend();
+    } else {
+      ctx.putImageData(frozen, 0, 0);
+      audio.resume();
+    }
+  }
+
+  function drawMenu() {
+    ctx.putImageData(frozen, 0, 0);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(0, 0, SCREEN, SCREEN);
+    const w = 132, h = 26 + MENU.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
+    ctx.fillStyle = hexColor(DEFAULT_PALETTE[0]); ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
+    ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
+    drawText(ctx, 'Paused', x + ((w - textWidth('Paused')) >> 1), y + 4, hexColor(DEFAULT_PALETTE[6]));
+    MENU.forEach((label, i) => {
+      const on = i === menuSel;
+      drawText(ctx, (on ? '> ' : '  ') + label, x + 14, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
+    });
+    if (note && performance.now() < noteUntil) {
+      drawText(ctx, note, (SCREEN - textWidth(note)) >> 1, y + h + 6, hexColor(DEFAULT_PALETTE[11]), hexColor(DEFAULT_PALETTE[0]));
+    }
+  }
+
+  // The game screen without the menu, scaled up 4x with crisp pixels, as a PNG download.
+  function screenshot() {
+    const S = SCREEN * 4;
+    const out = document.createElement('canvas');
+    out.width = out.height = S;
+    const o = out.getContext('2d');
+    o.imageSmoothingEnabled = false;
+    o.drawImage(canvas, 0, 0, S, S);
+    const ui = document.createElement('canvas');
+    ui.width = ui.height = SCREEN;
+    ui.getContext('2d').putImageData(frozen, 0, 0);
+    o.drawImage(ui, 0, 0, S, S);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+    const name = `${slug(cart.name)}_${stamp}.png`;
+    out.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }, 'image/png');
+    note = 'Screenshot saved'; noteUntil = performance.now() + 1500;
+    onLog('screenshot saved: ' + name);
+  }
+
+  function menuUpdate() {
+    const pressed = (i) => now[i] && !prev[i];
+    if (pressed(2)) menuSel = (menuSel + MENU.length - 1) % MENU.length;
+    if (pressed(3)) menuSel = (menuSel + 1) % MENU.length;
+    if (pressed(4) || pressed(5) || pressed(6)) {
+      const choice = pressed(6) ? 'Resume' : MENU[menuSel];
+      if (choice === 'Resume') setPaused(false);
+      else if (choice === 'Restart') { stop(); audio.stop(); onRestart(); }
+      else if (choice === 'Screenshot') screenshot();
+    }
+  }
+
   function tick(t) {
     if (!running) return;
     acc += Math.min(t - last, 100);
@@ -315,13 +432,18 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     while (acc >= STEP && steps < 4) {
       acc -= STEP; steps++;
       for (let i = 0; i < 8; i++) { prev[i] = now[i]; now[i] = down[i]; }
+      if (paused) { menuUpdate(); if (!running) return; continue; }
+      if (now[6] && !prev[6]) { setPaused(true); continue; }
       frames++;
       if (hooks._update && !guard(hooks._update)) return;
     }
     if (steps > 0) {
-      beginDraw();
-      if (hooks._draw && !guard(hooks._draw)) return;
-      endDraw();
+      if (paused) drawMenu();
+      else {
+        beginDraw();
+        if (hooks._draw && !guard(hooks._draw)) return;
+        endDraw();
+      }
     }
     raf = requestAnimationFrame(tick);
   }
@@ -336,14 +458,15 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     return true;
   }
 
-  function stop() { running = false; cancelAnimationFrame(raf); }
+  function stop() { running = false; cancelAnimationFrame(raf); audio.stop(); }
 
   function key(e, isDown) {
+    if (isDown) audio.unlock();   // browsers only allow sound after the player does something
     const b = KEYMAP[e.code];
     if (b === undefined) return;
     down[b] = isDown;
     e.preventDefault();
   }
 
-  return { api, start, stop, key, maps, renderer };
+  return { api, start, stop, key, maps, renderer, unlockAudio: () => audio.unlock(), get paused() { return paused; } };
 }

@@ -1,7 +1,8 @@
 // Cart format + the built-in demo cart.
 // A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}],
-//   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}] }
+//   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}], sfx: [string or null, ...] }
 import { MAX_TILES, bytesToB64, emptyTile } from './core.js';
+import { emptySfx, encodeSfx } from './audio.js';
 
 export const CART_VERSION = 1;
 
@@ -15,9 +16,10 @@ function _init() {
 
 function _update() {
   if (title) {
-    if (btnp(4) || btnp(5)) title = false
+    if (btnp(4) || btnp(5)) { title = false; sfx(4) }
     return
   }
+  if (!done) ticks++
 }
 
 function _draw() {
@@ -44,6 +46,8 @@ export function normalizeCart(c) {
   }
   if (!Array.isArray(cart.maps)) cart.maps = [];
   if (!Array.isArray(cart.vox)) cart.vox = [];
+  if (!Array.isArray(cart.sfx)) cart.sfx = [];
+  cart.sfx = cart.sfx.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
   cart.vox = cart.vox.slice(0, 64);
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
   cart.version = CART_VERSION;
@@ -125,7 +129,9 @@ function demoLevel() {
 
 const DEMO_CODE = `// blocky3D demo
 // arrows or WASD move, X jumps, Z raises / lowers the drawbridge
+// Enter pauses (resume, restart, screenshot)
 // vox models: 0 hero, 1-2 hero steps, 3-4 guard steps, 5 gem
+// sounds: 0 jump, 1 gem, 2 hit, 3 bridge, 4 start, 5 win
 // map 0 = the level, map 1 = the drawbridge, hinged at its castle end
 
 let px, py, pz, vy, grounded
@@ -134,9 +140,13 @@ let raise = 1, raise_target = 1
 let gems, score, flash = 0
 let title = true   // show the title card until a button is pressed
 let guards
+let ticks = 0, done = false   // run timer (60 ticks a second), stops when all gems are found
+let best = null               // best time in seconds, kept with save() / load()
 
 function _init() {
   bg(12)
+  let data = load()            // whatever this game saved last time, or null
+  if (data) best = data.best
   // the bridge's origin is the middle of its castle-side top edge;
   // put that hinge at the castle shore, level with the grass
   map_set_pos(1, [8.5, 3, 14])
@@ -160,9 +170,10 @@ function respawn() {
 
 function _update() {
   if (title) {
-    if (btnp(4) || btnp(5)) title = false
+    if (btnp(4) || btnp(5)) { title = false; sfx(4) }
     return
   }
+  if (!done) ticks++
   // the camera looks down +z, so screen-right is -x
   let s = 0.08
   let dx = 0, dz = 0
@@ -175,7 +186,7 @@ function _update() {
     facing = atan2(dz, dx)   // yaw that turns the model's front (+z) toward the movement
     walk += 1
   } else walk = 0
-  if (btnp(5) && grounded) vy = 0.2
+  if (btnp(5) && grounded) { vy = 0.2; sfx(0) }
   vy -= 0.01
   py += vy
 
@@ -194,7 +205,7 @@ function _update() {
   if (py < 1.5) hit()   // fell in the moat
 
   // drawbridge: the free end points toward -z, so a negative pitch lifts it
-  if (btnp(4)) raise_target = 1 - raise_target
+  if (btnp(4)) { raise_target = 1 - raise_target; sfx(3) }
   raise += mid(-0.015, raise_target - raise, 0.015)
   map_set_angle(1, [-0.25 * raise, 0, 0])
 
@@ -208,6 +219,7 @@ function _update() {
     if (!g.got && abs(g.x - px) < 0.7 && abs(g.z - pz) < 0.7 && abs(g.y - py) < 1) {
       g.got = true
       score++
+      if (score == gems.length) finish(); else sfx(1)
     }
   }
 
@@ -219,7 +231,21 @@ function _update() {
 function hit() {
   respawn()
   flash = 12
+  sfx(2)
 }
+
+function finish() {
+  done = true
+  sfx(5)
+  let secs = ticks / 60
+  if (best == null || secs < best) {
+    best = secs
+    save({ best: best })       // any JSON value; it's still there next time
+  }
+}
+
+// seconds -> "12.3s"
+function fmt(secs) { return flr(secs * 10) / 10 + 's' }
 
 function _draw() {
   cam_set_pos([px, py + 3.5, pz - 6])
@@ -250,19 +276,29 @@ function _draw() {
 
   // text: color 7 with a black (0) outline so it reads over anything
   print('Gems ' + score + '/' + gems.length, 4, 4, 7, 0)
+  if (!title) print(fmt(ticks / 60), 252 - textw(fmt(ticks / 60)), 4, done ? 10 : 7, 0)
   print('Z: bridge   X: jump', 4, 244, 7, 0)
-  if (score == gems.length) print('You got them all!', 68, 120, 10, 0)
+  if (done) {
+    print('You got them all!', 68, 112, 10, 0)
+    let msg = best == ticks / 60 ? 'New best time!' : 'Best: ' + fmt(best)
+    print(msg, 128 - textw(msg) / 2, 126, 7, 0)
+  }
 
   if (title) {
     // title card: a framed panel, big outlined text (scale 4), and a blinking prompt
-    rectfill(24, 66, 231, 189, 1)
-    rect(24, 66, 231, 189, 7)
-    rect(26, 68, 229, 187, 12)
+    rectfill(24, 66, 231, 193, 1)
+    rect(24, 66, 231, 193, 7)
+    rect(26, 68, 229, 191, 12)
     print('blocky', 44, 74, 10, 0, 4)        // 6 letters x 7 px x 4 = 168 px wide, centered
     print('3D', 107, 122, 8, 0, 3, 2)        // stretched: 3 wide, 2 tall
-    if (time() % 1 < 0.6) print('press O or X', 86, 160, 7)
+    if (time() % 1 < 0.6) print('press O or X', 86, 156, 7)
+    let b = best == null ? 'No best time yet' : 'Best time: ' + fmt(best)
+    print(b, 128 - textw(b) / 2, 172, 6)
   }
 }
+
+// width of a line of text in pixels (each character is 7 wide)
+function textw(s) { return s.length * 7 }
 `;
 
 // fn(x, y, z) returns a palette color, or -1 for an empty voxel
@@ -327,6 +363,25 @@ function demoVox() {
   ];
 }
 
+// notes: [pitch, wave, volume, effect]; see js/audio.js
+function makeSfx(speed, notes, loopStart = 0, loopEnd = 0) {
+  const s = emptySfx();
+  Object.assign(s, { speed, loopStart, loopEnd });
+  notes.forEach(([pitch, wave, vol, fx], i) => { s.notes[i] = { pitch, wave, vol, fx }; });
+  return encodeSfx(s);
+}
+
+function demoSfx() {
+  return [
+    makeSfx(3, [[22, 3, 5, 0], [29, 3, 5, 1], [34, 3, 4, 1], [38, 3, 2, 5]]),                       // 0 jump
+    makeSfx(4, [[36, 0, 6, 0], [43, 0, 6, 0], [48, 0, 5, 0], [48, 0, 4, 5]]),                       // 1 gem
+    makeSfx(5, [[30, 6, 7, 3], [24, 6, 5, 3], [18, 2, 3, 5]]),                                      // 2 hit
+    makeSfx(9, [[14, 1, 4, 2], [13, 1, 4, 2], [12, 1, 3, 2], [12, 1, 2, 5]]),                       // 3 bridge creak
+    makeSfx(5, [[24, 4, 5, 0], [28, 4, 5, 0], [31, 4, 5, 0], [36, 4, 5, 5]]),                       // 4 start
+    makeSfx(7, [[36, 5, 6, 0], [40, 5, 6, 0], [43, 5, 6, 0], [48, 5, 6, 0], [43, 5, 5, 0], [48, 5, 6, 2], [48, 5, 5, 2], [48, 5, 3, 5]]), // 5 win
+  ];
+}
+
 export function demoCart() {
   return {
     version: CART_VERSION,
@@ -337,5 +392,6 @@ export function demoCart() {
       encodeMap('drawbridge', 3, 1, 4, [1.5, 1, 4], () => 3),
     ],
     vox: demoVox(),
+    sfx: demoSfx(),
   };
 }

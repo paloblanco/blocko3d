@@ -42,6 +42,7 @@
       <button data-tab="map">Map</button>
       <button data-tab="tile">Tile</button>
       <button data-tab="vox">Vox</button>
+      <button data-tab="sfx">Sfx</button>
       <button data-tab="info">Info</button>
       <button data-tab="game" class="mobile-only">Game</button>
     </nav>
@@ -168,6 +169,40 @@
       </div>
     </div>
 
+    <div class="panel" id="tab-sfx">
+      <div class="sfxwork">
+        <aside class="sfxlist" id="sfxList" aria-label="Sounds"></aside>
+        <div class="sfxeditor">
+          <div class="sfxhead">
+            <span>Sfx <b id="sfxIndex">0</b></span>
+            <button id="sfxPlay" title="Play this sound (Space)">▶ Play</button>
+            <label>Speed <input id="sfxSpeed" type="number" min="1" max="255" title="Each note lasts speed / 120 seconds"></label>
+            <label title="Notes from the first number up to (not including) the second repeat; set both to 0 for no loop">Loop <input id="sfxLoopA" type="number" min="0" max="32"> to <input id="sfxLoopB" type="number" min="0" max="32"></label>
+            <button id="sfxClear">Clear</button>
+          </div>
+          <div class="sfxbrush">
+            <div class="brushrow"><span>Wave</span><span class="pick" id="brushWave"></span></div>
+            <div class="brushrow"><span>Volume</span><span class="pick" id="brushVol"></span></div>
+            <div class="brushrow"><span>Effect</span><span class="pick" id="brushFx"></span></div>
+          </div>
+          <div class="sfxgraphs">
+            <div class="glabel">Pitch <span id="sfxNote" class="hint"></span></div>
+            <canvas id="sfxPitch" width="448" height="256"></canvas>
+            <div class="glabel">Volume</div>
+            <canvas id="sfxVol" width="448" height="64"></canvas>
+            <div class="glabel">Wave and effect</div>
+            <canvas id="sfxWF" width="448" height="36"></canvas>
+          </div>
+          <div class="hint"><span class="desktop-only">Draw in the pitch graph to set notes with the brush; right-drag silences notes. Drag in the volume graph, or the wave and effect rows, to change just those.</span><span class="mobile-only">Draw in the pitch graph to set notes with the brush. Volume 0 silences a note.</span> Play it in code with <code>sfx(n)</code>.</div>
+          <div class="sfxstring">
+            <label for="sfxString">Sound string</label>
+            <input id="sfxString" spellcheck="false" title="Paste a sound string here to load it into this slot">
+            <button id="sfxCopy">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="panel" id="tab-info">
       <div class="apiref" id="info"></div>
     </div>
@@ -187,12 +222,14 @@
         <button data-btn="1" class="d-right" aria-label="Right">▶</button>
         <button data-btn="3" class="d-down" aria-label="Down">▼</button>
       </div>
+      <button data-btn="6" class="pausebtn" aria-label="Pause">☰</button>
       <div class="ab">
         <button data-btn="4" aria-label="O button">O</button>
         <button data-btn="5" aria-label="X button">X</button>
       </div>
     </div>
-    <div class="controls">Arrows / WASD move · <kbd>Z</kbd> O · <kbd>X</kbd> X · click the game to focus it</div>
+    <div class="controls">Arrows / WASD move · <kbd>Z</kbd> O · <kbd>X</kbd> X · <kbd>Enter</kbd> pause · click the game to focus it</div>
+    <div class="savebar"><span>Save data:</span> <code id="saveData">none</code> <button id="saveClear" title="Delete what this game has stored with save()">Clear</button></div>
     <div class="console" id="console" aria-live="polite"></div>
   </section>
 </main>

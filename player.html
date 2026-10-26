@@ -39,6 +39,8 @@ function run(cart) {
     overlay: document.getElementById('ui'),
     onError: reportError,
     onLog: (text) => send({ type: 'log', text }),
+    onRestart: () => send({ type: 'restart' }),   // the IDE runs the cart again from scratch
+    onSave: (json) => send({ type: 'save', json }),
   });
   let hooks;
   try {

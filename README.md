@@ -20,10 +20,13 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | Code | Your game's JavaScript (`_init`, `_update`, `_draw`). |
 | Map | Paint maps layer by layer, set size, name and origin, with a 3D orbit preview. |
 | Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
+| Sfx | Make sound effects, PICO-8 style: draw pitches with a brush (waveform, volume, effect), set speed and loop points, play them, and copy a sound out as a string. |
 | Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
-The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, palette tricks).
+The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, sounds, a saved best time, palette tricks).
+
+While a game runs, **Enter** pauses it, PICO-8 style, with Resume, Restart and Screenshot (a PNG of the game screen). Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
 
 ### On a phone
 
@@ -34,7 +37,7 @@ On narrow screens the IDE shows one panel at a time, and the game gets its own *
 **Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). It holds exactly two files:
 
 - `index.html`: a page that fills the window with the square game view.
-- `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models and code.
+- `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models, sounds and code. The pause menu, sounds and save data all work in exported games too.
 
 It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
 
@@ -64,6 +67,8 @@ function _draw() {
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps, every visible edge is outlined. Off by default.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
 - **Text and UI:** `print(str, x, y, c, oc, sx, sy)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline, `sx`/`sy` scale it by whole numbers for titles. `rect` and `rectfill(x0, y0, x1, y1, c)` draw outlined or filled boxes on the same layer, PICO-8 style.
+- **Sound:** `sfx(n, ch, offset, length)` plays sound n (0-63) from the Sfx tab on one of 4 channels; `sfx(-1)` stops, `sfx(-2, ch)` ends a loop.
+- **Save data:** `save(value)` stores any JSON value for this game in the browser; `load()` reads it back.
 - **Extras:** `printh`, `btn`, `btnp`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
 The Info tab has the full reference.
@@ -77,11 +82,12 @@ The Info tab has the full reference.
 - `player.html`: runs a cart inside an iframe, so every run starts clean.
 - `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
 - `index.html`, `js/ide.js`, `css/ide.css`: the IDE. `js/preview.js` is the orbit viewer used by the editors.
+- `js/audio.js`: the sound synth (8 waveforms, 8 effects, loops), the sound string format and a 4-channel player; used by both the game and the Sfx tab.
 - `js/cart.js`: cart format and the demo cart.
 
 ## Changing the engine
 
-The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js` or `js/boot.js`:
+The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js` or `js/boot.js`:
 
 ```
 npm install      # once
@@ -95,3 +101,4 @@ Commit the rebuilt bundle with your change. A GitHub Action fails if the committ
 - Carrying the player along on moving or rotating maps.
 - Undo in the map and tile editors (the code editor has undo).
 - Editing the palette in the IDE (change `palette[i]` from code for now).
+- Music (patterns of sounds); for now, loop a sound.

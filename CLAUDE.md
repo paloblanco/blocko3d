@@ -99,6 +99,17 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 **Text and UI** (agreed with the owner): `print(str, x, y, c, oc, sx, sy)` draws on a 2D overlay canvas on top of the 3D view, in screen pixels. The font (`js/font.js`) uses 7×10 cells: 5-wide glyphs, 7-tall capitals, 2-row descenders, a 1-pixel margin all round, upper and lower case and all printable ASCII. Glyphs are written as `#`/`.` rows in that file, so they're easy to edit. `oc` is an optional outline color (8-direction ring, drawn under all the text first); leaving it off means no outline. Both colors go through `pal`. `sx`/`sy` are whole-number scales (`sy` defaults to `sx`; the owner asked for both so titles can be stretched); the outline scales with the text (one font pixel thick). Pass `oc` as `null` or `-1` to scale without an outline. `print` returns the x just past the text, like PICO-8. `rect(x0, y0, x1, y1, c)` (outline) and `rectfill(...)` (filled) draw on the same 2D layer, corners included and in either order, PICO-8 style. Text and rectangles stack in call order.
 
+**Pause menu** (asked for by the owner): Enter, NumpadEnter or P (button 6 in `KEYMAP`) pauses, handled by the engine, not the game. While paused, `_update`/`_draw` don't run, `time()` doesn't advance and the audio context is suspended. The game's 2D overlay is snapshotted (`frozen`) and the menu drawn over it in the default palette, so it's readable whatever the game did to `palette`. Items: Resume, Restart, Screenshot. Restart calls `onRestart` (default `location.reload()`; in the IDE the player posts `restart` and the IDE runs the cart again). Screenshot composites the GL canvas (`preserveDrawingBuffer: true`) and the frozen overlay at 4× (1024×1024) with no menu, and downloads `<slug>_<timestamp>.png`. The touch controls have a ☰ button that sends Enter.
+
+**Sound** (asked for by the owner; music is deferred): PICO-8-style SFX in `js/audio.js`, shared by the engine and the IDE.
+- 64 sounds × 32 notes; each note has pitch 0-63 (33 = A 440 Hz), wave 0-7 (triangle, tilted saw, saw, square, pulse, organ, noise, phaser), volume 0-7 and effect 0-7 (none, slide, vibrato, drop, fade in, fade out, arp fast, arp slow). Speed: each note lasts speed/120 s. Loop: notes loopStart up to loopEnd repeat.
+- **Saved as a string** (the owner wanted Playload-like strings): 166 hex characters, `SS LL EE` then `PP W V E` per note. The cart's `sfx` is an array of these strings (null for empty slots, trailing empties dropped).
+- Sounds are synthesized in JS to a 22050 Hz buffer (cached per string) and played with Web Audio on 4 channels. Looping uses the buffer source's loop points. `sfx(n, ch, offset, length)`, `sfx(-1[, ch])` stop, `sfx(-2, ch)` releases a loop, and `sfx(str)` plays a string directly.
+- Browsers block audio until a user gesture: the engine unlocks on keydown/pointerdown, and the IDE's iframe has `allow="autoplay"`. Sounds requested before the unlock are dropped, not delayed.
+- Sfx tab: slot list, Play (Space), speed, loop, a brush (wave, volume, effect) applied when drawing in the pitch graph, separate volume graph and wave/effect rows, a playback cursor, and a string field to copy or paste a sound.
+
+**Save data** (asked for by the owner): `save(value)` / `load()` store one JSON value per game in `localStorage` under `blocky3d.save.<slug of the cart name>`, up to 64 KB. `save(null)` deletes it. Web pages can't silently write real files, so the browser's storage is the "file". It works in the IDE, from `file://` and on itch.io. The IDE shows the current save under the game with a Clear button (the player posts `save` when a game saves). Renaming the cart changes the key.
+
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
@@ -119,7 +130,8 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | `index.html`, `js/ide.js`, `css/ide.css` | The IDE: CodeMirror 5 code tab (falls back to a textarea), map editor (layer grid with a ghost of the layer below, orbit preview), tile editor (three face canvases, pencil and fill, right-click eyedropper), Info tab, console. Autosaves to `localStorage` under `blocky3d.cart.v1`. Save and Open use `.b3d.json`. |
 | `js/preview.js` | The orbit viewer used by the Map, Tile and Vox editors. `setVox` shows a model with an onion-skin ghost and the pivot; `hitVox` raycasts a click to a voxel face (or the floor grid). |
 | Mobile layout | Phone layout below 820px wide (`MOBILE` in `js/ide.js` must match the `max-width: 820px` block in `css/ide.css`): one panel at a time, compact two-row header, and the game pane becomes a **Game** tab (`body[data-tab="game"]`) that Run switches to. Touch screens (`pointer: coarse`) get on-screen buttons (`#touchpad`); the IDE posts `{type: 'key', code, down}` to the player iframe, which dispatches a matching `KeyboardEvent`, so the engine needs no touch code. Touch stand-ins for right-click: tile 0 erases on the map, the **Pick** tool is the eyedropper. |
-| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (a title card made with `rectfill`/`rect`/scaled `print`, castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems). The demo models are generated in code (`figure`, `makeVox`). |
+| `js/audio.js` | Sound: synth, string encode/decode, `SfxPlayer` (4 channels, caching, loop release, current-note lookup for the editor cursor). No Three.js dependency, so the IDE imports it directly. |
+| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (a title card made with `rectfill`/`rect`/scaled `print`, castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems, six sounds, a run timer and a best time kept with `save`/`load`). The demo models and sounds are generated in code (`figure`, `makeVox`, `makeSfx`). |
 | `js/font.js` | The 7×10 pixel font, `drawText` (optional outline and scale) and `textWidth`. |
 | `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
 
@@ -136,7 +148,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 ```
 { version, name, code, palette?, tiles: [null, {top, side, bottom}...], maps: [{name, w, h, d, origin, data(base64)}],
-  vox: [{name, pivot, data(base64, 512 bytes)}] }
+  vox: [{name, pivot, data(base64, 512 bytes)}], sfx: [string or null, ...] }
 ```
 
 - Map data is flattened as `x + w * (y + h * z)`.
@@ -148,7 +160,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - CodeMirror 5.65.18 from cdnjs, and Google Fonts (IBM Plex Sans, JetBrains Mono), for the IDE only.
 - esbuild, a dev dependency for building the runtime bundle.
 
-**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js` or `js/boot.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js`. Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle is stale.
+**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js` or `js/boot.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js`. Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle is stale.
 
 **Exported games** must stay fully standalone: two files, no network requests, working from `file://`. Don't add CDN loads, ES modules (they fail from `file://`) or extra asset files to the export.
 
@@ -171,6 +183,7 @@ What was checked:
 - Outlines: the demo with `outline(0)` (silhouettes, creases, primitives, a different outline color on the player), a box-shaped map with a notch (every visible edge outlined), and a castle wall with carved notches. Frame time under SwiftShader is the same with outlines on and off (about 16.5 ms).
 - UI: `rect`/`rectfill` (including reversed corners and `pal`), `print` at scale 2, stretched (4×2, 2×5) and with/without outline, the return value, and the demo title card.
 - Vox: a test model drawn plain, yawed, pitched, scaled, squashed, recolored with `pal` and with/without outlines; the demo's hero walks and turns, guards march; editor painting (grid and 3D click, mirror, Erase, Fill, Pick), onion skin, playback, on desktop and at phone size.
+- Pause/sound/save: every demo sound renders to non-silent audio; finishing a run saves the best time and the IDE shows it; Enter pauses, Screenshot downloads a 1024×1024 PNG without the menu, Resume and Restart work (Restart shows the saved best on the title card); the Sfx tab draws, loops, plays with a cursor and accepts a pasted string; the exported game pauses offline.
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.
@@ -182,6 +195,8 @@ A small `tests/` folder built this way would be a good addition.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
 - Faces between two solid blocks are always culled, even if a tile has `palt` transparency. That's fine for now.
 - Exported games have no on-screen touch controls yet (only the IDE does), so they need a keyboard.
+- Music (patterns that sequence sounds across channels) is deferred; the owner said SFX first.
+- Games can't add their own pause menu items yet (PICO-8's `menuitem`).
 - GitHub Pages isn't enabled yet; the owner can turn it on in Settings → Pages → deploy from `main`.
 
 ## Working with the owner
