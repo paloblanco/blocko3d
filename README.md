@@ -8,15 +8,15 @@ A small, deliberately limited 3D game engine for JavaScript with a PICO-8-style 
 
 It's a static site with no build step. ES modules need a web server, so either:
 
-- **GitHub Pages:** in the repo's Settings → Pages, deploy from the `main` branch root. The IDE is `index.html`.
+- **Online:** the IDE is live at https://paloblanco.github.io/demo_blocky_3d/ (GitHub Pages, deployed from `main`), and the exported demo at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/.
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
 The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from CDNs, so it needs an internet connection. Games themselves run on the bundled runtime in `runtime/` (see below).
 
 ## Testing the alpha
 
-- **Try the IDE:** open `index.html` on the site (see above), press **Demo**, then **Run**.
-- **Try an exported game:** open `standalone_demo/index.html`, the castle demo exactly as **Export** makes it. It's the easiest thing to try on a phone or tablet.
+- **Try the IDE:** open https://paloblanco.github.io/demo_blocky_3d/, press **Demo**, then **Run**.
+- **Try an exported game:** open https://paloblanco.github.io/demo_blocky_3d/standalone_demo/, the castle demo exactly as **Export** makes it. It's the easiest thing to try on a phone or tablet.
 - **Things worth trying:** the touch controls in portrait and landscape, pause, mute, fullscreen and Restart (fullscreen should stay on), a gamepad, and making a small game of your own.
 - **When something goes wrong,** please note the version (it's at the top of the Info tab and in the console), your device and browser, whether you were in the IDE or an exported game, and what you did just before.
 

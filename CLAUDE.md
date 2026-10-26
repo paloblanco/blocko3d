@@ -16,6 +16,8 @@ Guiding principles. Keep them when adding features:
 
 **Current version: 0.1.0-alpha**, tagged `v0.1.0-alpha` (the first version for human testing). The version lives in `js/version.js` (shown at the top of the Info tab, in the IDE console, in the first line of exported game scripts and as `Blocky3D.VERSION`) and in `package.json`; `CHANGELOG.md` lists what each version has. To release: bump both, add a CHANGELOG entry, `npm run build`, commit, then tag `v<version>` and push the tag.
 
+The site is live on GitHub Pages (deployed from `main`): the IDE at https://paloblanco.github.io/demo_blocky_3d/ and the exported demo at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/.
+
 The design spec lives in a Claude Doc titled "blocky3D Spec" (claude.ai artifact `JH2BMJck8VtrndcyhxTSB5`). This file and the code are the source of truth if they disagree.
 
 ## Design decisions (agreed with the owner)
@@ -241,7 +243,6 @@ A small `tests/` folder built this way would be a good addition.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
 - Faces between two solid blocks are always culled, even if a tile has `palt` transparency. That's fine for now.
 - Games can't add their own pause menu items yet (PICO-8's `menuitem`).
-- GitHub Pages isn't enabled yet; the owner can turn it on in Settings → Pages → deploy from `main`.
 
 ## Working with the owner
 
