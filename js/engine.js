@@ -145,9 +145,43 @@ export function createEngine({
   }
 
   // ---- input
-  const down = new Array(8).fill(false);
-  const prev = new Array(8).fill(false);
-  const now = new Array(8).fill(false);
+  // Up to 4 players, PICO-8 style. Player 0 = the keyboard plus the first gamepad; the 2nd, 3rd
+  // and 4th connected gamepads are players 1-3. Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X,
+  // 6 pause (handled by the engine).
+  const PLAYERS = 4;
+  const down = new Array(8).fill(false);                                   // keyboard (player 0)
+  const prevP = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
+  const nowP = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
+
+  // Standard gamepad layout: d-pad 12-15, face buttons 0 A, 1 B, 2 X, 3 Y, 9 Start; left stick axes 0/1.
+  const DEAD = 0.5;
+  function readPad(pad, out) {
+    const b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
+    const ax = pad.axes[0] || 0, ay = pad.axes[1] || 0;
+    out[0] = b(14) || ax < -DEAD;
+    out[1] = b(15) || ax > DEAD;
+    out[2] = b(12) || ay < -DEAD;
+    out[3] = b(13) || ay > DEAD;
+    out[4] = b(0) || b(2);          // O: A or X
+    out[5] = b(1) || b(3);          // X: B or Y
+    out[6] = b(9);                  // Start: pause
+  }
+
+  const padState = Array.from({ length: PLAYERS }, () => new Array(8).fill(false));
+  function pollInput() {
+    for (const st of padState) st.fill(false);
+    let pads = [];
+    try { pads = navigator.getGamepads ? [...navigator.getGamepads()] : []; } catch { pads = []; }
+    pads.filter((pd) => pd && pd.connected).sort((a, c) => a.index - c.index).slice(0, PLAYERS)
+      .forEach((pd, p) => readPad(pd, padState[p]));
+    for (let p = 0; p < PLAYERS; p++) {
+      for (let i = 0; i < 8; i++) {
+        prevP[p][i] = nowP[p][i];
+        nowP[p][i] = padState[p][i] || (p === 0 && down[i]);
+      }
+    }
+  }
+  const pauseTapped = () => nowP.some((pl, p) => pl[6] && !prevP[p][6]);
 
   // ---- timing
   let frames = 0;
@@ -308,8 +342,9 @@ export function createEngine({
     },
 
     // --- input
-    btn(i) { return !!now[i]; },
-    btnp(i) { return !!now[i] && !prev[i]; },
+    // p: player 0-3 (0 = keyboard + first gamepad)
+    btn(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0]); },
+    btnp(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0] && !prevP[p | 0][i | 0]); },
 
     // --- time + math helpers (angles in turns, like PICO-8)
     time() { return frames / 60; },
@@ -469,7 +504,8 @@ export function createEngine({
   }
 
   function menuUpdate() {
-    const pressed = (i) => now[i] && !prev[i];
+    // any player can drive the pause menu
+    const pressed = (i) => nowP.some((pl, p) => pl[i] && !prevP[p][i]);
     if (pressed(2)) menuSel = (menuSel + MENU.length - 1) % MENU.length;
     if (pressed(3)) menuSel = (menuSel + 1) % MENU.length;
     if (MENU[menuSel] === 'Resolution' && (pressed(0) || pressed(1))) changeRes(pressed(1) ? 1 : -1);
@@ -499,9 +535,9 @@ export function createEngine({
     let steps = 0;
     while (acc >= STEP && steps < 4) {
       acc -= STEP; steps++;
-      for (let i = 0; i < 8; i++) { prev[i] = now[i]; now[i] = down[i]; }
+      pollInput();
       if (paused) { menuUpdate(); if (!running) return; continue; }
-      if (now[6] && !prev[6]) { setPaused(true); continue; }
+      if (pauseTapped()) { setPaused(true); continue; }
       frames++;
       if (hooks._update && !guard(hooks._update)) return;
     }

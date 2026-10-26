@@ -121,12 +121,14 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - **Music tab:** pattern list (playing pattern highlighted), Play (Space) from the current pattern that follows the song, flag checkboxes, 4 channel cards (enable, −/+ sound number, a mini pitch view with a playhead, click or Edit sound to open it in the Sfx tab), and the pattern length.
 - **Scale snapping** in the Sfx tab: "Snap to scale" with a root note and one of 9 scales (minor/major pentatonic, major, minor, harmonic minor, dorian, mixolydian, blues, whole tone). The default when enabled is **C minor pentatonic**, like PICO-8. Drawn pitches snap to the nearest scale note (ties go down), scale rows are highlighted in the pitch graph (root brighter), and "Snap this sound" moves an existing sound's notes onto the scale. Settings are saved in the cart as `scale: {snap, root, type}`; the engine ignores them.
 
+**Input and gamepads** (asked for by the owner, PICO-8 style): `btn(i, p)` / `btnp(i, p)` with player p 0-3 (default 0). **Player 0 = the keyboard OR the first connected gamepad**; the 2nd, 3rd and 4th connected gamepads are players 1-3, ordered by the browser's gamepad slot (gaps skipped), so if the first pad is unplugged the next one becomes player 0. Pads are polled once per `_update` step (`pollInput`). Standard mapping: d-pad (12-15) or left stick (axes 0/1, deadzone 0.5) for directions; O = A or X (0, 2); X = B or Y (1, 3); Start (9) = button 6, pause, from any player. Any player can drive the pause menu. The IDE iframe has `allow="autoplay; gamepad"`. Browsers only expose a pad after one of its buttons is pressed, and pad presses don't count as a gesture for unlocking sound. `btnp` has no auto-repeat (PICO-8's does).
+
 **Save data** (asked for by the owner): `save(value)` / `load()` store one JSON value per game in `localStorage` under `blocky3d.save.<slug of the cart name>`, up to 64 KB. `save(null)` deletes it. Web pages can't silently write real files, so the browser's storage is the "file". It works in the IDE, from `file://` and on itch.io. The IDE shows the current save under the game with a Clear button (the player posts `save` when a game saves). Renaming the cart changes the key.
 
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
-- The extras: `printh`, `btn`/`btnp` (0–5, PICO-8 mapping plus WASD), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
+- The extras: `printh`, the keyboard mapping (arrows/WASD, Z C N space for O, X V M for X), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
 - `_update` runs at a fixed 60 per second.
 - Nothing is transparent by default.
 
@@ -200,6 +202,7 @@ What was checked:
 - Pause/sound/save: every demo sound renders to non-silent audio; finishing a run saves the best time and the IDE shows it; Enter pauses, Screenshot downloads a PNG at the active resolution without the menu, Resume and Restart work (Restart shows the saved best on the title card); the Sfx tab draws, loops, plays with a cursor and accepts a pasted string; the exported game pauses offline.
 - Resolution: the demo with outlines at 1×, 2× and 3× (canvas 256/512/768, outline thickness matched, smoother edges); switching from the pause menu and the stored choice; a 2× screenshot is 512×512.
 - Music: both demo patterns render at 4.27 s with no clipping (peak under 0.5); the song flows 0 > 1 > 0 > 1; stop and end-of-song work; the Music tab plays, follows into the next pattern, and edits are saved; snapping to C minor pentatonic keeps drawn notes in {C, Eb, F, G, Bb}, and "Snap this sound" to A major moves them all into that scale; layouts checked on desktop and phone.
+- Gamepads (simulated by replacing `navigator.getGamepads` in the test browser): keyboard and pad 1 both drive player 0; pads in slots 2, 3, 4 become players 1-3; stick and d-pad directions, O/X face buttons, `btnp` edges; unplugging pad 1 promotes the next pad to player 0; Start pauses.
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.

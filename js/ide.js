@@ -197,7 +197,7 @@ function run() {
   frame = document.createElement('iframe');
   frame.src = 'player.html';
   frame.title = 'Game';
-  frame.allow = 'autoplay';   // lets the game play sound once you've clicked Run
+  frame.allow = 'autoplay; gamepad';   // sound once you've clicked Run; gamepads
   $('placeholder').hidden = true;
   $('screen').append(frame);
   if (MOBILE.matches) showTab('game');
