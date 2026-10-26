@@ -150,7 +150,8 @@ export function createEngine({
   //   0 left, 1 right, 2 up, 3 down, 4 O, 5 X        (keyboard and gamepad)
   //   6 Start / pause (handled by the engine; Enter or P on the keyboard)
   //   7 A, 8 B, 9 X, 10 Y, 11 LB, 12 RB, 13 LT, 14 RT, 15 Select, 16 L3, 17 R3, 18 Home   (gamepad only)
-  const PLAYERS = 4, NBTN = 19;
+  //   19 mouse left (or a tap), 20 mouse right, 21 mouse middle   (player 0, mouse modes 1 and 2)
+  const PLAYERS = 4, NBTN = 22;
   const down = new Array(NBTN).fill(false);                                  // keyboard (player 0)
   const prevP = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
   const nowP = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
@@ -178,6 +179,7 @@ export function createEngine({
 
   const padState = Array.from({ length: PLAYERS }, () => new Array(NBTN).fill(false));
   function pollInput() {
+    takeMouse();
     for (const s of padState) s.fill(false);
     for (const st of sticks) { st[0][0] = st[0][1] = st[1][0] = st[1][1] = 0; }
     let pads = [];
@@ -187,9 +189,10 @@ export function createEngine({
     for (let p = 0; p < PLAYERS; p++) {
       for (let i = 0; i < NBTN; i++) {
         prevP[p][i] = nowP[p][i];
-        nowP[p][i] = padState[p][i] || (p === 0 && down[i]);
+        nowP[p][i] = padState[p][i] || (p === 0 && (down[i] || tapped[i]));
       }
     }
+    tapped.fill(false);
   }
 
   // A stick as [x, y], each -1..1 (right and down are positive). A small round dead zone reads as
@@ -210,6 +213,89 @@ export function createEngine({
     const n = dx && dy ? Math.SQRT1_2 : 1;   // diagonals have length 1 too
     return [dx * n, dy * n];
   }
+  // ---- mouse and touch, by mode: 0 off (default), 1 click (position + buttons), 2 capture
+  // (pointer lock: movement for camera control; locks on the next click, and losing it pauses)
+  let mouseMode = 0;
+  let mx = 0, my = 0;                  // position in screen pixels (0-255 on the screen)
+  let dxAcc = 0, dyAcc = 0, wheelAcc = 0;
+  let mdx = 0, mdy = 0, mwheel = 0;    // what the game sees, captured once per update
+  let touchId = null, tlx = 0, tly = 0;
+  let menuHover = -1, menuClick = -1, menuRects = [];
+  const MBTN = { 0: 19, 2: 20, 1: 21 };   // DOM mouse button -> engine button
+  const tapped = new Array(NBTN).fill(false);   // a click shorter than one update still counts once
+  const press = (b) => { down[b] = tapped[b] = true; };
+
+  const locked = () => document.pointerLockElement === overlay;
+  function toScreen(e) {
+    const r = overlay.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * SCREEN, ((e.clientY - r.top) / r.height) * SCREEN];
+  }
+  function requestLock() {
+    try { const pr = overlay.requestPointerLock(); if (pr && pr.catch) pr.catch(() => {}); } catch { /* not allowed now: the next click tries again */ }
+  }
+  function takeMouse() {   // once per update step
+    mdx = dxAcc; mdy = dyAcc; mwheel = wheelAcc;
+    dxAcc = dyAcc = wheelAcc = 0;
+  }
+  function setMouseMode(m) {
+    mouseMode = [0, 1, 2].includes(m | 0) ? m | 0 : 0;
+    overlay.style.touchAction = mouseMode ? 'none' : '';
+    for (const b of [19, 20, 21]) down[b] = false;
+    touchId = null;
+    if (mouseMode !== 2 && locked()) document.exitPointerLock();
+  }
+  // which pause menu item is under a screen point, or -1
+  const menuItemAt = (x, y) => menuRects.findIndex((r) => x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3]);
+
+  overlay.addEventListener('contextmenu', (e) => { if (mouseMode) e.preventDefault(); });
+  overlay.addEventListener('mousedown', (e) => {
+    if (!mouseMode) return;
+    if (!locked()) [mx, my] = toScreen(e);
+    if (paused) { const i = menuItemAt(mx, my); if (i >= 0 && e.button === 0) menuClick = i; return; }
+    if (mouseMode === 2 && !locked()) { requestLock(); return; }   // the click that captures doesn't count
+    if (MBTN[e.button] !== undefined) press(MBTN[e.button]);
+  });
+  window.addEventListener('mouseup', (e) => { if (MBTN[e.button] !== undefined) down[MBTN[e.button]] = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!mouseMode) return;
+    if (!locked()) {
+      [mx, my] = toScreen(e);
+      if (paused) { const i = menuItemAt(mx, my); if (i >= 0) menuHover = i; }
+    }
+    if (!paused) { dxAcc += e.movementX || 0; dyAcc += e.movementY || 0; }
+  });
+  overlay.addEventListener('wheel', (e) => {
+    if (!mouseMode) return;
+    e.preventDefault();
+    wheelAcc += e.deltaMode === 1 ? e.deltaY / 3 : e.deltaMode === 2 ? e.deltaY : e.deltaY / 100;   // in notches, down positive
+  }, { passive: false });
+
+  // Touch: in mode 1 a tap is a left click at that spot; in mode 2 dragging gives movement.
+  overlay.addEventListener('pointerdown', (e) => {
+    if (!mouseMode || e.pointerType === 'mouse' || touchId !== null) return;
+    e.preventDefault();             // no emulated mouse events after this
+    touchId = e.pointerId;
+    try { overlay.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+    if (mouseMode === 1 || paused) [mx, my] = toScreen(e);
+    tlx = e.clientX; tly = e.clientY;
+    if (paused) { const i = menuItemAt(mx, my); if (i >= 0) menuClick = i; return; }
+    if (mouseMode === 1) press(19);
+  });
+  overlay.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== touchId) return;
+    if (mouseMode === 1) [mx, my] = toScreen(e);
+    if (!paused) { dxAcc += e.clientX - tlx; dyAcc += e.clientY - tly; }
+    tlx = e.clientX; tly = e.clientY;
+  });
+  const touchEnd = (e) => { if (e.pointerId === touchId) { touchId = null; down[19] = false; } };
+  overlay.addEventListener('pointerup', touchEnd);
+  overlay.addEventListener('pointercancel', touchEnd);
+
+  // Losing capture (Esc, switching windows) pauses the game, like most mouse-look games.
+  document.addEventListener('pointerlockchange', () => {
+    if (!locked() && mouseMode === 2 && running && !paused) setPaused(true);
+  });
+
   const pauseTapped = () => nowP.some((pl, p) => pl[6] && !prevP[p][6]);
 
   // ---- timing
@@ -373,6 +459,13 @@ export function createEngine({
     // --- input
     // p: player 0-3 (0 = keyboard + first gamepad)
     btn(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0]); },
+
+    // --- mouse and touch: mouse_set_mode(0 off | 1 click | 2 capture)
+    mouse_set_mode(m) { setMouseMode(m); },
+    mouse_pos() { return [mx, my]; },                 // screen pixels, like print and rect
+    mouse_delta() { return [mdx, mdy]; },             // movement since the last update, in pixels
+    mouse_wheel() { return mwheel; },                 // scroll since the last update, in notches (down +)
+    mouse_locked() { return locked(); },              // is the mouse captured (mode 2)?
     // stick(0) = left, stick(1) = right: [x, y], -1..1, right and down positive
     stick(i = 0, p = 0) { return readStick(i | 0, p | 0); },
     btnp(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0] && !prevP[p | 0][i | 0]); },
@@ -477,13 +570,17 @@ export function createEngine({
 
   function setPaused(p) {
     paused = p;
+    menuHover = menuClick = -1;
+    for (const b of [19, 20, 21]) down[b] = false;
     if (p) {
       frozen = ctx.getImageData(0, 0, SCREEN, SCREEN);   // the game's own overlay, kept for screenshots
       menuSel = 0; note = '';
       audio.suspend();
+      if (locked()) document.exitPointerLock();          // pausing frees the mouse
     } else {
       ctx.putImageData(frozen, 0, 0);
       audio.resume();
+      if (mouseMode === 2) requestLock();                // and resuming captures it again
     }
   }
 
@@ -496,6 +593,7 @@ export function createEngine({
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
     ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
     drawText(ctx, 'Paused', x + ((w - textWidth('Paused')) >> 1), y + 4, hexColor(DEFAULT_PALETTE[6]));
+    menuRects = MENU.map((_, i) => [x + 4, y + 19 + i * 14, w - 8, 14]);
     MENU.forEach((label, i) => {
       const on = i === menuSel;
       const text = label === 'Resolution' ? `Resolution < ${scale}x >` : label;
@@ -537,16 +635,24 @@ export function createEngine({
   function menuUpdate() {
     // any player can drive the pause menu
     const pressed = (i) => nowP.some((pl, p) => pl[i] && !prevP[p][i]);
+    if (menuHover >= 0) { menuSel = menuHover; menuHover = -1; }
+    if (menuClick >= 0) {                     // a click or tap on an item chooses it
+      menuSel = menuClick; menuClick = -1;
+      return menuChoose(MENU[menuSel]);
+    }
     if (pressed(2)) menuSel = (menuSel + MENU.length - 1) % MENU.length;
     if (pressed(3)) menuSel = (menuSel + 1) % MENU.length;
     if (MENU[menuSel] === 'Resolution' && (pressed(0) || pressed(1))) changeRes(pressed(1) ? 1 : -1);
     if (pressed(4) || pressed(5) || pressed(6)) {
-      const choice = pressed(6) ? 'Resume' : MENU[menuSel];
-      if (choice === 'Resume') setPaused(false);
-      else if (choice === 'Restart') { stop(); onRestart(); }
-      else if (choice === 'Screenshot') screenshot();
-      else if (choice === 'Resolution') changeRes(1);
+      menuChoose(pressed(6) ? 'Resume' : MENU[menuSel]);
     }
+  }
+
+  function menuChoose(choice) {
+    if (choice === 'Resume') setPaused(false);
+    else if (choice === 'Restart') { stop(); onRestart(); }
+    else if (choice === 'Screenshot') screenshot();
+    else if (choice === 'Resolution') changeRes(1);
   }
 
   // Cycle 1x -> 2x -> 3x, and redraw the paused frame at the new resolution.
@@ -593,13 +699,17 @@ export function createEngine({
     return true;
   }
 
-  function stop() { running = false; cancelAnimationFrame(raf); audio.stop(); audio.musicStop(); }
+  function stop() {
+    running = false; cancelAnimationFrame(raf); audio.stop(); audio.musicStop();
+    if (locked()) document.exitPointerLock();
+  }
 
   function key(e, isDown) {
     if (isDown) audio.unlock();   // browsers only allow sound after the player does something
     const b = KEYMAP[e.code];
     if (b === undefined) return;
     down[b] = isDown;
+    if (isDown) tapped[b] = true;   // a tap shorter than one update still counts
     e.preventDefault();
   }
 

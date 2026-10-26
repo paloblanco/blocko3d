@@ -108,7 +108,7 @@ if (secs < data.best) save({ best: secs })`,
   },
   {
     title: 'Pause menu',
-    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start), Screenshot (saves the game screen as a PNG, without the menu) and Resolution. Up/down choose; O, X or Enter select; Enter again resumes. Resolution (left/right) renders the 3D view at 1×, 2× or 3× (256, 512 or 768 pixels square) for smoother edges; text and rectangles stay at 256, and outlines keep the same thickness. The choice is remembered on that device, and screenshots use it.',
+    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start), Screenshot (saves the game screen as a PNG, without the menu) and Resolution. Up/down choose; O, X or Enter select; Enter again resumes. In games that use the mouse, the menu can also be clicked or tapped. Resolution (left/right) renders the 3D view at 1×, 2× or 3× (256, 512 or 768 pixels square) for smoother edges; text and rectangles stay at 256, and outlines keep the same thickness. The choice is remembered on that device, and screenshots use it.',
     items: [],
   },
   {
@@ -129,11 +129,30 @@ if (secs < data.best) save({ best: secs })`,
       ['printh(...)', 'Write a line to the IDE console, for debugging.'],
       ['btn(i, p?)', 'Is button i held by player p (0-3, default 0)? Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X.'],
       ['btnp(i, p?)', 'Was button i pressed by player p this update?'],
-      ['Gamepad buttons', '6 Start (also pauses), 7 A, 8 B, 9 X, 10 Y, 11 LB, 12 RB, 13 LT, 14 RT, 15 Select, 16 L3 (press left stick), 17 R3, 18 Home. 0-5 still work on a gamepad too: O is A or X, and X is B or Y. Use 7-10 to tell all four face buttons apart.'],
+      ['Gamepad buttons', '6 Start (also pauses), 7 A, 8 B, 9 X, 10 Y, 11 LB, 12 RB, 13 LT, 14 RT, 15 Select, 16 L3 (press left stick), 17 R3, 18 Home. 0-5 still work on a gamepad too: O is A or X, and X is B or Y. Use 7-10 to tell all four face buttons apart. 19-21 are the mouse buttons (see Mouse and touch).'],
       ['stick(i, p?)', 'Stick i (0 left, 1 right) of player p as [x, y], each -1 to 1; right and down are positive. A small dead zone reads as exactly 0. When the left stick is centered, stick(0) follows the d-pad or arrow keys instead, so analog movement also works on a keyboard.'],
       ['Players', 'Player 0 is the keyboard (arrows or WASD; O = Z, C, N or space; X = X, V or M) together with the first gamepad. The 2nd, 3rd and 4th gamepads are players 1-3, in the order they connect. On a gamepad: d-pad or left stick to move, A or X for O, B or Y for X, Start to pause. Browsers only report a gamepad after a button on it is pressed.'],
       ['time() / t()', 'Seconds since the game started.'],
     ],
+  },
+  {
+    title: 'Mouse and touch',
+    intro: 'Off by default, so the mouse never gets in the way of keyboard and gamepad games. Pick a mode in _init(). Mouse buttons are buttons 19 (left), 20 (right) and 21 (middle) of player 0, so btn() and btnp() work for them; right-click no longer opens the browser menu.',
+    items: [
+      ['mouse_set_mode(m)', '0 off (the default; mouse and touch are ignored). 1 click: the cursor stays free, for pointing and clicking. 2 capture: the mouse is hidden and locked to the game, for mouse-look; it locks on the first click on the game (that click is not reported). Esc or switching away releases it and pauses the game; Resume captures it again.'],
+      ['mouse_pos()', 'Cursor position as [x, y] in screen pixels, like print and rect (0-255 on the screen; it can go past that when the cursor is off the screen). Doesn\'t change while captured.'],
+      ['mouse_delta()', 'How far the mouse moved since the last update, as [dx, dy] in pixels; right and down are positive. Works in both modes; use it for mouse-look in mode 2.'],
+      ['mouse_wheel()', 'Wheel scroll since the last update, in notches (about 1 per click of the wheel); down is positive.'],
+      ['mouse_locked()', 'Is the mouse captured right now (mode 2)? Handy for showing "click to play".'],
+      ['Touch', 'Mode 1: a tap is a left click (button 19) at that spot. Mode 2: dragging a finger gives mouse_delta(), so mouse-look works on a phone. In either mode, the pause menu can be clicked or tapped.'],
+    ],
+    code: `let yaw = 0, pitch = 0
+function _init() { mouse_set_mode(2) }
+function _update() {
+  let [dx, dy] = mouse_delta()
+  yaw += dx / 1000; pitch = mid(-0.2, pitch - dy / 1000, 0.2)
+  if (btnp(19)) sfx(0)   // left click
+}`,
   },
   {
     title: 'Math',
