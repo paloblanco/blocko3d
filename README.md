@@ -19,21 +19,22 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | --- | --- |
 | Code | Your game's JavaScript (`_init`, `_update`, `_draw`). |
 | Map | Paint maps layer by layer, set size, name and origin, with a 3D orbit preview. |
-| Spr | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
+| Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
+| Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a castle, a drawbridge, palette tricks).
 
 ### On a phone
 
-On narrow screens the IDE shows one panel at a time, and the game gets its own **Game** tab, which **Run** switches to. Touch screens get on-screen controls under the game: a d-pad plus O and X, which send the same input as the keyboard. In the map editor, pick tile 0 to erase. In the tile editor, the **Pick** tool takes a color from the image, standing in for right-click.
+On narrow screens the IDE shows one panel at a time, and the game gets its own **Game** tab, which **Run** switches to. Touch screens get on-screen controls under the game: a d-pad plus O and X, which send the same input as the keyboard. In the map editor, pick tile 0 to erase. In the tile and vox editors, the **Pick** tool takes a color from the image, standing in for right-click.
 
 ## Exporting a game
 
 **Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). It holds exactly two files:
 
 - `index.html`: a page that fills the window with the square game view.
-- `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps and code.
+- `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models and code.
 
 It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
 
@@ -57,6 +58,7 @@ function _draw() {
 
 - **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode).
 - **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `msetw`.
+- **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps, every visible edge is outlined. Off by default.
@@ -90,7 +92,6 @@ Commit the rebuilt bundle with your change. A GitHub Action fails if the committ
 
 ## Not in this version
 
-- The `spr` equivalent for individual objects (deferred in the spec).
 - Carrying the player along on moving or rotating maps.
 - Undo in the map and tile editors (the code editor has undo).
 - Editing the palette in the IDE (change `palette[i]` from code for now).

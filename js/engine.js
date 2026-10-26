@@ -6,6 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass,
+  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX,
 } from './core.js';
 import { drawText, LINE_H } from './font.js';
 
@@ -37,6 +38,7 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
   const atlas = createAtlas();
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
+  const voxels = voxFromCart(cart);
 
   // ---- draw state (PICO-8 style: persists until changed)
   let remap = identityRemap();
@@ -49,8 +51,8 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
   // ---- per-frame object pools (immediate mode: everything is re-submitted each _draw)
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
   const sphereGeo = new THREE.SphereGeometry(1, 12, 8);
-  const pools = { map: [], cube: [], sphere: [], line: [] };
-  const used = { map: 0, cube: 0, sphere: 0, line: 0 };
+  const pools = { map: [], vox: [], cube: [], sphere: [], line: [] };
+  const used = { map: 0, vox: 0, cube: 0, sphere: 0, line: 0 };
 
   function take(kind) {
     const pool = pools[kind];
@@ -58,6 +60,9 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     if (!o) {
       if (kind === 'map') {
         o = new THREE.Mesh(undefined, createVoxelMaterial(atlas, palU));
+        o.matrixAutoUpdate = false;
+      } else if (kind === 'vox') {
+        o = new THREE.Mesh(undefined, createVoxMaterial(palU));
         o.matrixAutoUpdate = false;
       } else if (kind === 'line') {
         const g = new THREE.BufferGeometry();
@@ -161,6 +166,17 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
         return [mapGet(map, xi, yi, zi), xi, yi, zi];
       }
       return sphereQuery(map, p.x, p.y, p.z, +r);
+    },
+
+    // --- vox models: 8 x 8 x 8 voxels = 1 block, placed by their pivot
+    vox(n, x, y, z, pitch = 0, yaw = 0, roll = 0, sx = 1, sy = sx, sz = sx) {
+      const i = n | 0;
+      if (i < 0 || i >= MAX_VOX) throw new Error(`vox ${n} does not exist (models are 0-${MAX_VOX - 1})`);
+      const v = voxels[i];
+      if (!v) return;                     // an unused slot draws nothing
+      const o = take('vox');
+      o.geometry = ensureVoxGeometry(v);
+      voxMatrix(v, [+x || 0, +y || 0, +z || 0], [+pitch || 0, +yaw || 0, +roll || 0], [+sx, +sy, +sz], o.matrix);
     },
 
     // --- primitives (color is a palette index)

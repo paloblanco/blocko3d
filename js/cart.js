@@ -1,5 +1,6 @@
 // Cart format + the built-in demo cart.
-// A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}] }
+// A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}],
+//   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}] }
 import { MAX_TILES, bytesToB64, emptyTile } from './core.js';
 
 export const CART_VERSION = 1;
@@ -38,6 +39,8 @@ export function normalizeCart(c) {
     if (!t || !Array.isArray(t.top) || !Array.isArray(t.side) || !Array.isArray(t.bottom)) cart.tiles[i] = emptyTile(7);
   }
   if (!Array.isArray(cart.maps)) cart.maps = [];
+  if (!Array.isArray(cart.vox)) cart.vox = [];
+  cart.vox = cart.vox.slice(0, 64);
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
   cart.version = CART_VERSION;
   return cart;
@@ -118,9 +121,11 @@ function demoLevel() {
 
 const DEMO_CODE = `// blocky3D demo
 // arrows or WASD move, X jumps, Z raises / lowers the drawbridge
+// vox models: 0 hero, 1-2 hero steps, 3-4 guard steps, 5 gem
 // map 0 = the level, map 1 = the drawbridge, hinged at its castle end
 
 let px, py, pz, vy, grounded
+let facing = 0, walk = 0   // hero yaw (turns) and walk-cycle clock
 let raise = 1, raise_target = 1
 let gems, score, flash = 0
 let guards
@@ -137,7 +142,7 @@ function _init() {
     { x: 11.5, y: 3.6, z: 19.5 },
     { x: 8.5, y: 3.6, z: 21.5 },
   ]
-  // one red guard; the second is drawn with pal() to make it blue
+  // two guards in red armor; the second is drawn with pal() to make it blue
   guards = [
     { x: 3, z: 6.5, dir: 1, col: 8 },
     { x: 12, z: 2.5, dir: -1, col: 12 },
@@ -151,10 +156,16 @@ function respawn() {
 function _update() {
   // the camera looks down +z, so screen-right is -x
   let s = 0.08
-  if (btn(0)) px += s
-  if (btn(1)) px -= s
-  if (btn(2)) pz += s
-  if (btn(3)) pz -= s
+  let dx = 0, dz = 0
+  if (btn(0)) dx += s
+  if (btn(1)) dx -= s
+  if (btn(2)) dz += s
+  if (btn(3)) dz -= s
+  px += dx; pz += dz
+  if (dx != 0 || dz != 0) {
+    facing = atan2(dz, dx)   // yaw that turns the model's front (+z) toward the movement
+    walk += 1
+  } else walk = 0
   if (btnp(5) && grounded) vy = 0.2
   vy -= 0.01
   py += vy
@@ -214,16 +225,18 @@ function _draw() {
   map(1)
   pal()
 
-  sphere(px, py, pz, 0.4, 10)
+  // the hero: feet at the bottom of the collision sphere; walk cycle 1, 0, 2, 0
+  let frame = walk == 0 ? 0 : [1, 0, 2, 0][flr(walk / 6) % 4]
+  vox(frame, px, py - 0.4, pz, 0, facing)
 
   for (let g of guards) {
     pal(8, g.col)
-    cube(g.x, 3.4, g.z, 0.8, 8)
+    vox(3 + flr(time() * 6) % 2, g.x, 3, g.z, 0, g.dir > 0 ? 0.25 : 0.75)
     pal()
   }
 
   for (let g of gems) {
-    if (!g.got) cube(g.x, g.y + sin(time()) * 0.1, g.z, 0.35, 11)
+    if (!g.got) vox(5, g.x, g.y + sin(time()) * 0.1, g.z, 0, time() * 0.5, 0, 0.6)
   }
 
   // text: color 7 with a black (0) outline so it reads over anything
@@ -232,6 +245,68 @@ function _draw() {
   if (score == gems.length) print('You got them all!', 68, 120, 10, 0)
 }
 `;
+
+// fn(x, y, z) returns a palette color, or -1 for an empty voxel
+function makeVox(name, fn, pivot = [4, 0, 4]) {
+  const data = new Uint8Array(512);
+  for (let z = 0; z < 8; z++) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const c = fn(x, y, z);
+    if (c >= 0) data[x + 8 * (y + 8 * z)] = c + 1;
+  }
+  return { name, pivot, data: bytesToB64(data) };
+}
+
+// A little figure facing +z. stride: 0 standing, 1 left leg forward, -1 right leg forward.
+// Colors: hair, skin, shirt, trousers, shoes, plus a helmet for the guard.
+function figure(stride, c) {
+  return (x, y, z) => {
+    const left = x === 2 || x === 3, right = x === 4 || x === 5;
+    // legs: two 2x2 columns; a stride moves one leg forward and the other back
+    if (y <= 2 && (left || right)) {
+      const shift = left ? stride : -stride;
+      if (z !== 3 + shift && z !== 4 + shift) return -1;
+      return y === 0 ? c.shoes : c.legs;
+    }
+    // body and arms; arms swing opposite to the legs
+    if (y >= 3 && y <= 4) {
+      if (x >= 2 && x <= 5 && (z === 3 || z === 4)) return y === 3 ? c.belt : c.shirt;
+      if (x === 1 || x === 6) {
+        const shift = x === 1 ? -stride : stride;
+        if (z !== 3 + shift && z !== 4 + shift) return -1;
+        return y === 3 ? c.skin : c.shirt;
+      }
+      return -1;
+    }
+    // big chibi head: 6 x 3 x 4, face on the front (+z)
+    if (y >= 5 && x >= 1 && x <= 6 && z >= 2 && z <= 5) {
+      if (z === 5 && y === 6 && (x === 2 || x === 5)) return 0;   // eyes
+      if (c.helmet !== undefined && (y === 7 || z === 2 || x === 1 || x === 6)) return c.helmet;
+      if (y === 7 || z === 2 || ((x === 1 || x === 6) && y === 6 && z < 4)) return c.hair;
+      return c.skin;
+    }
+    return -1;
+  };
+}
+
+function demoVox() {
+  const hero = { hair: 4, skin: 15, shirt: 10, belt: 4, legs: 1, shoes: 20 };
+  // guards wear red (8); the demo turns one blue with pal(8, 12)
+  const guard = { hair: 5, skin: 15, shirt: 8, belt: 5, legs: 5, shoes: 0, helmet: 6 };
+  const gem = (x, y, z) => {
+    const r = Math.abs(x - 3.5) + Math.abs(z - 3.5) + Math.abs(y - 3) * 1.4;
+    if (r > 3.2) return -1;
+    if (y >= 3 && x === 3 && z === 3) return 7;   // a glint
+    return y >= 3 ? 11 : 3;
+  };
+  return [
+    makeVox('hero', figure(0, hero)),
+    makeVox('hero step a', figure(1, hero)),
+    makeVox('hero step b', figure(-1, hero)),
+    makeVox('guard step a', figure(1, guard)),
+    makeVox('guard step b', figure(-1, guard)),
+    makeVox('gem', gem, [4, 3, 4]),
+  ];
+}
 
 export function demoCart() {
   return {
@@ -242,5 +317,6 @@ export function demoCart() {
       demoLevel(),
       encodeMap('drawbridge', 3, 1, 4, [1.5, 1, 4], () => 3),
     ],
+    vox: demoVox(),
   };
 }

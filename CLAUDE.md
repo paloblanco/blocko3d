@@ -21,7 +21,7 @@ The design spec lives in a Claude Doc titled "blocky3D Spec" (claude.ai artifact
 **Drawing tiers** mirror PICO-8:
 
 1. `map`: voxel maps, the equivalent of PICO-8's map.
-2. An `spr` equivalent for individual objects. This is **deferred on purpose** until maps are right; don't invent one without discussing it.
+2. `vox`: 8×8×8 voxel models for characters and items, the `spr` equivalent (see **Vox models** below).
 3. Primitives: `cube`, `sphere`, `line3`.
 
 Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with no scene graph.
@@ -86,6 +86,17 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - The pass fetches each depth and info texel once per neighbor; keep it that way. Under SwiftShader (CPU rendering), the demo runs at the same frame rate with outlines on or off.
 - Background is detected by the depth buffer still holding its cleared value. Don't clear the color with alpha 0: three.js premultiplies the clear color, which turns the background black.
 
+**Vox models** (agreed with the owner):
+
+- Up to 64 models, numbered 0-63, edited in the **Vox** tab (the old Spr tab is now **Tile**). Each is 8×8×8 voxels; one byte per voxel, 0 = empty, else palette color + 1, so black (color 0) stays usable. Index `x + 8 * (y + 8 * z)`, y up, the model's **front is +z**.
+- **8 voxels = 1 block**: unscaled, a model fills exactly one block.
+- `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)`: everything after the position is optional; `sy`/`sz` default to `sx`. Angles are in turns, in the **same order as maps** (yaw, then pitch, then roll). World = pos + R · S · (local − pivot) / 8.
+- Each model has a **pivot** in voxel units (default `[4, 0, 4]`, bottom center), set in the editor. It's the point placed at x, y, z and the center of rotation and scaling, so a leg with its pivot at the hip swings correctly.
+- **Animation is model swapping**, PICO-8 style, plus composing characters from parts in code. A skeleton/rig editor was considered and set aside as not worth the effort. The editor helps with frames: Duplicate (appends a copy), onion skin (previous model shown faintly in the grid and 3D view), and a Play button that loops a range of models in the preview.
+- `pal`, `palt` and `outline` apply. Vox meshes write face directions like maps, so outlines show their edges and creases.
+- Models have no collision; games keep using spheres and `mgetw`.
+- Editor: layer grid (top view, +z down), click a face in the 3D preview to add (right-click or the Erase tool removes), Pencil/Erase/Fill/Pick tools, mirror across x, name, pivot. Add and Duplicate append at the end, so existing numbers never change; Delete renumbers later models (with a confirm).
+
 **Text** (agreed with the owner): `print(str, x, y, c, oc)` draws on a 2D overlay canvas on top of the 3D view, in screen pixels. The font (`js/font.js`) uses 7×10 cells: 5-wide glyphs, 7-tall capitals, 2-row descenders, a 1-pixel margin all round, upper and lower case and all printable ASCII. Glyphs are written as `#`/`.` rows in that file, so they're easy to edit. `oc` is an optional outline color (8-direction ring, drawn under all the text first); leaving it off means no outline. Both colors go through `pal`.
 
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
@@ -106,9 +117,9 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 | `player.html` | Runs a cart in an **iframe** using the runtime bundle (classic script, no import map). Evaluates code with `(0, eval)`, appending `HOOKS_EXPR` so `let`/`const` hooks are found, and `//# sourceURL=cart.js` so errors carry line numbers. Talks to the IDE through `postMessage` (`ready` → `run` → `started` / `error` / `log`). |
 | `js/export.js`, `js/zip.js` | **Export**: `<slug>.zip` (slug from the cart name) with `index.html` and `<slug>.js` = runtime bundle + `Blocky3D.install(<cart data>)` + the cart's code as plain top-level script + `Blocky3D.start()`. Syntax-checks the code first. `zip.js` is a dependency-free zip writer using the browser's `CompressionStream('deflate-raw')` when available. |
 | `index.html`, `js/ide.js`, `css/ide.css` | The IDE: CodeMirror 5 code tab (falls back to a textarea), map editor (layer grid with a ghost of the layer below, orbit preview), tile editor (three face canvases, pencil and fill, right-click eyedropper), Info tab, console. Autosaves to `localStorage` under `blocky3d.cart.v1`. Save and Open use `.b3d.json`. |
-| `js/preview.js` | The orbit viewer used by both editors. |
+| `js/preview.js` | The orbit viewer used by the Map, Tile and Vox editors. `setVox` shows a model with an onion-skin ghost and the pivot; `hitVox` raycasts a click to a voxel face (or the floor grid). |
 | Mobile layout | Phone layout below 820px wide (`MOBILE` in `js/ide.js` must match the `max-width: 820px` block in `css/ide.css`): one panel at a time, compact two-row header, and the game pane becomes a **Game** tab (`body[data-tab="game"]`) that Run switches to. Touch screens (`pointer: coarse`) get on-screen buttons (`#touchpad`); the IDE posts `{type: 'key', code, down}` to the player iframe, which dispatches a matching `KeyboardEvent`, so the engine needs no touch code. Touch stand-ins for right-click: tile 0 erases on the map, the **Pick** tool is the eyedropper. |
-| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (castle, drawbridge, guards, gems). |
+| `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems). The demo models are generated in code (`figure`, `makeVox`). |
 | `js/font.js` | The 7×10 pixel font, `drawText` (with optional outline) and `textWidth`. |
 | `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
 
@@ -124,7 +135,8 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 **Cart format (JSON)**
 
 ```
-{ version, name, code, palette?, tiles: [null, {top, side, bottom}...], maps: [{name, w, h, d, origin, data(base64)}] }
+{ version, name, code, palette?, tiles: [null, {top, side, bottom}...], maps: [{name, w, h, d, origin, data(base64)}],
+  vox: [{name, pivot, data(base64, 512 bytes)}] }
 ```
 
 - Map data is flattened as `x + w * (y + h * z)`.
@@ -157,13 +169,13 @@ What was checked:
   - `map_set_origin` keeping the map in place.
   - `msetw`, `pal` on primitives, and the math helpers.
 - Outlines: the demo with `outline(0)` (silhouettes, creases, primitives, a different outline color on the player), a box-shaped map with a notch (every visible edge outlined), and a castle wall with carved notches. Frame time under SwiftShader is the same with outlines on and off (about 16.5 ms).
+- Vox: a test model drawn plain, yawed, pitched, scaled, squashed, recolored with `pal` and with/without outlines; the demo's hero walks and turns, guards march; editor painting (grid and 3D click, mirror, Erase, Fill, Pick), onion skin, playback, on desktop and at phone size.
 - Export: the zip holds the two files and passes an integrity test; the exported game plays from `file://` with all network requests blocked (zero requests made); a runtime error shows on screen; a syntax error refuses the export.
 
 A small `tests/` folder built this way would be a good addition.
 
 ## Open items and next steps
 
-- **The spr equivalent** (deferred): how individual objects are defined and drawn. Discuss with the owner first.
 - **Riding moving maps**: carrying the player along on a moving or rotating map. One idea is to have the engine report each map's movement since the last frame.
 - Undo in the map and tile editors.
 - Palette editing in the IDE. For now, change `palette[i]` from code.

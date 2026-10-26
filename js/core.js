@@ -153,6 +153,80 @@ export function ensureGeometry(m) {
   return m.geometry;
 }
 
+// ---------------------------------------------------------------- vox models
+// A vox model is an 8 x 8 x 8 grid of voxels (x right, y up, z forward). Each byte is 0 for empty
+// or palette color + 1, so color 0 (black) stays usable. 8 voxels = 1 block, and the pivot (in
+// voxel units, default bottom center) is the point that vox(n, x, y, z) puts at x, y, z.
+
+export const VOX = 8;
+export const MAX_VOX = 64;
+export const DEFAULT_PIVOT = [4, 0, 4];
+export const voxIndex = (x, y, z) => x + VOX * (y + VOX * z);
+
+export function createVox(data = null, pivot = DEFAULT_PIVOT, name = '') {
+  return { name, pivot: [...pivot], data: data || new Uint8Array(VOX * VOX * VOX), dirty: true, geometry: null };
+}
+
+export function voxGet(v, x, y, z) {
+  if (x < 0 || y < 0 || z < 0 || x >= VOX || y >= VOX || z >= VOX) return 0;
+  return v.data[voxIndex(x, y, z)];
+}
+
+// Mesh in voxel units: one quad per voxel face that touches empty space.
+export function buildVoxGeometry(v) {
+  const pos = [], col = [], idx = [];
+  let vi = 0;
+  for (let z = 0; z < VOX; z++) for (let y = 0; y < VOX; y++) for (let x = 0; x < VOX; x++) {
+    const c = v.data[voxIndex(x, y, z)];
+    if (!c) continue;
+    for (let fi = 0; fi < FACE_DEFS.length; fi++) {
+      const fd = FACE_DEFS[fi];
+      if (voxGet(v, x + fd.n[0], y + fd.n[1], z + fd.n[2])) continue;
+      for (let k = 0; k < 4; k++) {
+        pos.push(x + fd.v[k][0], y + fd.v[k][1], z + fd.v[k][2]);
+        col.push(c - 1, fi + 1);   // palette color, direction (for outline creases)
+      }
+      idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
+      vi += 4;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('aCD', new THREE.Float32BufferAttribute(col, 2));
+  g.setIndex(new THREE.Uint16BufferAttribute(idx, 1));
+  g.computeBoundingSphere();
+  return g;
+}
+
+export function ensureVoxGeometry(v) {
+  if (!v.dirty && v.geometry) return v.geometry;
+  if (v.geometry) v.geometry.dispose();
+  v.geometry = buildVoxGeometry(v);
+  v.dirty = false;
+  return v.geometry;
+}
+
+// world = pos + R * S * (local - pivot) / 8
+const _t1 = new THREE.Matrix4(), _t2 = new THREE.Matrix4(), _r = new THREE.Matrix4(), _sc = new THREE.Matrix4();
+export function voxMatrix(v, pos, angle, scale, out) {
+  _t1.makeTranslation(-v.pivot[0], -v.pivot[1], -v.pivot[2]);
+  _sc.makeScale(scale[0] / VOX, scale[1] / VOX, scale[2] / VOX);
+  rotationMatrix(angle, _r);
+  _t2.makeTranslation(pos[0], pos[1], pos[2]);
+  return out.copy(_t2).multiply(_r).multiply(_sc).multiply(_t1);
+}
+
+export function voxFromCart(cart) {
+  const out = new Array(MAX_VOX).fill(null);
+  (cart.vox || []).forEach((cv, i) => {
+    if (!cv || i >= MAX_VOX) return;
+    let data = cv.data ? b64ToBytes(cv.data) : null;
+    if (!data || data.length !== VOX * VOX * VOX) data = null;
+    out[i] = createVox(data, cv.pivot || DEFAULT_PIVOT, cv.name || '');
+  });
+  return out;
+}
+
 // ---------------------------------------------------------------- palette uniforms + shaders
 
 // One shared uniform holds the 32 real colors; every material references it,
@@ -240,6 +314,24 @@ export function createSolidMaterial(paletteUniform) {
       uniform float uColor;
       ${PAL_GLSL}
       void main() { writePixel(palColor(int(uColor + 0.5)), 0.0); }`,
+  });
+}
+
+export function createVoxMaterial(paletteUniform) {
+  return new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: drawUniforms(paletteUniform),
+    vertexShader: /* glsl */`
+      attribute vec2 aCD;
+      varying vec2 vCD;
+      void main() {
+        vCD = aCD;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      ${PAL_GLSL}
+      varying vec2 vCD;
+      void main() { writePixel(palColor(int(vCD.x + 0.5)), floor(vCD.y + 0.5)); }`,
   });
 }
 

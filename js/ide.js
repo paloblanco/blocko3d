@@ -1,5 +1,8 @@
-// blocky3D IDE: code editor, map editor, tile (spr) editor, API info and the run pane.
-import { DEFAULT_PALETTE, MAX_TILES, FACES, hexColor, emptyTile, bytesToB64, b64ToBytes } from './core.js';
+// blocky3D IDE: code editor, map editor, tile editor, vox editor, API info and the run pane.
+import {
+  DEFAULT_PALETTE, MAX_TILES, FACES, hexColor, emptyTile, bytesToB64, b64ToBytes,
+  VOX, MAX_VOX, DEFAULT_PIVOT, voxIndex,
+} from './core.js';
 import { demoCart, emptyCart, normalizeCart, CART_VERSION } from './cart.js';
 import { Preview } from './preview.js';
 import { API_SECTIONS } from './apidocs.js';
@@ -16,6 +19,8 @@ let cart = null;   // { name, code, palette?, tiles }
 let maps = [];     // editable maps: { name, w, h, d, origin, data: Uint8Array }
 let curMap = 0, layer = 0, mapTile = 1;
 let curTile = 1, color = 7, tool = 'pencil';
+let voxModels = [];   // editable vox models: { name, pivot, data: Uint8Array(512) }, 0 = empty, else color + 1
+let curVox = 0, voxLayer = 0, voxColor = 8, voxTool = 'pencil';
 let activeTab = 'code';
 
 const palette = () => cart.palette || DEFAULT_PALETTE;
@@ -30,6 +35,15 @@ function loadCart(c, name) {
     return { name: m.name || '', w: m.w, h: m.h, d: m.d, origin: [...(m.origin || [0, 0, 0])], data };
   });
   delete cart.maps;
+  voxModels = (cart.vox || []).map((v) => {
+    let data = v && v.data ? b64ToBytes(v.data) : null;
+    if (!data || data.length !== VOX * VOX * VOX) data = new Uint8Array(VOX * VOX * VOX);
+    return { name: (v && v.name) || '', pivot: [...((v && v.pivot) || DEFAULT_PIVOT)], data };
+  });
+  delete cart.vox;
+  if (!voxModels.length) voxModels.push(newVox());
+  curVox = 0; voxLayer = 0;
+  voxThumbs.clear();
   if (cart.tiles.length < 2) cart.tiles.push(emptyTile(6));
   curMap = 0; layer = 0;
   curTile = 1; mapTile = 1;
@@ -38,6 +52,7 @@ function loadCart(c, name) {
   setCode(cart.code);
   refreshMapUI();
   refreshSprUI();
+  refreshVoxUI();
 }
 
 function serialize() {
@@ -47,6 +62,7 @@ function serialize() {
     code: getCode(),
     tiles: cart.tiles,
     maps: maps.map((m) => ({ name: m.name, w: m.w, h: m.h, d: m.d, origin: m.origin, data: bytesToB64(m.data) })),
+    vox: voxModels.map((v) => ({ name: v.name, pivot: v.pivot, data: bytesToB64(v.data) })),
   };
   if (cart.palette) out.palette = cart.palette;
   return out;
@@ -187,7 +203,9 @@ function showTab(name) {
   document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('on', p.id === 'tab-' + name));
   if (name === 'code' && cm) cm.refresh();
   if (name === 'map') refreshMapUI();
-  if (name === 'spr') refreshSprUI();
+  if (name === 'tile') refreshSprUI();
+  if (name === 'vox') refreshVoxUI();
+  if (name !== 'vox') stopPlayback();
 }
 
 // ================================================================= map editor
@@ -475,7 +493,7 @@ function drawPalette() {
 }
 
 function updateSprPreview() {
-  if (activeTab !== 'spr') return;
+  if (activeTab !== 'tile') return;
   if (!sprPreview) sprPreview = new Preview($('sprPreview'), { autoSpin: true });
   sprPreview.setPalette(palette());
   sprPreview.setTiles(cart.tiles);
@@ -495,12 +513,12 @@ function tileEdited() {
 
 function setTool(t) {
   tool = t;
-  document.querySelectorAll('.toolpick button').forEach((o) => o.classList.toggle('on', o.dataset.tool === t));
+  document.querySelectorAll('#tileTools button').forEach((o) => o.classList.toggle('on', o.dataset.tool === t));
 }
 
 function setupSprEditor() {
   buildFaces();
-  document.querySelectorAll('.toolpick button').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
+  document.querySelectorAll('#tileTools button').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
   $('tileAdd').onclick = () => {
     if (cart.tiles.length >= MAX_TILES) return;
     cart.tiles.push(emptyTile(6));
@@ -518,6 +536,320 @@ function setupSprEditor() {
     cart.tiles[curTile] = emptyTile(0);
     tileEdited();
   };
+}
+
+// ================================================================= vox editor
+// 8 x 8 x 8 models. The grid shows one layer (y) from above: +x right, +z (the model's front) down.
+let voxPreview = null, voxQueued = false;
+const voxThumbs = new Map();
+const curV = () => voxModels[curVox];
+const newVox = () => ({ name: '', pivot: [...DEFAULT_PIVOT], data: new Uint8Array(VOX * VOX * VOX) });
+const VCELL = 36;   // grid canvas pixels per voxel
+
+// Front view thumbnail: the first voxel seen looking at the model's front (+z side).
+function voxThumb(i) {
+  if (voxThumbs.has(i)) return voxThumbs.get(i);
+  const c = document.createElement('canvas');
+  c.width = c.height = VOX;
+  const ctx = c.getContext('2d'), v = voxModels[i], p = palette();
+  for (let y = 0; y < VOX; y++) for (let x = 0; x < VOX; x++) {
+    for (let z = VOX - 1; z >= 0; z--) {
+      const val = v.data[voxIndex(x, y, z)];
+      if (!val) continue;
+      ctx.fillStyle = hexColor(p[val - 1]);
+      ctx.fillRect(VOX - 1 - x, VOX - 1 - y, 1, 1);   // seen from the front, +x is on the left
+      break;
+    }
+  }
+  voxThumbs.set(i, c);
+  return c;
+}
+
+function voxButton(i) {
+  const b = document.createElement('button');
+  b.className = 'tilebtn voxthumb' + (i === curVox ? ' on' : '');
+  b.title = `Vox ${i}` + (voxModels[i].name ? ` (${voxModels[i].name})` : '');
+  const c = document.createElement('canvas');
+  c.width = c.height = VOX;
+  c.getContext('2d').drawImage(voxThumb(i), 0, 0);
+  const sp = document.createElement('span');
+  sp.textContent = i;
+  b.append(c, sp);
+  b.onclick = () => { stopPlayback(); curVox = i; refreshVoxUI(); };
+  return b;
+}
+
+function refreshVoxUI() {
+  if (!cart) return;
+  curVox = clamp(curVox, 0, voxModels.length - 1);
+  const v = curV();
+  const list = $('voxList');
+  list.innerHTML = '';
+  voxModels.forEach((_, i) => list.append(voxButton(i)));
+  $('voxIndex').textContent = curVox;
+  $('voxName').value = v.name;
+  [$('pX').value, $('pY').value, $('pZ').value] = v.pivot;
+  $('voxLayer').textContent = voxLayer;
+  $('voxAdd').disabled = $('voxDup').disabled = voxModels.length >= MAX_VOX;
+  $('voxDelete').disabled = voxModels.length <= 1;
+  if (!playTimer) {
+    if ($('playFrom').value === '') $('playFrom').value = curVox;
+    if ($('playTo').value === '') $('playTo').value = Math.min(voxModels.length - 1, curVox + 3);
+  }
+  drawVoxPalette();
+  drawVoxGrid();
+  queueVoxPreview();
+}
+
+function drawVoxGrid() {
+  const cv = $('voxGrid'), v = curV(), p = palette();
+  const size = VOX * VCELL;
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#0a0f1d';
+  ctx.fillRect(0, 0, size, size);
+  const onion = $('voxOnion').checked && curVox > 0 ? voxModels[curVox - 1] : null;
+  for (let z = 0; z < VOX; z++) for (let x = 0; x < VOX; x++) {
+    const val = v.data[voxIndex(x, voxLayer, z)];
+    const px = x * VCELL, py = z * VCELL;
+    if (val) {
+      ctx.fillStyle = hexColor(p[val - 1]);
+      ctx.fillRect(px, py, VCELL, VCELL);
+    } else if ($('voxGhost').checked && voxLayer > 0 && v.data[voxIndex(x, voxLayer - 1, z)]) {
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = hexColor(p[v.data[voxIndex(x, voxLayer - 1, z)] - 1]);
+      ctx.fillRect(px, py, VCELL, VCELL);
+      ctx.globalAlpha = 1;
+    }
+    if (onion && onion.data[voxIndex(x, voxLayer, z)]) {
+      // the previous model's voxel on this layer: a dashed square
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(px + 5.5, py + 5.5, VCELL - 11, VCELL - 11);
+      ctx.setLineDash([]);
+    }
+  }
+  ctx.strokeStyle = 'rgba(141,147,173,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let k = 0; k <= VOX; k++) {
+    ctx.moveTo(k * VCELL + 0.5, 0); ctx.lineTo(k * VCELL + 0.5, size);
+    ctx.moveTo(0, k * VCELL + 0.5); ctx.lineTo(size, k * VCELL + 0.5);
+  }
+  ctx.stroke();
+  // the pivot's x/z, as a small cross
+  const pv = v.pivot;
+  ctx.strokeStyle = '#ff004d';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pv[0] * VCELL - 6, pv[2] * VCELL); ctx.lineTo(pv[0] * VCELL + 6, pv[2] * VCELL);
+  ctx.moveTo(pv[0] * VCELL, pv[2] * VCELL - 6); ctx.lineTo(pv[0] * VCELL, pv[2] * VCELL + 6);
+  ctx.stroke();
+}
+
+function queueVoxPreview() {
+  if (voxQueued) return;
+  voxQueued = true;
+  requestAnimationFrame(() => {
+    voxQueued = false;
+    if (activeTab !== 'vox') return;
+    showVoxInPreview(curVox, true);
+  });
+}
+
+function showVoxInPreview(i, editing) {
+  if (!voxPreview) {
+    voxPreview = new Preview($('voxPreview'));
+    voxPreview.onClick = voxPreviewClick;
+  }
+  voxPreview.setPalette(palette());
+  const onion = editing && $('voxOnion').checked && i > 0 ? voxModels[i - 1] : null;
+  voxPreview.setVox(voxModels[i], { ghost: onion, layer: editing ? voxLayer : null });
+  voxPreview.render();
+}
+
+function setVoxLayer(y) {
+  voxLayer = clamp(y, 0, VOX - 1);
+  $('voxLayer').textContent = voxLayer;
+  drawVoxGrid();
+  queueVoxPreview();
+}
+
+function voxEdited() {
+  voxThumbs.delete(curVox);
+  const btn = $('voxList').children[curVox];
+  if (btn) {
+    const ctx = btn.querySelector('canvas').getContext('2d');
+    ctx.clearRect(0, 0, VOX, VOX);
+    ctx.drawImage(voxThumb(curVox), 0, 0);
+  }
+  drawVoxGrid();
+  queueVoxPreview();
+  dirty();
+}
+
+// Set one voxel (val: 0 = empty, else color + 1), plus its mirror across x when mirroring.
+function voxPut(x, y, z, val) {
+  const v = curV();
+  let changed = false;
+  for (const xx of $('voxMirror').checked ? [x, VOX - 1 - x] : [x]) {
+    if (xx < 0 || y < 0 || z < 0 || xx >= VOX || y >= VOX || z >= VOX) continue;
+    const i = voxIndex(xx, y, z);
+    if (v.data[i] !== val) { v.data[i] = val; changed = true; }
+  }
+  return changed;
+}
+
+function voxFill(x, z, val) {
+  const v = curV(), from = v.data[voxIndex(x, voxLayer, z)];
+  if (from === val) return false;
+  const stack = [[x, z]];
+  while (stack.length) {
+    const [cx, cz] = stack.pop();
+    if (cx < 0 || cz < 0 || cx >= VOX || cz >= VOX || v.data[voxIndex(cx, voxLayer, cz)] !== from) continue;
+    voxPut(cx, voxLayer, cz, val);
+    stack.push([cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]);
+  }
+  return true;
+}
+
+function pickVoxColor(val) {
+  if (!val) return;   // nothing there to pick
+  voxColor = val - 1;
+  setVoxTool('pencil');
+  drawVoxPalette();
+}
+
+function drawVoxPalette() {
+  const wrap = $('voxPalette'), p = palette();
+  if (!wrap.children.length) {
+    for (let i = 0; i < 32; i++) {
+      const b = document.createElement('button');
+      b.className = 'swatch';
+      b.title = 'Color ' + i;
+      // choosing a color while erasing switches back to the pencil
+      b.onclick = () => { voxColor = i; if (voxTool === 'erase' || voxTool === 'pick') setVoxTool('pencil'); drawVoxPalette(); };
+      wrap.append(b);
+    }
+  }
+  [...wrap.children].forEach((b, k) => {
+    b.style.background = hexColor(p[k]);
+    b.classList.toggle('on', k === voxColor);
+  });
+  $('voxColorLabel').innerHTML = `Color <b>${voxColor}</b> <code>${hexColor(p[voxColor])}</code>`;
+}
+
+function setVoxTool(t) {
+  voxTool = t;
+  document.querySelectorAll('#voxTools button').forEach((o) => o.classList.toggle('on', o.dataset.tool === t));
+}
+
+// Click in the 3D preview: add a voxel on the clicked face, remove it (right-click or eraser),
+// or pick its color.
+function voxPreviewClick(e, hit) {
+  if (!hit) return;
+  const v = curV();
+  const [x, y, z] = hit.cell;
+  if (voxTool === 'pick') { if (!hit.floor) pickVoxColor(v.data[voxIndex(x, y, z)]); return; }
+  const erase = e.button === 2 || voxTool === 'erase';
+  let changed;
+  if (erase) changed = !hit.floor && voxPut(x, y, z, 0);
+  else changed = voxPut(x + hit.normal[0], y + hit.normal[1], z + hit.normal[2], voxColor + 1);
+  if (changed) voxEdited();
+}
+
+// ---- animation preview: loop models from..to in the 3D view
+let playTimer = 0;
+function stopPlayback() {
+  if (!playTimer) return;
+  clearInterval(playTimer);
+  playTimer = 0;
+  $('playBtn').textContent = '▶ Play';
+  $('playBtn').classList.remove('on');
+  [...$('voxList').children].forEach((el) => el.classList.remove('playing'));
+  if (activeTab === 'vox') queueVoxPreview();
+}
+function startPlayback() {
+  const last = voxModels.length - 1;
+  const a = clamp(+$('playFrom').value | 0, 0, last), b = clamp(+$('playTo').value | 0, 0, last);
+  const fps = clamp(+$('playFps').value || 6, 1, 60);
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  let f = lo;
+  showVoxInPreview(f, false);
+  playTimer = setInterval(() => {
+    f = f >= hi ? lo : f + 1;
+    showVoxInPreview(f, false);
+    [...$('voxList').children].forEach((el, i) => el.classList.toggle('playing', i === f));
+  }, 1000 / fps);
+  $('playBtn').textContent = '■ Stop';
+  $('playBtn').classList.add('on');
+}
+
+function setupVoxEditor() {
+  document.querySelectorAll('#voxTools button').forEach((b) => { b.onclick = () => setVoxTool(b.dataset.tool); });
+  $('voxUp').onclick = () => setVoxLayer(voxLayer + 1);
+  $('voxDown').onclick = () => setVoxLayer(voxLayer - 1);
+  $('voxGhost').onchange = drawVoxGrid;
+  $('voxOnion').onchange = () => { drawVoxGrid(); queueVoxPreview(); };
+  $('voxName').oninput = (e) => { curV().name = e.target.value; dirty(); };
+  for (const [id, k] of [['pX', 0], ['pY', 1], ['pZ', 2]]) {
+    $(id).oninput = (e) => { curV().pivot[k] = +e.target.value || 0; drawVoxGrid(); queueVoxPreview(); dirty(); };
+  }
+  $('voxAdd').onclick = () => {
+    if (voxModels.length >= MAX_VOX) return;
+    stopPlayback();
+    voxModels.push(newVox());
+    curVox = voxModels.length - 1;
+    refreshVoxUI(); dirty();
+  };
+  $('voxDup').onclick = () => {
+    if (voxModels.length >= MAX_VOX) return;
+    stopPlayback();
+    const v = curV();
+    voxModels.push({ name: v.name, pivot: [...v.pivot], data: new Uint8Array(v.data) });
+    curVox = voxModels.length - 1;
+    refreshVoxUI(); dirty();
+  };
+  $('voxClear').onclick = () => {
+    if (!confirm(`Clear vox ${curVox}?`)) return;
+    curV().data.fill(0);
+    voxEdited();
+  };
+  $('voxDelete').onclick = () => {
+    if (voxModels.length <= 1 || !confirm(`Delete vox ${curVox}? Models after it will be renumbered.`)) return;
+    stopPlayback();
+    voxModels.splice(curVox, 1);
+    voxThumbs.clear();
+    curVox = Math.max(0, curVox - 1);
+    refreshVoxUI(); dirty();
+  };
+  $('playBtn').onclick = () => (playTimer ? stopPlayback() : startPlayback());
+
+  // painting on the layer grid
+  const cv = $('voxGrid');
+  let painting = null;   // value being painted while dragging, or null
+  const cellAt = (e) => {
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * VOX), z = Math.floor((e.clientY - r.top) / r.height * VOX);
+    return x >= 0 && z >= 0 && x < VOX && z < VOX ? [x, z] : null;
+  };
+  cv.addEventListener('contextmenu', (e) => e.preventDefault());
+  cv.addEventListener('pointerdown', (e) => {
+    const c = cellAt(e);
+    if (!c) return;
+    const val = e.button === 2 || voxTool === 'erase' ? 0 : voxColor + 1;
+    if (voxTool === 'pick') { pickVoxColor(curV().data[voxIndex(c[0], voxLayer, c[1])]); return; }
+    if (voxTool === 'fill') { if (voxFill(c[0], c[1], val)) voxEdited(); return; }
+    painting = val;
+    cv.setPointerCapture(e.pointerId);
+    if (voxPut(c[0], voxLayer, c[1], val)) voxEdited();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (painting === null) return;
+    const c = cellAt(e);
+    if (c && voxPut(c[0], voxLayer, c[1], painting)) voxEdited();
+  });
+  cv.addEventListener('pointerup', () => { painting = null; });
 }
 
 // ================================================================= info
@@ -588,6 +920,10 @@ function setupTopBar() {
       if (e.key === '[') setLayer(layer - 1);
       if (e.key === ']') setLayer(layer + 1);
     }
+    if (activeTab === 'vox' && !typing) {
+      if (e.key === '[') setVoxLayer(voxLayer - 1);
+      if (e.key === ']') setVoxLayer(voxLayer + 1);
+    }
   });
 }
 
@@ -619,6 +955,7 @@ setupCode();
 setupTopBar();
 setupMapEditor();
 setupSprEditor();
+setupVoxEditor();
 setupTouchpad();
 renderInfo();
 document.body.dataset.tab = activeTab;

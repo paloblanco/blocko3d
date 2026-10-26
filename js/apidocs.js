@@ -28,6 +28,19 @@ export const API_SECTIONS = [
 if (t) { px += nx*d; py += ny*d; pz += nz*d }`,
   },
   {
+    title: 'Vox models',
+    intro: 'Models from the Vox tab, numbered 0-63: 8 × 8 × 8 voxels in palette colors. Unscaled, a model fills one block (8 voxels = 1 block). Each model has a pivot (set in the Vox tab, default bottom center): x, y, z is where the pivot goes, and rotation and scaling happen around it. pal(), palt() and outline() apply.',
+    items: [
+      ['vox(n, x, y, z)', 'Draw model n with its pivot at (x, y, z).'],
+      ['vox(n, x, y, z, pitch, yaw, roll)', 'Rotated, in turns, in the same order as maps (yaw, then pitch, then roll). The model\'s front is +z.'],
+      ['vox(n, x, y, z, pitch, yaw, roll, s)', 'Scaled evenly by s.'],
+      ['vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)', 'Scaled separately along the model\'s own axes (squash and stretch).'],
+    ],
+    code: `// a walk cycle: models 1, 0, 2, 0, facing the way you move
+let f = [1, 0, 2, 0][flr(t() * 8) % 4]
+vox(f, px, py, pz, 0, atan2(dz, dx))`,
+  },
+  {
     title: 'Primitives',
     intro: 'Simple shapes, colored with a palette index.',
     items: [

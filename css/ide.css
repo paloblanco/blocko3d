@@ -149,6 +149,23 @@ kbd {
 .colorinfo code { font-family: var(--mono); color: var(--text); }
 .previewwrap.small { border-left: 1px solid var(--line); }
 
+/* ---------- vox editor */
+.voxwork { flex: 1; display: grid; grid-template-columns: 172px minmax(0, 1fr) minmax(240px, 34%); min-height: 0; }
+.voxeditor { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; overflow: auto; min-width: 0; }
+#voxName { width: 8em; }
+.voxgrid { width: 288px; max-width: 100%; aspect-ratio: 1; image-rendering: pixelated; cursor: crosshair; border-radius: 4px; border: 1px solid var(--line); touch-action: none; }
+.voxside { gap: 8px; }
+.voxside label.xyz { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.voxside label.xyz input { width: 4em; }
+.playbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); }
+.playbar input { width: 3.4em; }
+.playbar .fps { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+#playBtn.on { background: var(--green); border-color: var(--green); color: #0d1222; }
+#voxPalette { grid-template-columns: repeat(16, minmax(0, 22px)); }
+#voxPalette .swatch { width: 100%; height: auto; aspect-ratio: 1; }
+.tilebtn.voxthumb { background: #1a2340; }
+.tilebtn.playing { border-color: var(--green); }
+
 /* ---------- info */
 .apiref { padding: 18px 22px 40px; max-width: 860px; }
 .apiref h2 { font: 600 15px var(--mono); color: var(--yellow); margin: 26px 0 6px; }
@@ -187,6 +204,8 @@ kbd {
   .previewwrap canvas { max-width: 280px; }
   .sprwork { grid-template-columns: 150px minmax(0, 1fr); }
   .sprwork .previewwrap { grid-column: 1 / -1; }
+  .voxwork { grid-template-columns: 150px minmax(0, 1fr); }
+  .voxwork .previewwrap { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); }
   .tilegrid { grid-template-columns: repeat(3, 34px); }
 }
 
@@ -269,6 +288,12 @@ kbd {
   .palette { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
   .swatch { width: 100%; height: 34px; }
   .sprwork .previewwrap canvas { max-width: 260px; margin: 0 auto; }
+
+  /* vox editor */
+  .voxwork { display: flex; flex-direction: column; }
+  .voxeditor { padding: 10px; gap: 10px; overflow: visible; }
+  .voxgrid { width: 100%; }
+  .voxwork .previewwrap canvas { max-width: 320px; margin: 0 auto; }
 
   /* API reference: one entry per block instead of a two-column table */
   .apiref { padding: 14px 14px 40px; }
