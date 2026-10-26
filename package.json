@@ -1,5 +1,6 @@
 {
   "name": "blocky3d",
+  "version": "0.1.0-alpha",
   "private": true,
   "description": "Build tooling for the blocky3D runtime bundle. The IDE itself needs no build step.",
   "scripts": {

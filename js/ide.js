@@ -6,6 +6,7 @@ import {
 import { demoCart, emptyCart, normalizeCart, CART_VERSION } from './cart.js';
 import { Preview } from './preview.js';
 import { API_SECTIONS } from './apidocs.js';
+import { VERSION } from './version.js';
 import { exportGame } from './export.js';
 import {
   SfxPlayer, NOTES, MAX_SFX, WAVES, EFFECTS, NOTE_NAMES, noteName, emptySfx, encodeSfx, decodeSfx, isSilent, noteSeconds,
@@ -1394,4 +1395,4 @@ let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
 loadCart(saved || demoCart(), saved ? saved.name : 'demo');
 showSaveData();
-log('blocky3D ready. Press Run or Ctrl+Enter.', 'info');
+log(`blocky3D ${VERSION} ready. Press Run or Ctrl+Enter.`, 'info');

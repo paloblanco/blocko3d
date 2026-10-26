@@ -2,7 +2,7 @@
 
 A small, deliberately limited 3D game engine for JavaScript with a PICO-8-style developer experience. The whole API lives in the global namespace, everything is drawn from 8×8 palette-indexed textures, and the IDE is one static web page: write code, draw tiles, build voxel maps and press **Run**.
 
-This is a first prototype built from the blocky3D spec.
+**Version 0.1.0-alpha**: ready for testing by real people. It works and has been tested in a browser, but it's had little time on real devices and the API can still change. See [CHANGELOG.md](CHANGELOG.md) for what's in it, and **Testing the alpha** below for how to report problems.
 
 ## Running it
 
@@ -12,6 +12,13 @@ It's a static site with no build step. ES modules need a web server, so either:
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
 The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from CDNs, so it needs an internet connection. Games themselves run on the bundled runtime in `runtime/` (see below).
+
+## Testing the alpha
+
+- **Try the IDE:** open `index.html` on the site (see above), press **Demo**, then **Run**.
+- **Try an exported game:** open `standalone_demo/index.html`, the castle demo exactly as **Export** makes it. It's the easiest thing to try on a phone or tablet.
+- **Things worth trying:** the touch controls in portrait and landscape, pause, mute, fullscreen and Restart (fullscreen should stay on), a gamepad, and making a small game of your own.
+- **When something goes wrong,** please note the version (it's at the top of the Info tab and in the console), your device and browser, whether you were in the IDE or an exported game, and what you did just before.
 
 ## The IDE
 
@@ -27,7 +34,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, sounds, a looping song, a saved best time, palette tricks).
 
-While a game runs, **Enter** pauses it, PICO-8 style, with Resume, Restart, Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
+Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
 
 ### On a phone
 
@@ -86,25 +93,28 @@ The Info tab has the full reference.
 - `js/boot.js`: installs the API as globals and starts a cart; shared by Run and exported games.
 - `js/shell.js`: the page around the game: layout, touch controls, and the pause, mute and fullscreen buttons.
 - `runtime/blocky3d.runtime.js`: the engine, boot code and Three.js bundled into one plain script (`window.Blocky3D`). Both **Run** and **Export** use this file, so what you test is what you ship.
-- `player.html`: runs a cart inside an iframe, so every run starts clean.
+- `player.html`: runs a cart inside an iframe, so every press of **Run** starts clean. The pause menu's Restart runs the cart again in place, in the IDE and in exported games alike.
 - `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
 - `index.html`, `js/ide.js`, `css/ide.css`: the IDE. `js/preview.js` is the orbit viewer used by the editors.
 - `js/audio.js`: the sound synth (8 waveforms, 8 effects, loops), the sound and pattern string formats, a 4-channel sfx player and the music scheduler; used by the game and the Sfx and Music tabs.
 - `js/cart.js`: cart format and the demo cart.
+- `js/version.js`: the version number shown in the IDE and exported games.
 
 ## Changing the engine
 
-The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js` or `js/boot.js`:
+The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js` or `js/version.js` (or `js/cart.js` and `js/export.js`, which change the demo export):
 
 ```
 npm install      # once
 npm run build    # rewrites runtime/blocky3d.runtime.js and standalone_demo/
 ```
 
-The build also exports the castle demo to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle doesn't match a fresh build.
+The build also exports the castle demo to `standalone_demo/` (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
 
 ## Not in this version
 
 - Carrying the player along on moving or rotating maps.
 - Undo in the map and tile editors (the code editor has undo).
 - Editing the palette in the IDE (change `palette[i]` from code for now).
+- Custom pause menu items (PICO-8's `menuitem`), clicking on blocks with the mouse, and analog trigger values.
+- Fullscreen on iPhone Safari, which doesn't allow it. Real iPhones and iPads haven't been tested yet.

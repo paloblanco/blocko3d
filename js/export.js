@@ -2,6 +2,7 @@
 // <name>.js = the bundled runtime (engine + three.js) + the cart's data + the cart's code,
 // so the game needs no network access and no other files.
 import { zipFiles } from './zip.js';
+import { VERSION } from './version.js';
 
 // Same expression as boot.js's HOOKS_EXPR (export.js runs in the IDE, which doesn't load boot.js).
 const HOOKS_EXPR = '({ _init: typeof _init === "function" ? _init : null,' +
@@ -43,7 +44,7 @@ export function gameJs(cart, runtime) {
   const data = { ...cart };
   delete data.code;
   return [
-    `// ${String(cart.name || 'game').replace(/[\r\n]+/g, ' ')}, made with blocky3D`,
+    `// ${String(cart.name || 'game').replace(/[\r\n]+/g, ' ')}, made with blocky3D ${VERSION}`,
     '// ---------------------------------------------------------------- runtime (blocky3D engine + three.js)',
     runtime.trim(),
     '// ---------------------------------------------------------------- cart data',

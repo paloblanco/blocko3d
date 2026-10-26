@@ -14,6 +14,8 @@ Guiding principles. Keep them when adding features:
 - **3D, not 2D.** There are plenty of 2D fantasy consoles already.
 - Rocco prefers the **simplest thing that works** over clever architecture.
 
+**Current version: 0.1.0-alpha**, tagged `v0.1.0-alpha` (the first version for human testing). The version lives in `js/version.js` (shown at the top of the Info tab, in the IDE console, in the first line of exported game scripts and as `Blocky3D.VERSION`) and in `package.json`; `CHANGELOG.md` lists what each version has. To release: bump both, add a CHANGELOG entry, `npm run build`, commit, then tag `v<version>` and push the tag.
+
 The design spec lives in a Claude Doc titled "blocky3D Spec" (claude.ai artifact `JH2BMJck8VtrndcyhxTSB5`). This file and the code are the source of truth if they disagree.
 
 ## Design decisions (agreed with the owner)
@@ -124,7 +126,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 **Input and gamepads** (asked for by the owner, PICO-8 style): `btn(i, p)` / `btnp(i, p)` with player p 0-3 (default 0). **Player 0 = the keyboard OR the first connected gamepad**; the 2nd, 3rd and 4th connected gamepads are players 1-3, ordered by the browser's gamepad slot (gaps skipped), so if the first pad is unplugged the next one becomes player 0. Pads are polled once per `_update` step (`pollInput`). Standard mapping: d-pad (12-15) or left stick (axes 0/1, deadzone 0.5) for directions; O = A or X (0, 2); X = B or Y (1, 3); Start (9) = button 6, pause, from any player. Any player can drive the pause menu.
 - **All gamepad buttons** (the owner asked to keep counting up): 6 Start (still pauses), 7 A, 8 B, 9 X, 10 Y, 11 LB, 12 RB, 13 LT, 14 RT, 15 Select, 16 L3, 17 R3, 18 Home (`EXTRA` in `js/engine.js` maps them from the standard layout). 0-5 keep combining buttons (O = A or X, X = B or Y) so keyboard and pad games stay compatible. Buttons 7-18 have no keyboard keys. Triggers count as pressed past the browser's threshold; there's no analog trigger value yet.
 - **`stick(i, p)`** (the owner's design): i = 0 left, 1 right; returns `[x, y]`, -1..1, **right and down positive** (screen and browser convention; Claude's choice, changeable). Round dead zone 0.15, rescaled so values start at 0 just outside it. When the left stick is centered, `stick(0)` falls back to the player's d-pad/arrow buttons (diagonals normalized to length 1), so analog code works on a keyboard. The demo moves with `stick(0)`.
-The IDE iframe has `allow="autoplay; gamepad"`. Browsers only expose a pad after one of its buttons is pressed, and pad presses don't count as a gesture for unlocking sound. `btnp` has no auto-repeat (PICO-8's does).
+The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose a pad after one of its buttons is pressed, and pad presses don't count as a gesture for unlocking sound. `btnp` has no auto-repeat (PICO-8's does).
 
 **Mouse and touch** (designed with the owner): `mouse_set_mode(m)`: 0 off (default: mouse and touch ignored, so existing games are unaffected), 1 click, 2 capture (Pointer Lock on the overlay canvas).
 - Buttons are **19 left, 20 right, 21 middle** of player 0, folded into `btn`/`btnp`. The context menu is blocked in modes 1 and 2.
@@ -168,7 +170,8 @@ The IDE iframe has `allow="autoplay; gamepad"`. Browsers only expose a pad after
 | `js/cart.js` | Cart format, `normalizeCart`, `emptyCart`, and `demoCart` (a title card made with `rectfill`/`rect`/scaled `print`, castle, drawbridge, a voxel hero with a walk cycle, voxel guards recolored with `pal`, spinning voxel gems, six sound effects, a two-pattern looping song in C minor pentatonic, a run timer and a best time kept with `save`/`load`). The demo models, sounds and song are generated in code (`figure`, `makeVox`, `makeSfx`, `makePattern`). |
 | `js/shell.js` | The game page around the canvases: layout CSS, touch controls, pause/mute/fullscreen buttons (see **Game page**). Part of the runtime bundle. |
 | `js/font.js` | The 7×10 pixel font, `drawText` (optional outline and scale) and `textWidth`. |
-| `js/apidocs.js` | Content for the Info tab. **Update it whenever the API changes.** |
+| `js/apidocs.js` | Content for the Info tab (its first section shows the version). **Update it whenever the API changes.** |
+| `js/version.js`, `CHANGELOG.md` | The version number and the release notes. |
 
 **Rendering details**
 
@@ -196,7 +199,7 @@ The IDE iframe has `allow="autoplay; gamepad"`. Browsers only expose a pad after
 - CodeMirror 5.65.18 from cdnjs, and Google Fonts (IBM Plex Sans, JetBrains Mono), for the IDE only.
 - esbuild, a dev dependency for building the runtime bundle.
 
-**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js` or `js/boot.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js` and `standalone_demo/` (the build also re-exports the demo). Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle or demo is stale. Editing `js/cart.js` or `js/export.js` also changes the demo, so rebuild after those too.
+**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js` or `js/version.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js` and `standalone_demo/` (the build also re-exports the demo). Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle or demo is stale. Editing `js/cart.js` or `js/export.js` also changes the demo, so rebuild after those too.
 
 **Exported games** must stay fully standalone: two files, no network requests, working from `file://`. Don't add CDN loads, ES modules (they fail from `file://`) or extra asset files to the export.
 
@@ -232,6 +235,7 @@ A small `tests/` folder built this way would be a good addition.
 
 ## Open items and next steps
 
+- **Alpha feedback:** real-device testing, especially iPhone/iPad Safari (untested) and Android browsers other than the one the owner used. The phone pause and restart bugs were found that way and couldn't be reproduced in emulation, so take device reports seriously even when tests pass.
 - **Riding moving maps**: carrying the player along on a moving or rotating map. One idea is to have the engine report each map's movement since the last frame.
 - Undo in the map and tile editors.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
@@ -243,4 +247,4 @@ A small `tests/` folder built this way would be a good addition.
 
 - Keep explanations plain and practical.
 - Discuss API design before changing it. API decisions were made deliberately, one at a time.
-- Keep the README, the Info tab (`js/apidocs.js`) and this file in sync with API changes.
+- Keep the README, the Info tab (`js/apidocs.js`), `CHANGELOG.md` and this file in sync with API changes.
