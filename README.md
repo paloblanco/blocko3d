@@ -23,7 +23,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
-The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a castle, a drawbridge, palette tricks).
+The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demo** loads the sample game (a title card, a castle, a drawbridge, voxel characters, palette tricks).
 
 ### On a phone
 
@@ -63,7 +63,7 @@ function _draw() {
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps, every visible edge is outlined. Off by default.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
-- **Text:** `print(str, x, y, c, oc)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline.
+- **Text and UI:** `print(str, x, y, c, oc, sx, sy)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline, `sx`/`sy` scale it by whole numbers for titles. `rect` and `rectfill(x0, y0, x1, y1, c)` draw outlined or filled boxes on the same layer, PICO-8 style.
 - **Extras:** `printh`, `btn`, `btnp`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
 The Info tab has the full reference.

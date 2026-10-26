@@ -85,9 +85,11 @@ outline()`,
     ],
   },
   {
-    title: 'Text, input and time',
+    title: 'Text, rectangles, input and time',
     items: [
-      ['print(str, x, y, c?, oc?)', 'Draw text on top of the 3D view, at screen pixels (0-255). Each character is a 7 × 10 cell (upper and lower case). c is the color (default 7); oc, if given, adds a 1-pixel outline in that color.'],
+      ['print(str, x, y, c?, oc?, sx?, sy?)', 'Draw text on top of the 3D view, at screen pixels (0-255). Each character is a 7 × 10 cell (upper and lower case). c is the color (default 7). oc adds an outline in that color; leave it off, or pass -1, for none. sx and sy scale the text by whole numbers (sy defaults to sx); the outline scales with it. A line of n characters is n × 7 × sx pixels wide, handy for centering. Returns the x just past the text.'],
+      ['rect(x0, y0, x1, y1, c?)', 'Outline of a rectangle on the same layer as print, corners included.'],
+      ['rectfill(x0, y0, x1, y1, c?)', 'Filled rectangle, corners included. Text and rectangles are drawn in the order you call them, on top of the 3D view.'],
       ['printh(...)', 'Write a line to the IDE console, for debugging.'],
       ['btn(i)', 'Is button i held? 0 left, 1 right, 2 up, 3 down (arrows or WASD), 4 O (Z, C, N, space), 5 X (X, V, M).'],
       ['btnp(i)', 'Was button i pressed this update?'],

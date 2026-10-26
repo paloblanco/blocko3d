@@ -86,6 +86,13 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     return o;
   }
 
+  // 2D overlay helpers: palette index -> CSS color (through pal), and sorted whole-pixel corners
+  const uiColor = (i) => hexColor(palette[remap[(i | 0) & 31]] ?? 0);
+  function rectBounds(x0, y0, x1, y1) {
+    x0 = Math.floor(x0); y0 = Math.floor(y0); x1 = Math.floor(x1); y1 = Math.floor(y1);
+    return [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)];
+  }
+
   function getMap(m) {
     const map = maps[m];
     if (!map) throw new Error(`map ${m} does not exist (there are ${maps.length} maps)`);
@@ -198,12 +205,28 @@ export function createEngine({ canvas, overlay, cart, onError = console.error, o
     },
 
     // --- 2D overlay text (screen is 256 x 256; 7 x 10 pixel character cells)
-    print(str, x, y, c = 7, outlineColor) {
+    // oc: outline color (omit, null or -1 for none); sx, sy: whole-number scale (sy defaults to sx)
+    print(str, x, y, c = 7, oc = null, sx = 1, sy = sx) {
       if (x === undefined) { x = 0; y = cursorY; }
-      const col = (i) => hexColor(palette[remap[i & 31]] ?? 0);
-      const oc = outlineColor === undefined || outlineColor === null ? null : col(outlineColor);
-      drawText(ctx, str, x | 0, y | 0, col(c), oc);
-      cursorY = (y | 0) + LINE_H * (String(str).split('\n').length);
+      sx = Math.max(1, Math.round(+sx || 1)); sy = Math.max(1, Math.round(+sy || sx));
+      const outlined = oc !== undefined && oc !== null && oc !== false && oc >= 0;
+      const end = drawText(ctx, str, x | 0, y | 0, uiColor(c), outlined ? uiColor(oc) : null, sx, sy);
+      cursorY = (y | 0) + LINE_H * sy * (String(str).split('\n').length);
+      return end;
+    },
+    // 2D rectangles on the same layer as print; both corners included, like PICO-8
+    rect(x0, y0, x1, y1, c = 7) {
+      const [l, t, r, b] = rectBounds(x0, y0, x1, y1);
+      ctx.fillStyle = uiColor(c);
+      ctx.fillRect(l, t, r - l + 1, 1);
+      ctx.fillRect(l, b, r - l + 1, 1);
+      ctx.fillRect(l, t, 1, b - t + 1);
+      ctx.fillRect(r, t, 1, b - t + 1);
+    },
+    rectfill(x0, y0, x1, y1, c = 7) {
+      const [l, t, r, b] = rectBounds(x0, y0, x1, y1);
+      ctx.fillStyle = uiColor(c);
+      ctx.fillRect(l, t, r - l + 1, b - t + 1);
     },
     printh(...args) { onLog(args.map(String).join(' ')); },
 

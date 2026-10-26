@@ -856,30 +856,35 @@ for (const block of SRC.trim().split(/\n\s*\n/)) {
   GLYPHS.set(ch, px);
 }
 
-// Width in pixels of the longest line of str.
-export function textWidth(str) {
-  return Math.max(...String(str).split('\n').map((l) => [...l].length)) * CHAR_W;
+// Width in pixels of the longest line of str, at scale sx.
+export function textWidth(str, sx = 1) {
+  return Math.max(...String(str).split('\n').map((l) => [...l].length)) * CHAR_W * sx;
 }
 
-function eachPixel(str, x, y, fn) {
+// Calls fn(px, py) for the top-left corner of every font pixel, each font pixel being sx x sy.
+function eachPixel(str, x, y, sx, sy, fn) {
   let cx = x, cy = y;
   for (const ch of String(str)) {
-    if (ch === '\n') { cx = x; cy += LINE_H; continue; }
+    if (ch === '\n') { cx = x; cy += LINE_H * sy; continue; }
     const g = GLYPHS.get(ch) || GLYPHS.get('?');
-    for (const [gx, gy] of g) fn(cx + 1 + gx, cy + 1 + gy);
-    cx += CHAR_W;
+    for (const [gx, gy] of g) fn(cx + (1 + gx) * sx, cy + (1 + gy) * sy);
+    cx += CHAR_W * sx;
   }
 }
 
 const AROUND = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
 
-// Draws text with its top-left cell corner at (x, y). With an outline color, every pixel of
-// the text first gets a 1-pixel ring (including diagonals) in that color.
-export function drawText(ctx, str, x, y, color, outlineColor = null) {
+// Draws text with its top-left cell corner at (x, y), each font pixel sx x sy screen pixels
+// (whole numbers). With an outline color, every font pixel first gets a ring (including
+// diagonals) one font pixel thick, so the outline scales with the text.
+// Returns the x just past the last character of the last line.
+export function drawText(ctx, str, x, y, color, outlineColor = null, sx = 1, sy = 1) {
   if (outlineColor) {
     ctx.fillStyle = outlineColor;
-    eachPixel(str, x, y, (px, py) => { for (const [dx, dy] of AROUND) ctx.fillRect(px + dx, py + dy, 1, 1); });
+    eachPixel(str, x, y, sx, sy, (px, py) => { for (const [dx, dy] of AROUND) ctx.fillRect(px + dx * sx, py + dy * sy, sx, sy); });
   }
   ctx.fillStyle = color;
-  eachPixel(str, x, y, (px, py) => ctx.fillRect(px, py, 1, 1));
+  eachPixel(str, x, y, sx, sy, (px, py) => ctx.fillRect(px, py, sx, sy));
+  const lines = String(str).split('\n');
+  return x + [...lines[lines.length - 1]].length * CHAR_W * sx;
 }

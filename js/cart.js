@@ -14,6 +14,10 @@ function _init() {
 }
 
 function _update() {
+  if (title) {
+    if (btnp(4) || btnp(5)) title = false
+    return
+  }
 }
 
 function _draw() {
@@ -128,6 +132,7 @@ let px, py, pz, vy, grounded
 let facing = 0, walk = 0   // hero yaw (turns) and walk-cycle clock
 let raise = 1, raise_target = 1
 let gems, score, flash = 0
+let title = true   // show the title card until a button is pressed
 let guards
 
 function _init() {
@@ -154,6 +159,10 @@ function respawn() {
 }
 
 function _update() {
+  if (title) {
+    if (btnp(4) || btnp(5)) title = false
+    return
+  }
   // the camera looks down +z, so screen-right is -x
   let s = 0.08
   let dx = 0, dz = 0
@@ -243,6 +252,16 @@ function _draw() {
   print('Gems ' + score + '/' + gems.length, 4, 4, 7, 0)
   print('Z: bridge   X: jump', 4, 244, 7, 0)
   if (score == gems.length) print('You got them all!', 68, 120, 10, 0)
+
+  if (title) {
+    // title card: a framed panel, big outlined text (scale 4), and a blinking prompt
+    rectfill(24, 66, 231, 189, 1)
+    rect(24, 66, 231, 189, 7)
+    rect(26, 68, 229, 187, 12)
+    print('blocky', 44, 74, 10, 0, 4)        // 6 letters x 7 px x 4 = 168 px wide, centered
+    print('3D', 107, 122, 8, 0, 3, 2)        // stretched: 3 wide, 2 tall
+    if (time() % 1 < 0.6) print('press O or X', 86, 160, 7)
+  }
 }
 `;
 
