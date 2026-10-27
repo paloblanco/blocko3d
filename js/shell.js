@@ -261,10 +261,11 @@ export function wireShell(engine, doc = document) {
     fullBtn.innerHTML = fsElement() ? ICON.exitFull : ICON.full;
     fullBtn.title = fsElement() ? 'Exit fullscreen' : 'Fullscreen';
   };
-  // hidden where the browser has no fullscreen (e.g. iPhone Safari) and in an installed app, which
-  // already fills the screen
-  const installed = win.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || win.navigator.standalone === true;
-  fullBtn.hidden = installed || !(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
+  // hidden where the browser has no fullscreen (e.g. iPhone Safari) and in an installed app that
+  // already fills the screen (phones). On a computer an installed app opens in its own window
+  // (display-mode standalone), where the button still makes sense.
+  const fills = win.matchMedia('(display-mode: fullscreen)').matches || win.navigator.standalone === true;
+  fullBtn.hidden = fills || !(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
   doc.addEventListener('fullscreenchange', showFull);
   doc.addEventListener('webkitfullscreenchange', showFull);
   showFull();
