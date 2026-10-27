@@ -239,6 +239,7 @@ kbd {
 .savebar { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; min-width: 0; }
 .savebar code { font: 11px var(--mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .savebar button { font-size: 12px; padding: 2px 8px; }
+.savebar .coverthumb { width: 32px; height: 32px; image-rendering: pixelated; border: 1px solid var(--line, #333); margin-right: auto; }
 .console {
   flex: 1; min-height: 70px; overflow: auto; background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 10px; font: 12px/1.5 var(--mono);

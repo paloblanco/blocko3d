@@ -33,6 +33,7 @@ function run(cart) {
     onError: reportError,
     onLog: (text) => send({ type: 'log', text }),
     onSave: (json) => send({ type: 'save', json }),
+    onCover: (png) => send({ type: 'cover', png }),   // only the IDE gets 'Capture cover' in the pause menu
   });
   // The cart's code becomes a function returning its hooks, so Restart can run it again in place.
   let runCart;

@@ -69,6 +69,7 @@ function loadCart(c, name) {
   $('cartName').value = cart.name;
   setCode(cart.code);
   if ($('saveData')) showSaveData();
+  if ($('coverImg')) showCover();
   refreshMapUI();
   refreshSprUI();
   refreshVoxUI();
@@ -89,6 +90,7 @@ function serialize() {
     scale,
   };
   if (cart.palette) out.palette = cart.palette;
+  if (cart.cover) out.cover = cart.cover;
   return out;
 }
 
@@ -218,6 +220,7 @@ window.addEventListener('message', (e) => {
   else if (d.type === 'error') logError(d.message, d.line);
   else if (d.type === 'log') log(d.text);
   else if (d.type === 'save') showSaveData();
+  else if (d.type === 'cover') { cart.cover = d.png; dirty(); showCover(); log('cover captured: exported games show it before they start', 'info'); }
 });
 
 // ================================================================= tabs
@@ -1401,7 +1404,20 @@ function showSaveData() {
   $('saveClear').disabled = json === null;
 }
 
+// The cover art exported games show before they start (captured from the pause menu while running).
+function showCover() {
+  const img = $('coverImg');
+  img.hidden = !cart.cover;
+  if (cart.cover) img.src = cart.cover;
+  $('coverNone').hidden = !!cart.cover;
+  $('coverClear').disabled = !cart.cover;
+}
+
 function setupSaveData() {
+  $('coverClear').onclick = () => {
+    if (!confirm('Remove the cover art? Exported games will show the game\'s name instead.')) return;
+    delete cart.cover; dirty(); showCover();
+  };
   $('saveClear').onclick = () => {
     if (!confirm(`Clear the save data for "${cart.name}"?`)) return;
     try { localStorage.removeItem(saveKeyFor(cart.name)); } catch { /* storage blocked */ }

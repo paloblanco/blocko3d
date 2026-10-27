@@ -1,5 +1,5 @@
 // Export a cart as a standalone game: <name>.zip containing index.html and <name>.js.
-// <name>.js = the bundled runtime (engine + three.js) + the cart's data + the cart's code,
+// <name>.js = the bundled runtime (engine + three.js) + the cart's data (cover art included) + the cart's code,
 // so the game needs no network access and no other files.
 import { zipFiles } from './zip.js';
 import { VERSION } from './version.js';
@@ -49,10 +49,11 @@ export function gameJs(cart, runtime) {
     runtime.trim(),
     '// ---------------------------------------------------------------- cart data',
     'Blocky3D.catchGlobalErrors();',
-    `Blocky3D.install(${JSON.stringify(data)});`,
+    '// the page shows the cover and a play button; the game starts on a click, tap or key press',
+    `Blocky3D.play(${JSON.stringify(data)},`,
     '// ---------------------------------------------------------------- game code',
     '// (inside a function, so Restart can run it again from the top)',
-    'Blocky3D.start(function () {',
+    'function () {',
     cart.code,
     ';return ' + HOOKS_EXPR + ';',
     '});',

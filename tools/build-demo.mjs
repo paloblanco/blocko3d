@@ -5,7 +5,7 @@
 //    Export button would (index.html + <slug>.js, no other files);
 // 3. writes standalone_demo/index.html, one page linking to all of them.
 // So a demo added to demos/ and demos/index.json gets its standalone page on the next build.
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { demoCart, normalizeCart } from '../js/cart.js';
 import { indexHtml, gameJs, gameSlug, checkSyntax } from '../js/export.js';
 import { VERSION } from '../js/version.js';
@@ -14,9 +14,12 @@ const root = new URL('../', import.meta.url);
 const runtime = readFileSync(new URL('runtime/blocky3d.runtime.js', root), 'utf8');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// 1. the castle as a cart file
+// 1. the castle as a cart file (with its cover art from demos/castle-cover.png)
 const castle = normalizeCart(demoCart());
 castle.name = 'castle';
+// its cover art lives next to it as a PNG, since the cart itself is generated in code
+const castleCover = new URL('demos/castle-cover.png', root);
+if (existsSync(castleCover)) castle.cover = 'data:image/png;base64,' + readFileSync(castleCover).toString('base64');
 writeFileSync(new URL('demos/castle.b3d.json', root), JSON.stringify(castle) + '\n');
 
 // 2. every demo in the list, exported
@@ -35,7 +38,7 @@ for (const d of list) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(new URL('index.html', dir), indexHtml(d.name, slug + '.js'));
   writeFileSync(new URL(slug + '.js', dir), gameJs(cart, runtime));
-  built.push({ ...d, slug });
+  built.push({ ...d, slug, cover: cart.cover });
 }
 
 // 3. a page listing them (plain HTML, no scripts or network, so it works from disk too; links name
@@ -54,8 +57,9 @@ writeFileSync(new URL('index.html', out), `<!doctype html>
   h1 b { color: #ff004d; }
   .sub { margin: 0 0 24px; color: #8a93b2; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-  li a { display: block; padding: 14px 16px; border: 1px solid #2a3352; border-radius: 10px; background: #151c33; color: inherit; text-decoration: none; }
+  li a { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1px solid #2a3352; border-radius: 10px; background: #151c33; color: inherit; text-decoration: none; }
   li a:hover, li a:focus-visible { border-color: #29adff; }
+  li img { width: 96px; height: 96px; flex: none; image-rendering: pixelated; border-radius: 6px; }
   .name { font-weight: 600; font-size: 18px; color: #fff; }
   .name::after { content: " ▶"; color: #00e436; font-size: 14px; }
   .about { margin-top: 2px; color: #a9b1cc; font-size: 15px; }
@@ -68,7 +72,7 @@ writeFileSync(new URL('index.html', out), `<!doctype html>
   <h1>blocky<b>3D</b> demos</h1>
   <p class="sub">Exported games, exactly as the IDE's Export makes them. Version ${esc(VERSION)}. On a phone or tablet, the touch controls appear around the game.</p>
   <ul>
-${built.map((d) => `    <li><a href="${esc(d.slug)}/index.html"><div class="name">${esc(d.name)}</div>${d.about ? `<div class="about">${esc(d.about)}</div>` : ''}</a></li>`).join('\n')}
+${built.map((d) => `    <li><a href="${esc(d.slug)}/index.html">${d.cover ? `<img src="${d.cover}" alt="">` : ''}<div><div class="name">${esc(d.name)}</div>${d.about ? `<div class="about">${esc(d.about)}</div>` : ''}</div></a></li>`).join('\n')}
   </ul>
   <footer>Want to see how they're made? Open the <a href="../index.html">blocky3D IDE</a> and pick one from <b>Demos</b>.</footer>
 </main>

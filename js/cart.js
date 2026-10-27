@@ -53,6 +53,7 @@ export function normalizeCart(c) {
   cart.music = cart.music.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
   cart.vox = cart.vox.slice(0, 64);
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
+  if (typeof cart.cover !== 'string' || !cart.cover.startsWith('data:image/png;base64,')) delete cart.cover;
   cart.version = CART_VERSION;
   return cart;
 }

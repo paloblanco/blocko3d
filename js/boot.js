@@ -13,17 +13,87 @@ let reportError = null;
 // Without a canvas, it builds the standard page first: the screen, touch controls and system buttons.
 // Restart (pause menu) runs the cart again in the same page unless onRestart says otherwise, so
 // fullscreen and the touch controls stay as they are.
-export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart = restart, onSave } = {}) {
+export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart = restart, onSave, onCover, wire = true } = {}) {
   if (!canvas) ({ canvas, overlay: ui } = mountShell());
   overlay = ui;
   reportError = onError;
-  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave });
+  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave, onCover });
   Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
   window.addEventListener('keydown', (e) => engine.key(e, true));
   window.addEventListener('keyup', (e) => engine.key(e, false));
   window.addEventListener('pointerdown', () => engine.unlockAudio());
-  wireShell(engine);
+  if (wire) wireShell(engine);
   return engine;
+}
+
+// Exported games start here: the page shows the cart's cover art (or its name) with a play button,
+// and nothing else happens (no 3D graphics, no game code, no sound) until the player clicks or taps
+// the game, presses a key, or presses A or Start on a gamepad. Then the game installs and starts.
+// The shell's buttons are wired to a stand-in until then: mute already works, anything else starts.
+export function play(cart, cartFn) {
+  const els = mountShell();
+  const ctx = els.overlay.getContext('2d');
+  let real = null, begun = false;
+  const stand = {
+    setButton(i, on) { if (real) real.setButton(i, on); else if (on && i !== 6) begin(); },
+    get muted() { if (real) return real.muted; try { return localStorage.getItem('blocky3d.mute') === '1'; } catch { return false; } },
+    setMuted(m) { if (real) real.setMuted(m); else try { localStorage.setItem('blocky3d.mute', m ? '1' : '0'); } catch { /* storage blocked */ } },
+  };
+  wireShell(stand);
+
+  const drawCover = (img) => {
+    ctx.imageSmoothingEnabled = false;
+    if (img) ctx.drawImage(img, 0, 0, 256, 256);
+    else {
+      // no cover art: the game's name on a plain card
+      ctx.fillStyle = '#1d2b53'; ctx.fillRect(0, 0, 256, 256);
+      const name = String(cart.name || 'game');
+      const s = textWidth(name) * 2 <= 240 ? 2 : 1;
+      drawText(ctx, name, (256 - textWidth(name) * s) >> 1, 84, '#fff1e8', '#000000', s);
+    }
+    // the play button: a dark disc with a triangle, in the middle
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.beginPath(); ctx.arc(128, 128, 24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff1e8';
+    ctx.beginPath(); ctx.moveTo(120, 115); ctx.lineTo(120, 141); ctx.lineTo(141, 128); ctx.closePath(); ctx.fill();
+  };
+  if (typeof cart.cover === 'string' && cart.cover.startsWith('data:image/')) {
+    const img = new Image();
+    img.onload = () => { if (!begun) drawCover(img); };
+    img.onerror = () => { if (!begun) drawCover(null); };
+    img.src = cart.cover;
+  } else drawCover(null);
+  els.overlay.style.cursor = 'pointer';
+
+  const keyStart = (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || /^(Tab|Escape|Shift|Control|Alt|Meta|F\d+)$/.test(e.key)) return;
+    e.preventDefault();
+    begin();
+  };
+  const clickStart = () => begin();
+  els.overlay.addEventListener('click', clickStart);
+  window.addEventListener('keydown', keyStart);
+  const padStart = () => {
+    if (begun) return;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const p of pads) if (p && [0, 1, 2, 3, 9].some((b) => p.buttons[b] && p.buttons[b].pressed)) return begin();
+    requestAnimationFrame(padStart);
+  };
+  requestAnimationFrame(padStart);
+
+  function begin() {
+    if (begun) return;
+    begun = true;
+    els.overlay.removeEventListener('click', clickStart);
+    window.removeEventListener('keydown', keyStart);
+    els.overlay.style.cursor = '';
+    ctx.clearRect(0, 0, 256, 256);
+    try {
+      real = install(cart, { ...els, wire: false });
+    } catch (e) { showError(e); return; }
+    real.unlockAudio();          // this click or key press lets the browser start sound right away
+    start(cartFn);
+  }
 }
 
 // Expression that collects the cart's _init/_update/_draw, whether declared with function, let or const.

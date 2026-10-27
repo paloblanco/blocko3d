@@ -30,6 +30,7 @@ const vec = (a, b, c) => (Array.isArray(a) ? [+a[0] || 0, +a[1] || 0, +a[2] || 0
 export function createEngine({
   canvas, overlay, cart, onError = console.error, onLog = console.log,
   onRestart = () => location.reload(), onSave = () => {},   // boot passes a soft restart (see reset)
+  onCover = null,   // the IDE passes this: the pause menu gets 'Capture cover' (never in exports)
 }) {
   const renderer = setupRenderer(canvas, SCREEN);
   // Resolution: the 3D view renders at SCREEN * scale (1x, 2x or 3x); text and rectangles stay on
@@ -658,7 +659,9 @@ export function createEngine({
   // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
   // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
   // first time that happened the menu stopped showing.
-  const MENU = canHires ? ['Resume', 'Restart', 'Screenshot', 'Resolution'] : ['Resume', 'Restart', 'Screenshot'];
+  const MENU = ['Resume', 'Restart', 'Screenshot'];
+  if (onCover) MENU.push('Capture cover');
+  if (canHires) MENU.push('Resolution');
   let paused = false, menuSel = 0, note = '', noteUntil = 0, menuAge = 0;
   const menuCanvas = document.createElement('canvas');
   menuCanvas.width = menuCanvas.height = SCREEN;
@@ -728,6 +731,18 @@ export function createEngine({
     onLog('screenshot saved: ' + name);
   }
 
+  // The game screen as the cart's cover art: 256 square, the 3D view plus the game's text, no menu.
+  function captureCover() {
+    const out = document.createElement('canvas');
+    out.width = out.height = SCREEN;
+    const o = out.getContext('2d');
+    o.imageSmoothingEnabled = false;
+    o.drawImage(canvas, 0, 0, SCREEN, SCREEN);
+    o.drawImage(overlay, 0, 0);
+    onCover(out.toDataURL('image/png'));
+    note = 'Cover captured'; noteUntil = performance.now() + 1500;
+  }
+
   function menuUpdate() {
     // Any player can drive the pause menu. For a moment after pausing, choosing is ignored, so
     // a doubled press (a pause button reporting one tap twice) can't resume straight away.
@@ -750,6 +765,7 @@ export function createEngine({
     if (choice === 'Resume') setPaused(false);
     else if (choice === 'Restart') { stop(); onRestart(); }
     else if (choice === 'Screenshot') screenshot();
+    else if (choice === 'Capture cover') captureCover();
     else if (choice === 'Resolution') changeRes(1);
   }
 

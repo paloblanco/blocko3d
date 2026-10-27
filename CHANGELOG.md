@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Exported games open on a **cover screen**: cover art (or the game's name) and a play button. Nothing loads, runs or plays until the player clicks, taps, presses a key or presses A or Start on a gamepad. The cover is captured in the IDE with **Capture cover** in the pause menu (IDE only) and saved in the cart. Every demo has a cover, and the demo list page shows them.
 - When the browser won't start 3D graphics (WebGL 2), the game now says so in plain words with things to try, instead of a cryptic three.js error. Reported on an iPhone as `getShaderPrecisionFormat(...).precision`.
 - `webgl-check.html`: a page to open on a device where games won't start; it shows whether WebGL 2 works there, for a screenshot.
 - `mtow(m, x, y, z)` gives where a point in map m's own grid is in the world right now, and `wtom(m, x, y, z)` goes the other way (not rounded to a cell). Tilt Maze and Scrambler now use them instead of their own rotation math.

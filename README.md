@@ -45,7 +45,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`. |
 | Third Person | Collect stars across floating islands. An orbit camera kept out of walls with `mray()`, movement relative to the camera, and riding a sliding platform, a turning bridge and an elevator with `wtom()`/`mtow()`. |
 
-Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it.
+Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen), **Capture cover** (only in the IDE: makes the current screen the cover art exported games show before they start) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it, and **Cover** shows the captured cover art (Clear removes it).
 
 ### On a phone
 
@@ -59,6 +59,8 @@ On narrow screens the IDE shows one panel at a time, and the game gets its own *
 - `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models, sounds, music and code. The pause menu, sounds and save data all work in exported games too.
 
 The page around the game has a **pause**, **mute** and **fullscreen** button, on desktop too. On a phone or tablet (or once someone touches the screen) it adds PICO-8-style touch controls: a d-pad and O and X on either side of the game in landscape, or under it in portrait. They're HTML around the game, never drawn on it, and you can restyle them with your own `<style>` in `index.html`.
+
+An exported game opens on its **cover**: the cover art captured in the IDE (or, without one, the game's name) with a play button. Nothing loads until the player clicks or taps the game, presses a key, or presses A or Start on a gamepad, so a page with your game on it costs nothing for someone just scrolling past, and sound can start right away.
 
 It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
 
@@ -118,7 +120,7 @@ The Info tab has the full reference.
 2. Put the file in `demos/`.
 3. Add a line for it to `demos/index.json`: the file name, the name shown in the menu, and a sentence about what it shows (shown as a tooltip and in the console when it loads).
 
-That's enough for the IDE's menu. Then run `npm run build` (see below): it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`.
+That's enough for the IDE's menu. Then run `npm run build` (see below): it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
 
 ## Changing the engine
 
