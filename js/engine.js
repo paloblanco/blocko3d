@@ -588,6 +588,37 @@ export function createEngine({
       camPos.splice(0, 3, t[0] - f[0] * d, t[1] - f[1] * d, t[2] - f[2] * d);
       camLook.splice(0, 3, ...t);
     },
+    // lerp(a, b, t): t of the way from a to b (numbers, or arrays element by element, like
+    // positions). Easing toward a target each update: x = lerp(x, target, 0.1). Not for angles:
+    // for those, a += angdiff(a, b) * t goes the short way round.
+    lerp(a, b, t) {
+      if (Array.isArray(a)) return a.map((v, i) => v + ((Array.isArray(b) ? b[i] : b) - v) * t);
+      return a + (b - a) * t;
+    },
+    // mpush(maps, x, y, z, r): push a sphere out of the solid blocks of one map or a list of maps
+    // (a few passes, for corners). Returns [x, y, z, nx, ny, nz, ground]: where the sphere ends up,
+    // the overall direction it was pushed (all 0 if it touched nothing: ny > 0.5 is standing on
+    // something, ny < -0.5 a ceiling, a sideways push a wall), and the map it stands on, or -1.
+    mpush(maps, x, y, z, r) {
+      const list = Array.isArray(maps) ? maps : [maps];
+      x = +x || 0; y = +y || 0; z = +z || 0;
+      let px = 0, py = 0, pz = 0, ground = -1, best = 0.5;
+      for (let pass = 0; pass < 3; pass++) {
+        let moved = false;
+        for (const m of list) {
+          const h = api.mgetw(m, x, y, z, r);
+          if (!h[0]) continue;
+          const [, , , , nx, ny, nz, d] = h;
+          x += nx * d; y += ny * d; z += nz * d;
+          px += nx * d; py += ny * d; pz += nz * d;
+          if (ny > best) { best = ny; ground = m | 0; }   // the most upward push is what we stand on
+          moved = true;
+        }
+        if (!moved) break;
+      }
+      const L = Math.hypot(px, py, pz);
+      return L > 1e-9 ? [x, y, z, px / L, py / L, pz / L, ground] : [x, y, z, 0, 0, 0, ground];
+    },
     // textw(str, sx): how wide print(str) is in pixels, at scale sx (longest line)
     textw(str, sx = 1) { return textWidth(String(str)) * Math.max(1, Math.round(+sx || 1)); },
     // printc(str, y, c, oc, sx, sy): print centered across the clip area (the whole screen without clip)

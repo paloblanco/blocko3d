@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `mpush(maps, x, y, z, r)` pushes a sphere out of one map or a list of maps and returns `[x, y, z, nx, ny, nz, ground]`: the new position, which way it was pushed, and the map it's standing on (or -1). Collision for a walker, a car or a bouncing ball is now a line or two. `lerp(a, b, t)` blends numbers or arrays. The demos use both.
 - New helpers for the things 3D games keep writing by hand: `dist(a, b)`, `dir3(yaw, pitch)`, `yaw_to(dx, dz)`, `angdiff(a, b)`, `cam_orbit(target, yaw, pitch, dist)`, `printc(str, y, ...)` (centered, also within a clip area) and `textw(str, sx)`. All the demos now use them.
 - `clip(x0, y0, x1, y1)` limits drawing to a rectangle of the screen, 3D and 2D alike, and each `clip()` starts a new 3D view with its own camera, centered in its rectangle: split screen, minimaps and mirrors. `cam_set_fov` now means the angle across the longer side of the view (unchanged on the full, square screen). A new demo, **Split Screen Racing**, shows it off.
 - Exported games are **installable apps** (PWAs) when hosted on an https site: the zip now also holds `manifest.webmanifest`, `sw.js` and two icons made from the cover art. Players can add the game to their home screen; it opens full screen and plays offline. The game still runs from just `index.html` and its `.js`, as before. The standalone demos are installable too. On computers (Chrome, Edge, Safari on a Mac) an installed game opens in its own window and keeps its fullscreen button.

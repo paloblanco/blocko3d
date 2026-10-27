@@ -38,7 +38,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | --- | --- |
 | Castle | The tour: maps, a drawbridge that's a moving map, vox characters with a walk cycle, `pal` recolors, outlines, sound, music, a title card and a saved best time. |
 | Block Pop | Click or tap a group of same-colored blocks to pop it. `mouse_ray()` + `mray()` find the block under the cursor; `mget`/`mset` change the map while playing. |
-| Tilt Maze | Tilt the maze to roll a marble to the flag. Collision on a rotated map: `mgetw` pushes the marble out of a maze that tilts under it. |
+| Tilt Maze | Tilt the maze to roll a marble to the flag. Collision on a rotated map: `mpush` pushes the marble out of a maze that tilts under it, and it bounces off the way it was pushed. |
 | Scrambler | A carnival ride of maps spinning on their pivots. One arm map and one car map are each drawn several times a frame; hop in a car for the ride view. |
 | First Person | Find the key in a dungeon maze. A first-person camera with mouse capture (or a finger drag), sphere collision, `mray()` to see what you face, gates that are maps of their own, `palt()` for see-through bars. |
 | Builder | Build on a plot, block by block. `mray()` and the face it hits to place or dig, a hotbar drawn with `rectfill` and clicked through `mouse_pos()`, the mouse wheel, and the whole build kept with `save()`. |
@@ -86,7 +86,7 @@ function _draw() {
 ## API at a glance
 
 - **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode). `freeze(n, fn)` runs `fn` (or nothing) instead of `_update` for the next `n` updates while `_draw` keeps going: hit-stun in one line.
-- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps).
+- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `mpush` (collision in one call: push a sphere out of one or more maps, and learn which way and what you stand on), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps).
 - **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
@@ -99,7 +99,7 @@ function _draw() {
 - **Save data:** `save(value)` stores any JSON value for this game in the browser; `load()` reads it back.
 - **Input:** `btn(i, p)` / `btnp(i, p)` for up to 4 players, PICO-8 style: player 0 is the keyboard plus the first gamepad, and the 2nd-4th gamepads are players 1-3. Buttons 0-5 work everywhere; 6-18 are the rest of a modern gamepad (Start, A/B/X/Y, bumpers, triggers, Select, stick clicks, Home). `stick(i, p)` returns a stick as `[x, y]`. `touch_set_mode(n)` picks the touch control phones show on the left: 0 d-pad, 1 analog circle (feeds `stick(0)`), 2 left/right, 3 up/down.
 - **Mouse and touch:** off by default. `mouse_set_mode(1)` for pointing and clicking, `mouse_set_mode(2)` to capture the mouse for mouse-look (losing it pauses the game). Mouse buttons are `btn(19)`, `btn(20)`, `btn(21)`; also `mouse_pos()`, `mouse_delta()`, `mouse_wheel()`, `mouse_locked()`, and `mouse_ray()`, which with `mray` finds the block under the cursor. On touch screens a tap is a click (mode 1) and dragging is mouse movement (mode 2).
-- **Helpers for 3D games:** `dist(a, b)` (arrays or `{x, y, z}` objects), `dir3(yaw, pitch)` (the direction for an angle), `yaw_to(dx, dz)` (the angle for a direction), `angdiff(a, b)` (the shortest turn between two angles), `cam_orbit(target, yaw, pitch, dist)` (an orbit or chase camera in one call), and `printc`/`textw` for centered and measured text.
+- **Helpers for 3D games:** `dist(a, b)` (arrays or `{x, y, z}` objects), `dir3(yaw, pitch)` (the direction for an angle), `yaw_to(dx, dz)` (the angle for a direction), `angdiff(a, b)` (the shortest turn between two angles), `lerp(a, b, t)` (numbers or arrays), `cam_orbit(target, yaw, pitch, dist)` (an orbit or chase camera in one call), and `printc`/`textw` for centered and measured text.
 - **Extras:** `printh`, `time`/`t`, `rnd`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
 The Info tab has the full reference.
