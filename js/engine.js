@@ -508,6 +508,10 @@ export function createEngine({
 
     // --- time + math helpers (angles in turns, like PICO-8)
     time() { return frames / 60; },
+    // freeze(n, fn): for the next n updates, call fn instead of _update (nothing at all without fn).
+    // _draw keeps running, so the picture holds still: hit-stun, a pause before a death, a shake.
+    // Calling it again replaces the current freeze; freeze(0) ends it.
+    freeze(n, fn) { freezeN = Math.max(0, Math.floor(+n || 0)); freezeFn = typeof fn === 'function' ? fn : null; },
     t() { return frames / 60; },
     rnd(n = 1) { return Array.isArray(n) ? n[Math.floor(Math.random() * n.length)] : Math.random() * n; },
     flr: Math.floor, ceil: Math.ceil, abs: Math.abs, sqrt: Math.sqrt, min: Math.min, max: Math.max,
@@ -610,6 +614,7 @@ export function createEngine({
 
   // ================================================================= loop
   let hooks = {}, running = false, raf = 0, last = 0, acc = 0;
+  let freezeN = 0, freezeFn = null;   // see freeze()
 
   function beginDraw() {
     for (const k in used) used[k] = 0;
@@ -794,7 +799,12 @@ export function createEngine({
       if (paused) { menuUpdate(); if (!running) return; continue; }
       if (pauseTapped()) { setPaused(true); continue; }
       frames++;
-      if (hooks._update && !guard(hooks._update)) return;
+      if (freezeN > 0) {                     // frozen: the freeze function (if any) runs instead
+        const f = freezeFn;
+        freezeN--;
+        if (freezeN === 0 && freezeFn === f) freezeFn = null;
+        if (f && !guard(f)) return;
+      } else if (hooks._update && !guard(hooks._update)) return;
     }
     if (steps > 0) {
       if (paused) drawMenu();
@@ -834,7 +844,7 @@ export function createEngine({
     bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     camera.fov = 90; camera.updateProjectionMatrix();
-    frames = 0; acc = 0;
+    frames = 0; acc = 0; freezeN = 0; freezeFn = null;
     setMouseMode(0);
     dxAcc = dyAcc = wheelAcc = mdx = mdy = mwheel = 0;
     for (const a of [down, held, tapped]) a.fill(false);

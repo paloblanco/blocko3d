@@ -146,6 +146,7 @@ if (secs < data.best) save({ best: secs })`,
       ['stick(i, p?)', 'Stick i (0 left, 1 right) of player p as [x, y], each -1 to 1; right and down are positive. A small dead zone reads as exactly 0. When the left stick is centered, stick(0) follows the d-pad or arrow keys instead, so analog movement also works on a keyboard.'],
       ['Players', 'Player 0 is the keyboard (arrows or WASD; O = Z, C, N or space; X = X, V or M) together with the first gamepad. The 2nd, 3rd and 4th gamepads are players 1-3, in the order they connect. On a gamepad: d-pad or left stick to move, A or X for O, B or Y for X, Start to pause. Browsers only report a gamepad after a button on it is pressed.'],
       ['time() / t()', 'Seconds since the game started.'],
+      ['freeze(n, fn)', 'For the next n updates, run fn instead of _update (or nothing, without fn). _draw keeps running, so the picture holds still: hit-stun on a big hit, a beat before a death. fn can draw an effect, like shaking the camera. Time keeps going. Calling freeze again replaces the current one; freeze(0) ends it.'],
     ],
   },
   {

@@ -42,7 +42,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | Scrambler | A carnival ride of maps spinning on their pivots. One arm map and one car map are each drawn several times a frame; hop in a car for the ride view. |
 | First Person | Find the key in a dungeon maze. A first-person camera with mouse capture (or a finger drag), sphere collision, `mray()` to see what you face, gates that are maps of their own, `palt()` for see-through bars. |
 | Builder | Build on a plot, block by block. `mray()` and the face it hits to place or dig, a hotbar drawn with `rectfill` and clicked through `mouse_pos()`, the mouse wheel, and the whole build kept with `save()`. |
-| Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`. |
+| Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`, and hit-stun with a camera shake on hard bumps using `freeze()`. |
 | Third Person | Collect stars across floating islands. An orbit camera kept out of walls with `mray()`, movement relative to the camera, and riding a sliding platform, a turning bridge and an elevator with `wtom()`/`mtow()`. |
 
 Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen), **Capture cover** (only in the IDE: makes the current screen the cover art exported games show before they start) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it, and **Cover** shows the captured cover art (Clear removes it).
@@ -82,7 +82,7 @@ function _draw() {
 
 ## API at a glance
 
-- **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode).
+- **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode). `freeze(n, fn)` runs `fn` (or nothing) instead of `_update` for the next `n` updates while `_draw` keeps going: hit-stun in one line.
 - **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps).
 - **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
