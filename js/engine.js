@@ -559,6 +559,42 @@ export function createEngine({
     sin(a) { return Math.sin(a * TURN); },
     cos(a) { return Math.cos(a * TURN); },
     atan2(dx, dy) { return ((Math.atan2(dy, dx) / TURN) + 1) % 1; },
+
+    // --- helpers for the things every 3D game writes by hand (angles in turns, like everything else)
+    // dist(a, b): distance between two points, as arrays ([x, y] or [x, y, z]) or objects with
+    // x, y and (optionally) z. Missing values count as 0. Distance along the ground: dist([a.x, a.z], [b.x, b.z]).
+    dist(a, b) {
+      const v = (p) => (Array.isArray(p) ? p : p && typeof p === 'object' ? ('z' in p ? [p.x, p.y, p.z] : [p.x, p.y]) : [+p]);
+      const A = v(a), B = v(b);
+      let s = 0;
+      for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (+A[i] || 0) - (+B[i] || 0); s += d * d; }
+      return Math.sqrt(s);
+    },
+    // dir3(yaw, pitch): the unit direction [x, y, z] for a yaw and pitch, in the engine's axes:
+    // yaw 0 looks along +z and turns toward +x; positive pitch looks up.
+    dir3(yaw = 0, pitch = 0) {
+      const cp = Math.cos(pitch * TURN);
+      return [Math.sin(yaw * TURN) * cp, Math.sin(pitch * TURN), Math.cos(yaw * TURN) * cp];
+    },
+    // yaw_to(dx, dz): the yaw that faces along (dx, dz); dir3(yaw_to(dx, dz)) points that way
+    yaw_to(dx, dz) { return ((Math.atan2(+dx || 0, +dz || 0) / TURN) + 1) % 1; },
+    // angdiff(a, b): the shortest turn from angle a to angle b, between -0.5 and 0.5
+    angdiff(a, b) { return ((((b - a) % 1) + 1.5) % 1) - 0.5; },
+    // cam_orbit(target, yaw, pitch, dist): put the camera dist away from target, looking at it with
+    // this yaw and pitch (the camera's own view direction: a negative pitch looks down from above)
+    cam_orbit(target, yaw = 0, pitch = 0, d = 8) {
+      const t = vec(target && !Array.isArray(target) && typeof target === 'object' ? [target.x, target.y, target.z] : target);
+      const f = api.dir3(yaw, pitch);
+      camPos.splice(0, 3, t[0] - f[0] * d, t[1] - f[1] * d, t[2] - f[2] * d);
+      camLook.splice(0, 3, ...t);
+    },
+    // textw(str, sx): how wide print(str) is in pixels, at scale sx (longest line)
+    textw(str, sx = 1) { return textWidth(String(str)) * Math.max(1, Math.round(+sx || 1)); },
+    // printc(str, y, c, oc, sx, sy): print centered across the clip area (the whole screen without clip)
+    printc(str, y, c = 7, oc = null, sx = 1, sy = sx) {
+      const [x0, , x1] = clipRect || FULL;
+      return api.print(str, x0 + Math.floor((x1 - x0 + 1 - api.textw(str, sx)) / 2), y, c, oc, sx, sy);
+    },
   };
 
   // Sphere vs voxels in map space. Returns the deepest hit with a world-space push-out.

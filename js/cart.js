@@ -186,7 +186,7 @@ function _update() {
   let dx = -sx * s, dz = -sy * s
   px += dx; pz += dz
   if (abs(dx) + abs(dz) > 0.01) {
-    facing = atan2(dz, dx)   // yaw that turns the model's front (+z) toward the movement
+    facing = yaw_to(dx, dz)   // the yaw that turns the model's front (+z) toward the movement
     walk += 1
   } else walk = 0
   if (btnp(5) && grounded) { vy = 0.2; sfx(0) }
@@ -282,9 +282,9 @@ function _draw() {
   if (!title) print(fmt(ticks / 60), 252 - textw(fmt(ticks / 60)), 4, done ? 10 : 7, 0)
   print('Z: bridge   X: jump', 4, 244, 7, 0)
   if (done) {
-    print('You got them all!', 68, 112, 10, 0)
+    printc('You got them all!', 112, 10, 0)
     let msg = best == ticks / 60 ? 'New best time!' : 'Best: ' + fmt(best)
-    print(msg, 128 - textw(msg) / 2, 126, 7, 0)
+    printc(msg, 126, 7, 0)
   }
 
   if (title) {
@@ -292,16 +292,14 @@ function _draw() {
     rectfill(24, 66, 231, 193, 1)
     rect(24, 66, 231, 193, 7)
     rect(26, 68, 229, 191, 12)
-    print('blocky', 44, 74, 10, 0, 4)        // 6 letters x 7 px x 4 = 168 px wide, centered
-    print('3D', 107, 122, 8, 0, 3, 2)        // stretched: 3 wide, 2 tall
-    if (time() % 1 < 0.6) print('press O or X', 86, 156, 7)
+    printc('blocky', 74, 10, 0, 4)           // printc centers the text across the screen
+    printc('3D', 122, 8, 0, 3, 2)            // stretched: 3 wide, 2 tall
+    if (time() % 1 < 0.6) printc('press O or X', 156, 7)
     let b = best == null ? 'No best time yet' : 'Best time: ' + fmt(best)
-    print(b, 128 - textw(b) / 2, 172, 6)
+    printc(b, 172, 6)
   }
 }
 
-// width of a line of text in pixels (each character is 7 wide)
-function textw(s) { return s.length * 7 }
 `;
 
 // fn(x, y, z) returns a palette color, or -1 for an empty voxel
