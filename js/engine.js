@@ -87,6 +87,13 @@ export function createEngine({
   let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
   let cursorY = 0;
   let drawId = 0, anyOutline = false;
+  // clip(): a rectangle of the screen (inclusive corners, screen pixels) or null for all of it.
+  // Each clip() starts a new view; a view keeps the 3D draws made while it's current and is drawn
+  // in its rectangle with the camera, fov and bg as they are when the view ends (the next clip()
+  // or the end of _draw). A game that never calls clip() has one full-screen view, as before.
+  let clipRect = null, fovDeg = 90;
+  let views = [], curView = null, lastViews = [], inDraw = false;
+  const FULL = [0, 0, SCREEN - 1, SCREEN - 1];
 
   // ---- per-frame object pools (immediate mode: everything is re-submitted each _draw)
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
@@ -124,6 +131,8 @@ export function createEngine({
     u.uInner.value = outlineInner ? 1 : 0;
     u.uId.value = ++drawId;
     if (outlineColor >= 0) anyOutline = true;
+    o.userData.view = curView ? curView.i : 0;
+    if (curView) curView.n++;
     return o;
   }
 
@@ -345,7 +354,20 @@ export function createEngine({
     // --- camera
     cam_set_pos(x, y, z) { camPos.splice(0, 3, ...vec(x, y, z)); },
     cam_set_lookat(x, y, z) { camLook.splice(0, 3, ...vec(x, y, z)); },
-    cam_set_fov(f) { camera.fov = Math.max(0.01, Math.min(0.49, +f || 0.25)) * 360; camera.updateProjectionMatrix(); },
+    // fov in turns, across the longer side of the view (on the square screen: both ways)
+    cam_set_fov(f) { fovDeg = Math.max(0.01, Math.min(0.49, +f || 0.25)) * 360; },
+    // clip(x0, y0, x1, y1): only draw inside this rectangle (corners included, screen pixels), 3D
+    // and 2D alike; clip() draws everywhere again. Each clip() starts a new 3D view, centered in
+    // its rectangle, drawn with the camera as set by the time the view ends.
+    clip(x0, y0, x1, y1) {
+      if (x0 === undefined) clipRect = null;
+      else {
+        const [l, t, r, b] = rectBounds(x0, y0, x1, y1);
+        clipRect = [Math.max(0, l), Math.max(0, t), Math.min(SCREEN - 1, r), Math.min(SCREEN - 1, b)];
+      }
+      if (inDraw) { endView(); startView(); }
+      apply2dClip();
+    },
 
     // --- maps
     map_new(w, h, d, origin = [0, 0, 0]) {
@@ -510,7 +532,12 @@ export function createEngine({
     mouse_locked() { return locked(); },              // is the mouse captured (mode 2)?
     // the ray from the camera through the cursor (the screen center in capture mode):
     // [ox, oy, oz, dx, dy, dz], d of length 1
-    mouse_ray() { return mouseMode === 2 ? screenRay(SCREEN / 2, SCREEN / 2) : screenRay(mx, my); },
+    // the view under the cursor (with mouse capture: the middle of the first view, like a crosshair)
+    mouse_ray() {
+      if (mouseMode !== 2) return screenRay(mx, my);
+      const r = lastViews.length ? lastViews[0].rect : FULL;
+      return screenRay((r[0] + r[2] + 1) / 2, (r[1] + r[3] + 1) / 2);
+    },
     // stick(0) = left, stick(1) = right: [x, y], -1..1, right and down positive
     stick(i = 0, p = 0) { return readStick(i | 0, p | 0); },
     btnp(i, p = 0) { const pl = nowP[p | 0]; return !!(pl && pl[i | 0] && !prevP[p | 0][i | 0]); },
@@ -586,13 +613,28 @@ export function createEngine({
   const rayCam = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
   const _rp = new THREE.Vector3();
   function screenRay(sx, sy) {
-    rayCam.fov = camera.fov;
-    rayCam.position.set(...camPos);
-    rayCam.lookAt(...camLook);
+    // the topmost view drawn last frame that contains the point; before any frame, the camera as set
+    let v = null;
+    for (let i = lastViews.length - 1; i >= 0 && !v; i--) {
+      const r = lastViews[i].rect;
+      if (sx >= r[0] && sx < r[2] + 1 && sy >= r[1] && sy < r[3] + 1) v = lastViews[i];
+    }
+    if (!v) v = { rect: clipRect || FULL, pos: camPos, look: camLook, fov: fovDeg };
+    const [x0, y0, x1, y1] = v.rect;
+    aimCamera(rayCam, v);
     rayCam.updateMatrixWorld();
-    rayCam.updateProjectionMatrix();
-    _rp.set((sx / SCREEN) * 2 - 1, 1 - (sy / SCREEN) * 2, 0.5).unproject(rayCam).sub(rayCam.position).normalize();
-    return [camPos[0], camPos[1], camPos[2], _rp.x, _rp.y, _rp.z];
+    _rp.set(((sx - x0) / (x1 - x0 + 1)) * 2 - 1, 1 - ((sy - y0) / (y1 - y0 + 1)) * 2, 0.5).unproject(rayCam).sub(rayCam.position).normalize();
+    return [v.pos[0], v.pos[1], v.pos[2], _rp.x, _rp.y, _rp.z];
+  }
+
+  // Point a camera for a view: position, target, and the fov across the longer side of its rectangle.
+  function aimCamera(cam, v) {
+    const w = v.rect[2] - v.rect[0] + 1, h = v.rect[3] - v.rect[1] + 1;
+    cam.position.set(...v.pos);
+    cam.lookAt(...v.look);
+    cam.aspect = w / h;
+    cam.fov = w > h ? 2 * Math.atan(Math.tan(v.fov * Math.PI / 360) * h / w) * 180 / Math.PI : v.fov;
+    cam.updateProjectionMatrix();
   }
 
   function sphereQuery(map, cx, cy, cz, r) {
@@ -628,36 +670,93 @@ export function createEngine({
   let hooks = {}, running = false, raf = 0, last = 0, acc = 0;
   let freezeN = 0, freezeFn = null;   // see freeze()
 
+  function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
+  function endView() {
+    if (!curView) return;
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor;
+  }
+  // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
+  let clipped2d = false;
+  function apply2dClip() {
+    if (clipped2d) { ctx.restore(); clipped2d = false; }
+    if (!clipRect) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(clipRect[0], clipRect[1], clipRect[2] - clipRect[0] + 1, clipRect[3] - clipRect[1] + 1);
+    ctx.clip();
+    clipped2d = true;
+  }
+
   function beginDraw() {
     for (const k in used) used[k] = 0;
+    if (clipped2d) { ctx.restore(); clipped2d = false; }
     ctx.clearRect(0, 0, SCREEN, SCREEN);
+    apply2dClip();
     cursorY = 0;
     drawId = 0;
     anyOutline = false;
+    views = [];
+    startView();
+    inDraw = true;
+  }
+
+  // Restrict a render target (or the canvas, for null) to a rectangle in render pixels.
+  function setArea(rt, x, y, w, h) {
+    if (rt) { rt.viewport.set(x, y, w, h); rt.scissor.set(x, y, w, h); rt.scissorTest = true; }
+    else { renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h); renderer.setScissorTest(true); }
   }
 
   function endDraw() {
+    inDraw = false;
+    endView();
     for (const k in pools) for (let i = used[k]; i < pools[k].length; i++) pools[k][i].visible = false;
     syncPaletteUniform(palU, palette);
-    camera.position.set(...camPos);
-    camera.lookAt(...camLook);
-    // 1) scene -> color + draw info + depth
+    // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
+    let list = views.filter((v) => v.n > 0);
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor }];
+    const S = SCREEN * scale;
+    if (list.length > 1 || list[0].rect !== FULL) {
+      // parts of the screen outside every view show the background
+      renderer.setRenderTarget(null);
+      setArea(null, 0, 0, S, S);
+      renderer.setClearColor(palette[bgColor] ?? 0, 1);
+      renderer.clear();
+    }
+    for (const v of list) drawView(v, list.length > 1);
+    // back to the whole screen
+    for (const rt of [target, ...(masks || [])]) { rt.viewport.set(0, 0, S, S); rt.scissor.set(0, 0, S, S); rt.scissorTest = false; }
+    renderer.setRenderTarget(null);
+    renderer.setViewport(0, 0, S, S); renderer.setScissorTest(false);
+    lastViews = list.map((v) => ({ rect: v.rect, pos: v.pos, look: v.look, fov: v.fov }));
+  }
+
+  function drawView(v, several) {
+    const [x0, y0, x1, y1] = v.rect;
+    const x = x0 * scale, y = (SCREEN - 1 - y1) * scale, w = (x1 - x0 + 1) * scale, h = (y1 - y0 + 1) * scale;
+    if (several) for (const k in pools) for (let i = 0; i < used[k]; i++) pools[k][i].visible = pools[k][i].userData.view === v.i;
+    aimCamera(camera, v);
+    // 1) scene -> color + draw info + depth, inside this view only
+    setArea(target, x, y, w, h);
     renderer.setRenderTarget(target);
-    renderer.setClearColor(palette[bgColor] ?? 0, 1);
+    renderer.setClearColor(palette[v.bg] ?? 0, 1);
     renderer.clear();
     renderer.render(scene, camera);
     // 2) copy to the screen, painting outlines when any draw asked for one
     const u = outlinePass.uniforms;
     u.uAny.value = anyOutline ? 1 : 0;
+    u.uRect.value.set(x, y, x + w - 1, y + h - 1);
     if (scale === 1 || !anyOutline) {
       u.uMode.value = 0;
       renderer.setRenderTarget(null);
+      setArea(null, x, y, w, h);
       renderer.render(outlinePass.scene, outlinePass.camera);
       return;
     }
     // 2x / 3x: 1-pixel edge mask -> grow across -> grow down -> paint where allowed
     const g = growPasses;
+    g.grow.uRect.value.set(x, y, x + w - 1, y + h - 1);
     u.uMode.value = 1;
+    for (const m of masks) setArea(m, x, y, w, h);
     renderer.setRenderTarget(masks[0]);
     renderer.render(outlinePass.scene, outlinePass.camera);
     g.grow.uR.value = scale - 1;
@@ -670,6 +769,7 @@ export function createEngine({
     g.paint.tColor.value = target.textures[0]; g.paint.tInfo.value = target.textures[1];
     g.paint.tDepth.value = target.depthTexture; g.paint.tMask.value = masks[0].texture;
     renderer.setRenderTarget(null);
+    setArea(null, x, y, w, h);
     renderer.render(g.paintScene, g.camera);
   }
 
@@ -856,7 +956,7 @@ export function createEngine({
     remap = identityRemap(); trans = noTransparency();
     bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
-    camera.fov = 90; camera.updateProjectionMatrix();
+    fovDeg = 90; clipRect = null; lastViews = [];
     frames = 0; acc = 0; freezeN = 0; freezeFn = null;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();
     setMouseMode(0);

@@ -371,6 +371,7 @@ export function createOutlinePass(target, paletteUniform) {
       uFar: { value: 2000 },
       uAny: { value: 0 },
       uMode: { value: 0 },
+      uRect: { value: new THREE.Vector4(0, 0, 1e5, 1e5) },   // the view being drawn (clip), in render pixels
     },
     vertexShader: /* glsl */`
       void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
@@ -384,6 +385,7 @@ export function createOutlinePass(target, paletteUniform) {
       uniform float uFar;
       uniform int uAny;
       uniform int uMode;   // 0: paint outlines directly (1x); 1: write the edge mask for growing (2x, 3x)
+      uniform vec4 uRect;  // x0, y0, x1, y1 of the view (clip), so lookups never cross into another view
       layout(location = 0) out highp vec4 outColor;
 
       // depth-buffer value to distance from the camera
@@ -395,8 +397,9 @@ export function createOutlinePass(target, paletteUniform) {
       vec4 iP; float zP, idP, fP; bool drawnP;
       int best; float bestZ, bestId, bestKind;
 
-      // Off-screen lookups clamp to the edge pixel, which compares as "same surface": no outline.
-      ivec2 clampQ(ivec2 q) { return clamp(q, ivec2(0), size - 1); }
+      // Lookups outside the screen or the view clamp to its edge pixel, which compares as "same
+      // surface": no outline along the edge of a view.
+      ivec2 clampQ(ivec2 q) { return clamp(q, max(ivec2(0), ivec2(uRect.xy)), min(size - 1, ivec2(uRect.zw))); }
 
       void check(ivec2 dir) {
         ivec2 q = clampQ(ivec2(gl_FragCoord.xy) + dir);
@@ -495,20 +498,21 @@ const FS_VERT = /* glsl */`void main() { gl_Position = vec4(position.xy, 0.0, 1.
 export function createGrowPasses(paletteUniform) {
   const grow = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
-    uniforms: { tMask: { value: null }, uDir: { value: new THREE.Vector2(1, 0) }, uR: { value: 1 } },
+    uniforms: { tMask: { value: null }, uDir: { value: new THREE.Vector2(1, 0) }, uR: { value: 1 }, uRect: { value: new THREE.Vector4(0, 0, 1e5, 1e5) } },
     vertexShader: FS_VERT,
     fragmentShader: /* glsl */`
       precision highp float;
       uniform sampler2D tMask;
       uniform vec2 uDir;
       uniform int uR;
+      uniform vec4 uRect;   // the view (clip): growing stops at its edge
       layout(location = 0) out highp vec4 outColor;
       void main() {
         ivec2 p = ivec2(gl_FragCoord.xy), size = textureSize(tMask, 0);
         vec4 best = vec4(0.0);
         for (int d = -2; d <= 2; d++) {
           if (d < -uR || d > uR) continue;
-          vec4 m = texelFetch(tMask, clamp(p + ivec2(uDir) * d, ivec2(0), size - 1), 0);
+          vec4 m = texelFetch(tMask, clamp(p + ivec2(uDir) * d, max(ivec2(0), ivec2(uRect.xy)), min(size - 1, ivec2(uRect.zw))), 0);
           if (m.r < 0.5) continue;
           if (m.a > 2.5 && d > 0) continue;               // creases only grow toward +x / +y
           if (best.r < 0.5 || m.g < best.g) best = m;     // nearest outlined surface wins

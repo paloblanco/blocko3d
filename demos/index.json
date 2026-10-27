@@ -38,5 +38,10 @@
     "file": "thirdperson.b3d.json",
     "name": "Third Person",
     "about": "Hop across floating islands for 5 stars, riding a sliding platform, a turning bridge and an elevator. Shows an orbit camera kept out of walls with mray(), and riding moving maps with wtom() and mtow()."
+  },
+  {
+    "file": "racing.b3d.json",
+    "name": "Split Screen Racing",
+    "about": "Two cars, three laps, two halves of the screen. Shows clip() for split screen with a camera per view, a small minimap view drawn on top, and two players (the computer drives the blue car until a second gamepad joins)."
   }
 ]

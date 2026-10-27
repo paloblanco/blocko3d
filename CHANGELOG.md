@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `clip(x0, y0, x1, y1)` limits drawing to a rectangle of the screen, 3D and 2D alike, and each `clip()` starts a new 3D view with its own camera, centered in its rectangle: split screen, minimaps and mirrors. `cam_set_fov` now means the angle across the longer side of the view (unchanged on the full, square screen). A new demo, **Split Screen Racing**, shows it off.
 - Exported games are **installable apps** (PWAs) when hosted on an https site: the zip now also holds `manifest.webmanifest`, `sw.js` and two icons made from the cover art. Players can add the game to their home screen; it opens full screen and plays offline. The game still runs from just `index.html` and its `.js`, as before. The standalone demos are installable too. On computers (Chrome, Edge, Safari on a Mac) an installed game opens in its own window and keeps its fullscreen button.
 - A game without cover art now shows its name properly on the cover screen (it was squashed), above the play button.
 - `touch_set_mode(n)` chooses the touch control on phones and tablets: 0 the d-pad (default), 1 an analog circle (touch anywhere in it for direction and strength, read with `stick(0)`), 2 left/right only, 3 up/down only. The pause menu always gets the d-pad. Tilt Maze and Third Person now use the analog circle.

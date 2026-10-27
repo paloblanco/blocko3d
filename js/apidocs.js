@@ -130,7 +130,8 @@ if (secs < data.best) save({ best: secs })`,
     items: [
       ['cam_set_pos([x, y, z])', 'Camera position.'],
       ['cam_set_lookat([x, y, z])', 'The world point the camera faces.'],
-      ['cam_set_fov(f)', 'Horizontal field of view in turns. Default 0.25 (90°).'],
+      ['cam_set_fov(f)', 'Field of view in turns, across the longer side of the view (on the full square screen, both ways). Default 0.25 (90°).'],
+      ['clip(x0, y0, x1, y1)', 'Only draw inside this rectangle of the screen, corners included: 3D, text and rectangles. clip() draws everywhere again. Each clip() starts a new 3D view, centered in its rectangle, with its own camera: the camera, fov and bg as set by the time the next clip() or the end of _draw comes. So clip(0, 0, 127, 255), set a camera, draw; clip(128, 0, 255, 255), set another, draw again: split screen. A view drawn later sits on top of earlier ones (a minimap, a mirror). mouse_ray() uses the view under the cursor.'],
     ],
   },
   {

@@ -43,6 +43,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | First Person | Find the key in a dungeon maze. A first-person camera with mouse capture (or a finger drag), sphere collision, `mray()` to see what you face, gates that are maps of their own, `palt()` for see-through bars. |
 | Builder | Build on a plot, block by block. `mray()` and the face it hits to place or dig, a hotbar drawn with `rectfill` and clicked through `mouse_pos()`, the mouse wheel, and the whole build kept with `save()`. |
 | Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`, and hit-stun with a camera shake on hard bumps using `freeze()`. |
+| Split Screen Racing | Two cars, three laps. `clip()` splits the screen into two views with their own chase cameras, a minimap view sits on top, text is clipped to each half, and a second gamepad can take over the computer's car. |
 | Third Person | Collect stars across floating islands. An orbit camera kept out of walls with `mray()`, movement relative to the camera, and riding a sliding platform, a turning bridge and an elevator with `wtom()`/`mtow()`. |
 
 Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen), **Capture cover** (only in the IDE: makes the current screen the cover art exported games show before they start) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it, and **Cover** shows the captured cover art (Clear removes it).
@@ -90,7 +91,8 @@ function _draw() {
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps and vox models, every visible edge is outlined. `outline(c, false)` draws only the outer outline, for round shapes. Off by default.
-- **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (horizontal, in turns, default 0.25).
+- **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (in turns, across the longer side of the view, default 0.25).
+- **Clipping and split screen:** `clip(x0, y0, x1, y1)` limits drawing (3D, text and rectangles) to a rectangle, and `clip()` lifts it. Each `clip()` starts a new 3D view with its own camera, centered in its rectangle, so two halves of the screen can follow two players, and a small view drawn last makes a minimap or mirror.
 - **Text and UI:** `print(str, x, y, c, oc, sx, sy)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline, `sx`/`sy` scale it by whole numbers for titles. `rect` and `rectfill(x0, y0, x1, y1, c)` draw outlined or filled boxes on the same layer, PICO-8 style.
 - **Sound:** `sfx(n, ch, offset, length)` plays sound n (0-63) from the Sfx tab on one of 4 channels; `sfx(-1)` stops, `sfx(-2, ch)` ends a loop.
 - **Music:** `music(n, fade)` plays the song from pattern n of the Music tab (fade in milliseconds); `music(-1, fade)` stops.
