@@ -2,12 +2,12 @@
 // 1. writes the castle (generated in code by demoCart) as a cart file, demos/castle.b3d.json, for
 //    the IDE's Demos menu;
 // 2. exports every demo listed in demos/index.json to standalone_demo/<slug>/, exactly as the IDE's
-//    Export button would (index.html + <slug>.js, no other files);
+//    Export button would (index.html + <slug>.js, plus the installable-app files);
 // 3. writes standalone_demo/index.html, one page linking to all of them.
 // So a demo added to demos/ and demos/index.json gets its standalone page on the next build.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { demoCart, normalizeCart } from '../js/cart.js';
-import { indexHtml, gameJs, gameSlug, checkSyntax } from '../js/export.js';
+import { indexHtml, gameJs, gameSlug, checkSyntax, appFiles } from '../js/export.js';
 import { VERSION } from '../js/version.js';
 
 const root = new URL('../', import.meta.url);
@@ -37,7 +37,9 @@ for (const d of list) {
   const dir = new URL(slug + '/', out);
   mkdirSync(dir, { recursive: true });
   writeFileSync(new URL('index.html', dir), indexHtml(d.name, slug + '.js'));
-  writeFileSync(new URL(slug + '.js', dir), gameJs(cart, runtime));
+  const js = gameJs(cart, runtime);
+  writeFileSync(new URL(slug + '.js', dir), js);
+  for (const f of await appFiles(cart, slug, js)) writeFileSync(new URL(f.name, dir), f.data);   // installable app
   built.push({ ...d, slug, cover: cart.cover });
 }
 

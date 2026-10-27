@@ -1,7 +1,7 @@
 // Boot helpers shared by the IDE's player (player.html) and exported games.
 // Bundled with the engine and three.js into runtime/blocky3d.runtime.js as window.Blocky3D.
 import { createEngine } from './engine.js';
-import { drawText, textWidth } from './font.js';
+import { drawText, textWidth, drawTitle } from './font.js';
 import { mountShell, wireShell } from './shell.js';
 
 let engine = null;
@@ -49,9 +49,7 @@ export function play(cart, cartFn) {
     else {
       // no cover art: the game's name on a plain card
       ctx.fillStyle = '#1d2b53'; ctx.fillRect(0, 0, 256, 256);
-      const name = String(cart.name || 'game');
-      const s = textWidth(name) * 2 <= 240 ? 2 : 1;
-      drawText(ctx, name, (256 - textWidth(name) * s) >> 1, 84, '#fff1e8', '#000000', s);
+      drawTitle(ctx, cart.name, '#fff1e8', '#000000', 56, 88);   // above the play button
     }
     // the play button: a dark disc with a triangle, in the middle
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';

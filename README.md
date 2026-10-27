@@ -53,7 +53,7 @@ On narrow screens the IDE shows one panel at a time, and the game gets its own *
 
 ## Exporting a game
 
-**Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). It holds exactly two files:
+**Export** downloads `<gamename>.zip`, named from the cart name in the top bar (lowercased, spaces become dashes). The game itself is two files:
 
 - `index.html`: a page that fills the window with the square game view.
 - `<gamename>.js`: the whole engine with Three.js bundled in, plus your cart's tiles, maps, vox models, sounds, music and code. The pause menu, sounds and save data all work in exported games too.
@@ -62,7 +62,9 @@ The page around the game has a **pause**, **mute** and **fullscreen** button, on
 
 An exported game opens on its **cover**: the cover art captured in the IDE (or, without one, the game's name) with a play button. Nothing loads until the player clicks or taps the game, presses a key, or presses A or Start on a gamepad, so a page with your game on it costs nothing for someone just scrolling past, and sound can start right away.
 
-It needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error.
+The zip also holds four small files that make the game an **installable app** (a PWA) when it's hosted on an https site, such as your own site, GitHub Pages or Netlify: `manifest.webmanifest`, `sw.js`, `icon-192.png` and `icon-512.png`. The icons are made from the cover art, or from the game's name without one. Players can then put it on their home screen (Android: Install app; iPhone and iPad: Share, Add to Home Screen). It opens full screen, without the browser around it, and works offline after the first visit. Upload a new export and players get it the next time they open the game online. Two things to know: on itch.io and Game Jolt the game runs inside their page, so it can't be installed from there (the extra files do no harm). And on iPhone, the home-screen app keeps its own save data, separate from Safari's.
+
+The game needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error. The four app files are only used on https sites, so the game runs the same with or without them.
 
 ## A tiny cart
 

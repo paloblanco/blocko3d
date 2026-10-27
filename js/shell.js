@@ -261,7 +261,10 @@ export function wireShell(engine, doc = document) {
     fullBtn.innerHTML = fsElement() ? ICON.exitFull : ICON.full;
     fullBtn.title = fsElement() ? 'Exit fullscreen' : 'Fullscreen';
   };
-  fullBtn.hidden = !(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);   // e.g. iPhone Safari
+  // hidden where the browser has no fullscreen (e.g. iPhone Safari) and in an installed app, which
+  // already fills the screen
+  const installed = win.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || win.navigator.standalone === true;
+  fullBtn.hidden = installed || !(doc.fullscreenEnabled || doc.webkitFullscreenEnabled);
   doc.addEventListener('fullscreenchange', showFull);
   doc.addEventListener('webkitfullscreenchange', showFull);
   showFull();

@@ -861,6 +861,26 @@ export function textWidth(str, sx = 1) {
   return Math.max(...String(str).split('\n').map((l) => [...l].length)) * CHAR_W * sx;
 }
 
+// A game's name as big as fits on a 256 square card, wrapped between words, each line centered,
+// the block centered on cy and at most maxH tall. Used for the app icon of a game without cover
+// art, and (above the play button) for its cover screen.
+export function drawTitle(ctx, name, color, outlineColor, cy = 128, maxH = 200) {
+  const words = String(name || 'game').split(/\s+/).filter(Boolean);
+  for (let s = 4; s >= 1; s--) {
+    const lines = [];
+    for (const w of words) {
+      const last = lines[lines.length - 1];
+      if (last !== undefined && [...(last + ' ' + w)].length * CHAR_W * s <= 240) lines[lines.length - 1] = last + ' ' + w;
+      else lines.push(w);
+    }
+    const fits = lines.every((l) => [...l].length * CHAR_W * s <= 240) && lines.length * LINE_H * s <= maxH;
+    if (!fits && s > 1) continue;
+    const top = cy - ((lines.length * LINE_H * s) >> 1);
+    lines.forEach((l, i) => drawText(ctx, l, (256 - [...l].length * CHAR_W * s) >> 1, top + i * LINE_H * s, color, outlineColor, s, s));
+    return;
+  }
+}
+
 // Calls fn(px, py) for the top-left corner of every font pixel, each font pixel being sx x sy.
 function eachPixel(str, x, y, sx, sy, fn) {
   let cx = x, cy = y;
