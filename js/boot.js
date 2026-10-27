@@ -36,6 +36,8 @@ export function play(cart, cartFn) {
   let real = null, begun = false;
   const stand = {
     setButton(i, on) { if (real) real.setButton(i, on); else if (on && i !== 6) begin(); },
+    setStick(x, y) { if (real) real.setStick(x, y); },
+    onTouchMode: null,   // set by wireShell; handed to the engine once it exists
     get muted() { if (real) return real.muted; try { return localStorage.getItem('blocky3d.mute') === '1'; } catch { return false; } },
     setMuted(m) { if (real) real.setMuted(m); else try { localStorage.setItem('blocky3d.mute', m ? '1' : '0'); } catch { /* storage blocked */ } },
   };
@@ -91,6 +93,7 @@ export function play(cart, cartFn) {
     try {
       real = install(cart, { ...els, wire: false });
     } catch (e) { showError(e); return; }
+    real.onTouchMode = stand.onTouchMode;   // the page follows touch_set_mode from now on
     real.unlockAudio();          // this click or key press lets the browser start sound right away
     start(cartFn);
   }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `touch_set_mode(n)` chooses the touch control on phones and tablets: 0 the d-pad (default), 1 an analog circle (touch anywhere in it for direction and strength, read with `stick(0)`), 2 left/right only, 3 up/down only. The pause menu always gets the d-pad. Tilt Maze and Third Person now use the analog circle.
 - `freeze(n, fn)`: for the next `n` updates, the game runs `fn` (or nothing) instead of `_update`, while `_draw` keeps drawing. For hit-stun and similar pauses, in place of PICO-8's `flip()`. Bumper Arena uses it: hard bumps freeze the game for a moment and shake the camera.
 - Fixed: on phones, in games that capture the mouse (like Third Person and First Person), the d-pad and dragging on the screen stopped working after pausing and resuming. Resume now only captures the mouse again when you were using a mouse.
 - Exported games open on a **cover screen**: cover art (or the game's name) and a play button. Nothing loads, runs or plays until the player clicks, taps, presses a key or presses A or Start on a gamepad. The cover is captured in the IDE with **Capture cover** in the pause menu (IDE only) and saved in the cart. Every demo has a cover, and the demo list page shows them.

@@ -189,6 +189,10 @@ export function createEngine({
     try { pads = navigator.getGamepads ? [...navigator.getGamepads()] : []; } catch { pads = []; }
     pads.filter((pd) => pd && pd.connected).sort((a, c) => a.index - c.index).slice(0, PLAYERS)
       .forEach((pd, p) => readPad(pd, padState[p], sticks[p]));
+    // the on-screen analog circle (touch_set_mode(1)) is player 0's left stick when the pad's is centered
+    if (Math.hypot(touchStick[0], touchStick[1]) > 0 && Math.hypot(sticks[0][0][0], sticks[0][0][1]) <= STICK_DEAD) {
+      sticks[0][0][0] = touchStick[0]; sticks[0][0][1] = touchStick[1];
+    }
     for (let p = 0; p < PLAYERS; p++) {
       for (let i = 0; i < NBTN; i++) {
         prevP[p][i] = nowP[p][i];
@@ -227,6 +231,11 @@ export function createEngine({
   const MBTN = { 0: 19, 2: 20, 1: 21 };   // DOM mouse button -> engine button
   const tapped = new Array(NBTN).fill(false);   // a click shorter than one update still counts once
   const held = new Array(NBTN).fill(false);     // on-screen touch buttons (player 0)
+  const touchStick = [0, 0];                    // the on-screen analog circle, -1..1, right and down positive
+  // Which touch control the page shows on the left: 0 d-pad, 1 analog circle, 2 left/right, 3 up/down.
+  // The page (js/shell.js) listens through onTouchMode; while paused it always shows the d-pad.
+  let touchMode = 0, onTouchMode = null;
+  const showTouchMode = () => { if (onTouchMode) onTouchMode(paused ? 0 : touchMode); };
   const press = (b) => { down[b] = tapped[b] = true; };
 
   const locked = () => document.pointerLockElement === overlay;
@@ -508,6 +517,9 @@ export function createEngine({
 
     // --- time + math helpers (angles in turns, like PICO-8)
     time() { return frames / 60; },
+    // touch_set_mode(n): the touch control on the left of a phone screen. 0 d-pad (default),
+    // 1 analog circle (feeds stick(0), and the arrow buttons past halfway), 2 left/right, 3 up/down.
+    touch_set_mode(n) { touchMode = [0, 1, 2, 3].includes(n | 0) ? n | 0 : 0; showTouchMode(); },
     // freeze(n, fn): for the next n updates, call fn instead of _update (nothing at all without fn).
     // _draw keeps running, so the picture holds still: hit-stun, a pause before a death, a shake.
     // Calling it again replaces the current freeze; freeze(0) ends it.
@@ -681,6 +693,7 @@ export function createEngine({
 
   function setPaused(p) {
     paused = p;
+    showTouchMode();
     menuHover = menuClick = -1;
     for (const b of [19, 20, 21]) down[b] = false;
     menuCanvas.style.display = p ? 'block' : 'none';
@@ -845,6 +858,7 @@ export function createEngine({
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     camera.fov = 90; camera.updateProjectionMatrix();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null;
+    touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();
     setMouseMode(0);
     dxAcc = dyAcc = wheelAcc = mdx = mdy = mwheel = 0;
     for (const a of [down, held, tapped]) a.fill(false);
@@ -858,6 +872,8 @@ export function createEngine({
   }
 
   // On-screen buttons (touch controls, the pause button) press game buttons directly.
+  function setStick(x, y) { touchStick[0] = +x || 0; touchStick[1] = +y || 0; }
+
   function setButton(i, on) {
     held[i] = !!on;
     if (on) tapped[i] = true;
@@ -883,7 +899,8 @@ export function createEngine({
   }
 
   return {
-    api, start, stop, reset, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setMuted,
+    api, start, stop, reset, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, setMuted,
+    set onTouchMode(fn) { onTouchMode = fn; showTouchMode(); }, get touchMode() { return paused ? 0 : touchMode; },
     get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
   };
 }

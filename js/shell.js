@@ -46,6 +46,17 @@ html.b3d-touch .b3d-dpad, html.b3d-touch .b3d-ab { display: block; }
 .b3d-dpad .l { top: 33%; left: 0; width: 36%; height: 34%; border-right: none; border-radius: 8px 0 0 8px; }
 .b3d-dpad .r { top: 33%; right: 0; width: 36%; height: 34%; border-left: none; border-radius: 0 8px 8px 0; }
 .b3d-dpad div.on { background: #4a4a4a; color: #fff; }
+/* touch_set_mode: 1 analog circle, 2 left/right, 3 up/down (0, the d-pad, is the default above) */
+.b3d-dpad .ring, .b3d-dpad .knob { display: none; }
+.b3d-dpad[data-mode="1"] > div:not(.ring):not(.knob) { display: none; }
+.b3d-dpad[data-mode="1"] .ring { display: block; inset: 2%; border-radius: 50%; background: #1b1b1b; border: 2px solid #383838; }
+.b3d-dpad[data-mode="1"] .knob { display: block; width: 36%; height: 36%; border-radius: 50%; background: #3a3a3a; border: 1px solid #555;
+  left: calc(32% + var(--kx, 0) * 30%); top: calc(32% + var(--ky, 0) * 30%); }
+.b3d-dpad[data-mode="1"].on .knob { background: #5a5a5a; }
+.b3d-dpad[data-mode="2"] .c, .b3d-dpad[data-mode="2"] .u, .b3d-dpad[data-mode="2"] .d,
+.b3d-dpad[data-mode="3"] .c, .b3d-dpad[data-mode="3"] .l, .b3d-dpad[data-mode="3"] .r { display: none; }
+.b3d-dpad[data-mode="2"] .l, .b3d-dpad[data-mode="2"] .r { top: 22%; height: 56%; width: 47%; border: 1px solid #383838; border-radius: 12px; }
+.b3d-dpad[data-mode="3"] .u, .b3d-dpad[data-mode="3"] .d { left: 22%; width: 56%; height: 47%; border: 1px solid #383838; border-radius: 12px; }
 .b3d-ab { grid-area: ab; position: relative; width: var(--dp); height: var(--dp); }
 .b3d-ab button {
   position: absolute; width: 46%; height: 46%; padding: 0; border-radius: 50%; touch-action: none;
@@ -109,6 +120,7 @@ export function mountShell(doc = document) {
   </div>
   <div class="b3d-dpad" aria-label="D-pad">
     <div class="c"></div><div class="u">▲</div><div class="d">▼</div><div class="l">◀</div><div class="r">▶</div>
+    <div class="ring"></div><div class="knob"></div>
   </div>
   <div class="b3d-ab">
     <button class="o" aria-label="O button">O</button>
@@ -137,22 +149,47 @@ export function wireShell(engine, doc = document) {
   win.focus();
   win.addEventListener('pointerdown', () => win.focus());
 
-  // D-pad: one touch area, so a thumb can roll between directions and onto diagonals.
+  // D-pad: one touch area, so a thumb can roll between directions and onto diagonals. The game can
+  // swap it for an analog circle, left/right only, or up/down only (touch_set_mode); the page shows
+  // what the engine reports through onTouchMode, which is always the d-pad while paused.
   const dpad = $('.b3d-dpad');
   const arms = ['.l', '.r', '.u', '.d'].map((s) => dpad.querySelector(s));   // buttons 0-3
   const touches = new Map();
+  let mode = 0;
   const dpadUpdate = () => {
     const on = [false, false, false, false];
     const r = dpad.getBoundingClientRect();
+    let sx = 0, sy = 0;
     for (const [x, y] of touches.values()) {
       const dx = (x - r.left) / r.width * 2 - 1, dy = (y - r.top) / r.height * 2 - 1;
-      if (Math.hypot(dx, dy) < 0.2) continue;              // the middle is a dead zone
-      const ax = Math.abs(dx), ay = Math.abs(dy);
-      if (ax > ay * 0.42) on[dx < 0 ? 0 : 1] = true;       // 0.42 = tan(22.5°): 8 directions
-      if (ay > ax * 0.42) on[dy < 0 ? 2 : 3] = true;
+      if (mode === 1) {                                    // analog: direction and distance from the middle
+        const m = Math.hypot(dx, dy) / 0.9, k = m > 1 ? 1 / m : 1;   // full strength just inside the rim
+        sx = dx / 0.9 * k; sy = dy / 0.9 * k;
+        if (sx < -0.5) on[0] = true; if (sx > 0.5) on[1] = true;   // past halfway also presses the arrows
+        if (sy < -0.5) on[2] = true; if (sy > 0.5) on[3] = true;
+      } else if (mode === 2) {                             // left half / right half
+        if (Math.abs(dx) > 0.06) on[dx < 0 ? 0 : 1] = true;
+      } else if (mode === 3) {                             // top half / bottom half
+        if (Math.abs(dy) > 0.06) on[dy < 0 ? 2 : 3] = true;
+      } else {
+        if (Math.hypot(dx, dy) < 0.2) continue;            // the middle is a dead zone
+        const ax = Math.abs(dx), ay = Math.abs(dy);
+        if (ax > ay * 0.42) on[dx < 0 ? 0 : 1] = true;     // 0.42 = tan(22.5°): 8 directions
+        if (ay > ax * 0.42) on[dy < 0 ? 2 : 3] = true;
+      }
     }
     on.forEach((v, i) => { engine.setButton(i, v); arms[i].classList.toggle('on', v); });
+    if (engine.setStick) engine.setStick(sx, sy);
+    dpad.style.setProperty('--kx', sx); dpad.style.setProperty('--ky', sy);
+    dpad.classList.toggle('on', mode === 1 && touches.size > 0);
   };
+  const setMode = (m) => {
+    if (m === mode) return;
+    mode = m;
+    dpad.dataset.mode = String(m);
+    dpadUpdate();                 // a thumb already down keeps going in the new layout
+  };
+  engine.onTouchMode = setMode;
   dpad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     try { dpad.setPointerCapture(e.pointerId); } catch { /* already gone */ }
