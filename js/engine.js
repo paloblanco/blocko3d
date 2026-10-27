@@ -230,6 +230,11 @@ export function createEngine({
   const press = (b) => { down[b] = tapped[b] = true; };
 
   const locked = () => document.pointerLockElement === overlay;
+  // What the player last pressed with: 'mouse', 'touch' or 'pen'. Resuming only captures the mouse
+  // again after a mouse press. On a phone, a capture granted by the Resume tap sends every touch to
+  // the game screen, so the d-pad and drag-to-look went dead (a reported bug).
+  let lastPointer = 'mouse';
+  window.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType || 'mouse'; }, true);
   function toScreen(e) {
     const r = overlay.getBoundingClientRect();
     return [((e.clientX - r.left) / r.width) * SCREEN, ((e.clientY - r.top) / r.height) * SCREEN];
@@ -681,7 +686,7 @@ export function createEngine({
     } else {
       mctx.clearRect(0, 0, SCREEN, SCREEN);
       audio.resume();
-      if (mouseMode === 2) requestLock();                // and resuming captures it again
+      if (mouseMode === 2 && lastPointer === 'mouse') requestLock();   // and resuming captures it again (mouse only)
     }
   }
 
