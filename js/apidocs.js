@@ -22,6 +22,8 @@ export const API_SECTIONS = [
     items: [
       ['map(m)', 'Draw map m with its current position and angle.'],
       ['map_new(w, h, d, origin?)', 'Create an empty map of w × h × d blocks. Returns its index.'],
+      ['map_copy(m)', 'A new map with its own copy of map m\'s blocks, origin, position and angle. Returns its index. Draw a house five times as five copies, and each can move or change on its own.'],
+      ['map_stamp(src, dst, x, y, z)', 'Copy map src\'s solid blocks into map dst, with src\'s block (0, 0, 0) landing on dst\'s block (x, y, z). Empty blocks in src leave dst as it was; blocks past dst\'s edge are cut off. For scenery that never moves: one big map is one mesh and one collision check.'],
       ['map_set_pos(m, [x, y, z])', 'Put the map\'s origin at this world position.'],
       ['map_set_angle(m, [pitch, yaw, roll])', 'Rotate the map around its origin. Angles are in turns.'],
       ['map_set_origin(m, [x, y, z])', 'Move the pivot. The map stays where it is on screen.'],
@@ -37,6 +39,17 @@ export const API_SECTIONS = [
     ],
     code: `let [t, xi, yi, zi, nx, ny, nz, d] = mgetw(0, px, py, pz, 0.4)
 if (t) { px += nx*d; py += ny*d; pz += nz*d }`,
+  },
+  {
+    title: 'Scenes',
+    intro: 'A scene, made in the Scene tab, arranges copies of maps (each with a position, an angle and an optional name) and vox markers (a model number, a position and a yaw) into one world, such as a level. Scenes are numbered 0, 1, 2… The engine doesn\'t draw markers: they\'re a list for your code (the player\'s start, coins, enemies).',
+    items: [
+      ['scene_load(n)', 'Builds scene n and returns { maps, named, things }. maps: the numbers of fresh map copies, already placed, in the Scene tab\'s order; draw them and collide with them (mpush(s.maps, ...)). named: { name: map number } for the placements you named. things: [[v, x, y, z, yaw], ...] for the vox markers. The copies come from the maps as the cart has them, so loading a level again gives it back undamaged. Loading a scene throws away the copies the previous scene_load made (using one of those numbers is an error), and a reload reuses the same numbers.'],
+    ],
+    code: `let s = scene_load(0)
+for (let [v, x, y, z, yaw] of s.things) if (v == 0) start = [x, y, z]
+// _draw: for (let m of s.maps) map(m)
+// _update: mpush(s.maps, px, py, pz, 0.4); map_set_pos(s.named.lift, ...)`,
   },
   {
     title: 'Vox models',

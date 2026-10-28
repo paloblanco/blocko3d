@@ -145,8 +145,32 @@ export function createEngine({
 
   function getMap(m) {
     const map = maps[m];
-    if (!map) throw new Error(`map ${m} does not exist (there are ${maps.length} maps)`);
+    if (!map) {
+      if (map === null) throw new Error(`map ${m} belonged to a scene that has since been replaced by scene_load`);
+      throw new Error(`map ${m} does not exist (there are ${maps.length} maps)`);
+    }
     return map;
+  }
+  // A new map with the same blocks, pivot, position and angle as map (its own copy of the blocks).
+  function cloneMap(map) {
+    const c = createMap(map.w, map.h, map.d, map.origin, map.data.slice());
+    c.name = map.name || '';
+    c.pos = [...map.pos]; c.angle = [...map.angle];
+    return c;
+  }
+
+  // ---- scenes: arrangements of map copies and vox markers, made in the Scene editor.
+  // scene_load copies its maps from the cart's maps as they were at the start (templates), so a
+  // level always loads undamaged. The copies made by the previous scene_load are thrown away.
+  const templates = mapsFromCart(cart);
+  let sceneMaps = [];   // map numbers made by the last scene_load
+  function freeSceneMaps() {
+    for (const i of sceneMaps) {
+      if (maps[i] && maps[i].geometry) maps[i].geometry.dispose();
+      maps[i] = null;
+    }
+    sceneMaps = [];
+    while (maps.length && maps[maps.length - 1] === null) maps.pop();   // so a reload reuses the same numbers
   }
 
   // world point -> map-space point
@@ -373,6 +397,46 @@ export function createEngine({
     map_new(w, h, d, origin = [0, 0, 0]) {
       maps.push(createMap(w | 0, h | 0, d | 0, vec(origin)));
       return maps.length - 1;
+    },
+    // map_copy(m): a new map with its own copy of map m's blocks, pivot, position and angle;
+    // returns its number. Change or move it without touching the original.
+    map_copy(m) {
+      maps.push(cloneMap(getMap(m)));
+      return maps.length - 1;
+    },
+    // map_stamp(src, dst, x, y, z): copy map src's solid blocks into map dst, with src's block
+    // (0, 0, 0) landing on dst's block (x, y, z). Empty blocks in src leave dst as it is.
+    map_stamp(src, dst, x, y, z) {
+      const s = getMap(src), d = getMap(dst);
+      const ox = Math.floor(+x || 0), oy = Math.floor(+y || 0), oz = Math.floor(+z || 0);
+      for (let k = 0; k < s.d; k++) for (let j = 0; j < s.h; j++) for (let i = 0; i < s.w; i++) {
+        const t = s.data[i + s.w * (j + s.h * k)];
+        if (t) mapSet(d, ox + i, oy + j, oz + k, t);
+      }
+    },
+    // scene_load(n): build scene n from the Scene editor. Returns { maps, named, things }:
+    // maps = the numbers of fresh map copies, already placed (draw and collide with them),
+    // named = { name: map number } for placements given a name, things = [[v, x, y, z, yaw], ...]
+    // for the vox markers (the game decides what each one is). Loading a scene throws away the
+    // map copies of the scene loaded before it.
+    scene_load(n) {
+      const list = Array.isArray(cart.scenes) ? cart.scenes : [];
+      const sc = list[n];
+      if (!sc) throw new Error(`scene ${n} does not exist (there are ${list.length} scenes)`);
+      freeSceneMaps();
+      const out = { maps: [], named: {}, things: [] };
+      for (const p of sc.maps || []) {
+        const t = templates[p.m];
+        if (!t) continue;
+        const c = cloneMap(t);
+        c.pos = vec(p.pos); c.angle = vec(p.angle);
+        maps.push(c);
+        const i = maps.length - 1;
+        sceneMaps.push(i); out.maps.push(i);
+        if (p.name) out.named[p.name] = i;
+      }
+      for (const v of sc.vox || []) out.things.push([v.v | 0, ...vec(v.pos), +v.yaw || 0]);
+      return out;
     },
     map_set_pos(m, x, y, z) { const map = getMap(m); map.pos = vec(x, y, z); map._xfDirty = true; },
     map_set_angle(m, p, y, r) { const map = getMap(m); map.angle = vec(p, y, r); map._xfDirty = true; },
@@ -1017,8 +1081,9 @@ export function createEngine({
   // (resolution, mute) stay as they are.
   function reset() {
     stop();
-    for (const m of maps) if (m.geometry) m.geometry.dispose();
+    for (const m of maps) if (m && m.geometry) m.geometry.dispose();
     maps.splice(0, maps.length, ...mapsFromCart(cart));
+    sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency();
     bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;

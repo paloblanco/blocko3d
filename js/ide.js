@@ -31,6 +31,8 @@ let curSfx = 0, brush = { wave: 0, vol: 5, fx: 0 };
 let patterns = [];   // 64 decoded music patterns
 let curPat = 0;
 let scale = { snap: false, root: 0, type: 'minor pentatonic' };   // Sfx tab note snapping, saved in the cart
+let scenes = [];   // { name, maps: [{ m, pos, angle, name? }], vox: [{ v, pos, yaw }] } (see normalizeScene)
+let curScene = 0, sceneSel = -1;   // sceneSel: index into the scene's maps, then its vox markers
 let activeTab = 'code';
 
 const palette = () => cart.palette || DEFAULT_PALETTE;
@@ -51,6 +53,9 @@ function loadCart(c, name) {
     return { name: (v && v.name) || '', pivot: [...((v && v.pivot) || DEFAULT_PIVOT)], data };
   });
   delete cart.vox;
+  scenes = cart.scenes || [];
+  delete cart.scenes;
+  curScene = 0; sceneSel = -1; sceneFramed = false;
   sounds = Array.from({ length: MAX_SFX }, (_, i) => decodeSfx((cart.sfx || [])[i]) || emptySfx());
   delete cart.sfx;
   curSfx = 0;
@@ -73,6 +78,7 @@ function loadCart(c, name) {
   refreshMapUI();
   refreshSprUI();
   refreshVoxUI();
+  refreshSceneUI();
   refreshSfxUI();
   refreshMusicUI();
 }
@@ -89,6 +95,7 @@ function serialize() {
     music: trimPatterns(),
     scale,
   };
+  if (scenes.length) out.scenes = scenes;
   if (cart.palette) out.palette = cart.palette;
   if (cart.cover) out.cover = cart.cover;
   return out;
@@ -234,6 +241,7 @@ function showTab(name) {
   if (name === 'map') refreshMapUI();
   if (name === 'tile') refreshSprUI();
   if (name === 'vox') refreshVoxUI();
+  if (name === 'scene') { if (scenePreview) scenePreview.clearSceneCache(); refreshSceneUI(); }
   if (name === 'sfx') refreshSfxUI();
   if (name !== 'sfx') stopSfxPreview();
   if (name === 'music') refreshMusicUI();
@@ -342,8 +350,10 @@ function setupMapEditor() {
   };
   $('mapDelete').onclick = () => {
     const m = curM();
-    if (!m || !confirm(`Delete map ${curMap} (${m.name})? Maps after it will be renumbered.`)) return;
+    const used = sceneUses('map', curMap);
+    if (!m || !confirm(`Delete map ${curMap} (${m.name})? Maps after it will be renumbered.` + (used ? ` Its ${used} placement(s) in scenes go too.` : ''))) return;
     maps.splice(curMap, 1);
+    sceneRemoved('map', curMap);
     curMap = Math.max(0, curMap - 1);
     refreshMapUI(); dirty();
   };
@@ -849,9 +859,11 @@ function setupVoxEditor() {
     voxEdited();
   };
   $('voxDelete').onclick = () => {
-    if (voxModels.length <= 1 || !confirm(`Delete vox ${curVox}? Models after it will be renumbered.`)) return;
+    const used = sceneUses('vox', curVox);
+    if (voxModels.length <= 1 || !confirm(`Delete vox ${curVox}? Models after it will be renumbered.` + (used ? ` Its ${used} marker(s) in scenes go too.` : ''))) return;
     stopPlayback();
     voxModels.splice(curVox, 1);
+    sceneRemoved('vox', curVox);
     voxThumbs.clear();
     curVox = Math.max(0, curVox - 1);
     refreshVoxUI(); dirty();
@@ -883,6 +895,317 @@ function setupVoxEditor() {
     if (c && voxPut(c[0], voxLayer, c[1], painting)) voxEdited();
   });
   cv.addEventListener('pointerup', () => { painting = null; });
+}
+
+// ================================================================= scene editor
+// A scene places copies of maps and vox markers. scene_load(n) in a game turns it into fresh map
+// copies (s.maps, s.named) and a list of markers (s.things); see js/engine.js.
+let scenePreview = null, sceneQueued = false, sceneFramed = false, sceneDrag = null;
+const curSc = () => scenes[curScene];
+const sceneStep = () => +$('sceneStep').value || 1;
+const snapTo = (v, st) => +(Math.round(v / st) * st).toFixed(6);
+const wrapTurn = (a) => +((((a % 1) + 1) % 1).toFixed(6));
+const EMPTY_MAP = { w: 1, h: 1, d: 1, data: new Uint8Array(1), origin: [0, 0, 0] };
+
+// how many placements (maps) or markers (vox) in all scenes use number i
+function sceneUses(kind, i) {
+  let n = 0;
+  for (const sc of scenes) for (const p of kind === 'map' ? sc.maps : sc.vox) if ((kind === 'map' ? p.m : p.v) === i) n++;
+  return n;
+}
+// map or vox i was deleted: drop what used it and renumber what used the ones after it
+function sceneRemoved(kind, i) {
+  const key = kind === 'map' ? 'm' : 'v', list = kind === 'map' ? 'maps' : 'vox';
+  for (const sc of scenes) {
+    sc[list] = sc[list].filter((p) => p[key] !== i);
+    for (const p of sc[list]) if (p[key] > i) p[key]--;
+  }
+  sceneSel = -1;
+}
+
+// the selected thing: { kind, p (the placement or marker), i (its index in s.maps or s.things) }
+function selItem() {
+  const sc = curSc();
+  if (!sc || sceneSel < 0) return null;
+  if (sceneSel < sc.maps.length) return { kind: 'map', p: sc.maps[sceneSel], i: sceneSel };
+  const i = sceneSel - sc.maps.length;
+  return sc.vox[i] ? { kind: 'vox', p: sc.vox[i], i } : null;
+}
+
+function itemLabel(kind, p) {
+  if (kind === 'map') {
+    const m = maps[p.m];
+    return `map ${p.m}${m && m.name ? ' ' + m.name : ''}${p.name ? ' · "' + p.name + '"' : ''}`;
+  }
+  const v = voxModels[p.v];
+  return `vox ${p.v}${v && v.name ? ' ' + v.name : ''}`;
+}
+
+function refreshSceneUI() {
+  if (!cart) return;
+  curScene = clamp(curScene, 0, Math.max(0, scenes.length - 1));
+  const sel = $('sceneSelect');
+  sel.innerHTML = '';
+  scenes.forEach((s, i) => sel.append(new Option(`${i}: ${s.name || 'scene'}`, i)));
+  sel.value = curScene;
+  const sc = curSc();
+  for (const id of ['sceneSelect', 'sceneName', 'sceneDup', 'sceneDelete', 'sceneAddMap', 'sceneAddMapBtn', 'sceneAddVox', 'sceneAddVoxBtn']) $(id).disabled = !sc;
+  $('sceneName').value = sc ? sc.name : '';
+  const fill = (el, list, word) => {
+    const keep = +el.value || 0;
+    el.innerHTML = '';
+    list.forEach((x, i) => el.append(new Option(`${i}: ${x.name || word}`, i)));
+    el.value = clamp(keep, 0, Math.max(0, list.length - 1));
+  };
+  fill($('sceneAddMap'), maps, 'map');
+  fill($('sceneAddVox'), voxModels, 'vox');
+  if (sc && sceneSel >= sc.maps.length + sc.vox.length) sceneSel = -1;
+  drawSceneList();
+  showSceneProps();
+  queueScenePreview();
+}
+
+function drawSceneList() {
+  const box = $('sceneItems');
+  box.innerHTML = '';
+  const sc = curSc();
+  const note = (text, cls) => { const d = document.createElement('div'); d.className = cls; d.textContent = text; box.append(d); };
+  if (!sc) { note('No scenes yet. Press + New to make one.', 'empty'); return; }
+  const btn = (flat, n, text) => {
+    const b = document.createElement('button');
+    b.className = flat === sceneSel ? 'on' : '';
+    const num = document.createElement('b');
+    num.textContent = n;
+    b.append(num, text);
+    b.title = text;
+    b.onclick = () => selectItem(flat);
+    box.append(b);
+  };
+  note('Maps (s.maps)', 'grouphead');
+  if (!sc.maps.length) note('none yet', 'empty');
+  sc.maps.forEach((p, i) => btn(i, i, itemLabel('map', p)));
+  note('Vox markers (s.things)', 'grouphead');
+  if (!sc.vox.length) note('none yet', 'empty');
+  sc.vox.forEach((p, i) => btn(sc.maps.length + i, i, itemLabel('vox', p)));
+}
+
+function selectItem(flat) {
+  sceneSel = flat;
+  drawSceneList();
+  showSceneProps();
+  queueScenePreview();
+}
+
+const shown = (v) => +(+v).toFixed(4);
+function showSceneProps() {
+  const it = selItem();
+  $('selFields').hidden = !it;
+  if (!it) { $('selLabel').textContent = curSc() ? 'Nothing selected' : 'No scene'; return; }
+  $('selLabel').textContent = (it.kind === 'map' ? `s.maps[${it.i}]: ` : `s.things[${it.i}]: `) + itemLabel(it.kind, it.p);
+  $('selNameRow').hidden = it.kind !== 'map';
+  $('selAngleRow').hidden = it.kind !== 'map';
+  $('selYawRow').hidden = it.kind !== 'vox';
+  [$('sX').value, $('sY').value, $('sZ').value] = it.p.pos.map(shown);
+  if (it.kind === 'map') {
+    $('selName').value = it.p.name || '';
+    [$('sP').value, $('sYaw').value, $('sR').value] = it.p.angle.map(shown);
+  } else $('sVYaw').value = shown(it.p.yaw);
+}
+
+function sceneItems() {
+  const sc = curSc();
+  if (!sc) return [];
+  return [
+    ...sc.maps.map((p) => ({ type: 'map', key: 'm' + p.m, src: maps[p.m] || EMPTY_MAP, pos: p.pos, angle: p.angle })),
+    ...sc.vox.map((p) => ({ type: 'vox', key: 'v' + p.v, src: voxModels[p.v] || newVox(), pos: p.pos, yaw: p.yaw })),
+  ];
+}
+
+function queueScenePreview() {
+  if (sceneQueued) return;
+  sceneQueued = true;
+  requestAnimationFrame(() => {
+    sceneQueued = false;
+    if (activeTab !== 'scene') return;
+    if (!scenePreview) {
+      scenePreview = new Preview($('scenePreview'));
+      scenePreview.canPan = true;
+      scenePreview.onGrab = sceneGrab;
+      scenePreview.onClick = (e) => { if (scenePreview.pickItem(e.clientX, e.clientY) < 0 && sceneSel >= 0) selectItem(-1); };
+    }
+    scenePreview.setPalette(palette());
+    scenePreview.setTiles(cart.tiles);
+    scenePreview.setScene(sceneItems(), { sel: sceneSel });
+    if (!sceneFramed) { scenePreview.frameBox(); sceneFramed = true; }
+    scenePreview.render();
+  });
+}
+
+// pressing on a thing selects it, and dragging moves it across the flat plane at its height
+function sceneGrab(phase, e) {
+  if (phase === 'down') {
+    const i = scenePreview.pickItem(e.clientX, e.clientY);
+    if (i < 0) return false;
+    if (i !== sceneSel) selectItem(i);
+    const it = selItem(), pt = it && scenePreview.planePoint(e.clientX, e.clientY, it.p.pos[1]);
+    sceneDrag = pt ? { dx: it.p.pos[0] - pt.x, dz: it.p.pos[2] - pt.z, y: it.p.pos[1], moved: false } : null;
+    return true;
+  }
+  if (phase === 'move') {
+    const it = selItem();
+    if (!sceneDrag || !it) return;
+    const pt = scenePreview.planePoint(e.clientX, e.clientY, sceneDrag.y);
+    if (!pt) return;
+    const st = sceneStep(), x = snapTo(pt.x + sceneDrag.dx, st), z = snapTo(pt.z + sceneDrag.dz, st);
+    if (x === it.p.pos[0] && z === it.p.pos[2]) return;
+    it.p.pos[0] = x; it.p.pos[2] = z;
+    sceneDrag.moved = true;
+    showSceneProps();
+    queueScenePreview();
+    return;
+  }
+  if (sceneDrag && sceneDrag.moved) dirty();
+  sceneDrag = null;
+}
+
+function sceneEdited() { drawSceneList(); showSceneProps(); queueScenePreview(); dirty(); }
+
+function nudge(axis, dir) {
+  const it = selItem();
+  if (!it) return;
+  it.p.pos[axis] = snapTo(it.p.pos[axis] + dir * sceneStep(), 1e-6);
+  showSceneProps(); queueScenePreview(); dirty();
+}
+
+function turn(dir) {
+  const it = selItem();
+  if (!it) return;
+  if (it.kind === 'map') it.p.angle[1] = wrapTurn(it.p.angle[1] + dir * 0.25);
+  else it.p.yaw = wrapTurn(it.p.yaw + dir * 0.25);
+  showSceneProps(); queueScenePreview(); dirty();
+}
+
+function addToScene(kind) {
+  const sc = curSc();
+  if (!sc) return;
+  // put new things in the middle of the view, on the ground
+  const t = scenePreview ? scenePreview.target : { x: 0, z: 0 };
+  const pos = [Math.round(t.x), 0, Math.round(t.z)];
+  if (kind === 'map') {
+    if (!maps.length) return;
+    sc.maps.push({ m: +$('sceneAddMap').value || 0, pos, angle: [0, 0, 0] });
+    sceneSel = sc.maps.length - 1;
+  } else {
+    if (!voxModels.length) return;
+    sc.vox.push({ v: +$('sceneAddVox').value || 0, pos, yaw: 0 });
+    sceneSel = sc.maps.length + sc.vox.length - 1;
+  }
+  sceneEdited();
+}
+
+function duplicateSel() {
+  const sc = curSc(), it = selItem();
+  if (!it) return;
+  if (it.kind === 'map') {
+    // next to the original, not on top of it (names stay with the original: they should be unique)
+    const w = (maps[it.p.m] || EMPTY_MAP).w;
+    sc.maps.push({ m: it.p.m, pos: [it.p.pos[0] + w, it.p.pos[1], it.p.pos[2]], angle: [...it.p.angle] });
+    sceneSel = sc.maps.length - 1;
+  } else {
+    sc.vox.push({ v: it.p.v, pos: [it.p.pos[0] + 1, it.p.pos[1], it.p.pos[2]], yaw: it.p.yaw });
+    sceneSel = sc.maps.length + sc.vox.length - 1;
+  }
+  sceneEdited();
+}
+
+function deleteSel() {
+  const sc = curSc(), it = selItem();
+  if (!it) return;
+  if (it.kind === 'map') sc.maps.splice(it.i, 1); else sc.vox.splice(it.i, 1);
+  sceneSel = -1;
+  sceneEdited();
+}
+
+// keys while the Scene tab is open: arrows move across the ground (whichever way the view faces),
+// PgUp/PgDn up and down, R turns (Shift+R back), Delete removes
+function sceneKey(e) {
+  const it = selItem();
+  if (!it || e.ctrlKey || e.metaKey || e.altKey) return;
+  const dirs = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  if (dirs[e.key] && scenePreview) {
+    // screen right and screen forward, on the ground
+    const y = scenePreview.yaw, [a, b] = dirs[e.key];
+    const vx = a * Math.cos(y) + b * Math.sin(y), vz = -a * Math.sin(y) + b * Math.cos(y);
+    if (Math.abs(vx) > Math.abs(vz)) nudge(0, Math.sign(vx)); else nudge(2, Math.sign(vz));
+  } else if (e.key === 'PageUp') nudge(1, 1);
+  else if (e.key === 'PageDown') nudge(1, -1);
+  else if (e.key === 'r' || e.key === 'R') turn(e.shiftKey ? -1 : 1);
+  else if (e.key === 'Delete' || e.key === 'Backspace') deleteSel();
+  else return;
+  e.preventDefault();
+}
+
+function setupSceneEditor() {
+  $('sceneSelect').onchange = (e) => { curScene = +e.target.value; sceneSel = -1; sceneFramed = false; refreshSceneUI(); };
+  $('sceneNew').onclick = () => {
+    scenes.push({ name: 'scene' + scenes.length, maps: [], vox: [] });
+    curScene = scenes.length - 1; sceneSel = -1; sceneFramed = false;
+    refreshSceneUI(); dirty();
+  };
+  $('sceneDup').onclick = () => {
+    const sc = curSc(); if (!sc) return;
+    scenes.push({ ...JSON.parse(JSON.stringify(sc)), name: (sc.name || 'scene') + ' copy' });
+    curScene = scenes.length - 1; sceneSel = -1;
+    refreshSceneUI(); dirty();
+  };
+  $('sceneDelete').onclick = () => {
+    const sc = curSc();
+    if (!sc || !confirm(`Delete scene ${curScene} (${sc.name})? Scenes after it will be renumbered.`)) return;
+    scenes.splice(curScene, 1);
+    curScene = Math.max(0, curScene - 1); sceneSel = -1; sceneFramed = false;
+    refreshSceneUI(); dirty();
+  };
+  $('sceneName').oninput = (e) => {
+    const sc = curSc(); if (!sc) return;
+    sc.name = e.target.value;
+    $('sceneSelect').options[curScene].text = `${curScene}: ${sc.name || 'scene'}`;
+    dirty();
+  };
+  $('sceneAddMapBtn').onclick = () => addToScene('map');
+  $('sceneAddVoxBtn').onclick = () => addToScene('vox');
+  $('selName').oninput = (e) => {
+    const it = selItem(); if (!it || it.kind !== 'map') return;
+    const v = e.target.value.trim();
+    if (v) it.p.name = v; else delete it.p.name;
+    drawSceneList();
+    $('selLabel').textContent = `s.maps[${it.i}]: ` + itemLabel('map', it.p);
+    dirty();
+  };
+  const field = (id, set) => {
+    $(id).oninput = (e) => { const it = selItem(); if (!it) return; set(it, +e.target.value || 0); queueScenePreview(); dirty(); };
+  };
+  field('sX', (it, v) => { it.p.pos[0] = v; });
+  field('sY', (it, v) => { it.p.pos[1] = v; });
+  field('sZ', (it, v) => { it.p.pos[2] = v; });
+  field('sP', (it, v) => { if (it.kind === 'map') it.p.angle[0] = v; });
+  field('sYaw', (it, v) => { if (it.kind === 'map') it.p.angle[1] = v; });
+  field('sR', (it, v) => { if (it.kind === 'map') it.p.angle[2] = v; });
+  field('sVYaw', (it, v) => { if (it.kind === 'vox') it.p.yaw = v; });
+  for (const b of document.querySelectorAll('[data-nudge]')) {
+    const [axis, dir] = b.dataset.nudge.split(',').map(Number);
+    b.onclick = () => nudge(axis, dir);
+  }
+  $('sceneStep').onchange = (e) => { for (const id of ['sX', 'sY', 'sZ']) $(id).step = e.target.value; };
+  $('turnLeft').onclick = () => turn(-1);
+  $('turnRight').onclick = () => turn(1);
+  $('selDup').onclick = duplicateSel;
+  $('selDelete').onclick = deleteSel;
+  $('sceneFrameAll').onclick = () => { if (!scenePreview) return; scenePreview.frameBox(); scenePreview.render(); };
+  $('sceneFrameSel').onclick = () => {
+    if (!scenePreview || sceneSel < 0 || !scenePreview.itemBoxes[sceneSel]) return;
+    scenePreview.frameBox(scenePreview.itemBoxes[sceneSel]);
+    scenePreview.render();
+  };
 }
 
 // ================================================================= scales (Sfx tab snapping)
@@ -1385,6 +1708,7 @@ function setupTopBar() {
     }
     if (activeTab === 'sfx' && !typing && e.code === 'Space') { e.preventDefault(); toggleSfxPreview(); }
     if (activeTab === 'music' && !typing && e.code === 'Space') { e.preventDefault(); toggleMusicPreview(); }
+    if (activeTab === 'scene' && !typing) sceneKey(e);
     if (activeTab === 'vox' && !typing) {
       if (e.key === '[') setVoxLayer(voxLayer - 1);
       if (e.key === ']') setVoxLayer(voxLayer + 1);
@@ -1437,6 +1761,7 @@ setupTopBar();
 setupMapEditor();
 setupSprEditor();
 setupVoxEditor();
+setupSceneEditor();
 setupSfxEditor();
 setupMusicEditor();
 setupSaveData();

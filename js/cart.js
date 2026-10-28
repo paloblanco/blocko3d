@@ -1,7 +1,8 @@
 // Cart format + the built-in demo cart.
 // A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}],
 //   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}], sfx: [string or null, ...],
-//   music: [pattern string or null, ...], scale?: {snap, root, type} (Sfx tab snapping) }
+//   music: [pattern string or null, ...], scale?: {snap, root, type} (Sfx tab snapping),
+//   scenes: [{name, maps: [{m, pos, angle, name?}], vox: [{v, pos, yaw}]}] (see normalizeScene) }
 import { MAX_TILES, bytesToB64, emptyTile } from './core.js';
 import { emptySfx, encodeSfx, encodePattern, emptyPattern } from './audio.js';
 
@@ -52,10 +53,28 @@ export function normalizeCart(c) {
   if (!Array.isArray(cart.music)) cart.music = [];
   cart.music = cart.music.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
   cart.vox = cart.vox.slice(0, 64);
+  if (Array.isArray(cart.scenes) && cart.scenes.length) cart.scenes = cart.scenes.map(normalizeScene);
+  else delete cart.scenes;   // only carts that have scenes carry the field
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
   if (typeof cart.cover !== 'string' || !cart.cover.startsWith('data:image/png;base64,')) delete cart.cover;
   cart.version = CART_VERSION;
   return cart;
+}
+
+// A scene: { name, maps: [{ m, pos: [x, y, z], angle: [pitch, yaw, roll], name? }], vox: [{ v, pos, yaw }] }.
+const num3 = (a) => (Array.isArray(a) ? [0, 1, 2].map((i) => +a[i] || 0) : [0, 0, 0]);
+export function normalizeScene(s) {
+  s = s && typeof s === 'object' ? s : {};
+  return {
+    name: typeof s.name === 'string' ? s.name : '',
+    maps: (Array.isArray(s.maps) ? s.maps : []).filter((p) => p && typeof p === 'object').map((p) => {
+      const o = { m: Math.max(0, p.m | 0), pos: num3(p.pos), angle: num3(p.angle) };
+      if (typeof p.name === 'string' && p.name) o.name = p.name;
+      return o;
+    }),
+    vox: (Array.isArray(s.vox) ? s.vox : []).filter((v) => v && typeof v === 'object')
+      .map((v) => ({ v: Math.max(0, v.v | 0), pos: num3(v.pos), yaw: +v.yaw || 0 })),
+  };
 }
 
 // ---------------------------------------------------------------- helpers

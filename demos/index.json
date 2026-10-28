@@ -43,5 +43,10 @@
     "file": "racing.b3d.json",
     "name": "Split Screen Racing",
     "about": "Two cars, three laps, two halves of the screen. Shows clip() for split screen with a camera per view, a small minimap view drawn on top, and two players (the computer drives the blue car until a second gamepad joins)."
+  },
+  {
+    "file": "village.b3d.json",
+    "name": "Village",
+    "about": "Open the houses, collect every coin and reach the flag, over two levels. Shows scenes: scene_load() builds each level made in the Scene tab, one house map placed many times (each copy's door opens on its own), s.named to find the cage, and vox markers for the start, coins and flag."
   }
 ]

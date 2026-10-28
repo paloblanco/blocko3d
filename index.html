@@ -42,6 +42,7 @@
       <button data-tab="map">Map</button>
       <button data-tab="tile">Tile</button>
       <button data-tab="vox">Vox</button>
+      <button data-tab="scene">Scene</button>
       <button data-tab="sfx">Sfx</button>
       <button data-tab="music">Music</button>
       <button data-tab="info">Info</button>
@@ -167,6 +168,49 @@
             <span class="fps"><input id="playFps" type="number" min="1" max="60" value="6" aria-label="Frames per second"> fps</span>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="panel" id="tab-scene">
+      <div class="toolbar">
+        <label>Scene <select id="sceneSelect"></select></label>
+        <button id="sceneNew">+ New</button>
+        <button id="sceneDup" title="Copy this scene to the end">Duplicate</button>
+        <button id="sceneDelete" title="Delete this scene; later scenes move down one number">Delete</button>
+        <span class="sep"></span>
+        <label>Name <input id="sceneName" size="10" spellcheck="false"></label>
+      </div>
+      <div class="scenework" id="scenework">
+        <aside class="scenelist">
+          <div class="addrow"><select id="sceneAddMap" aria-label="Map to add"></select><button id="sceneAddMapBtn" title="Place a copy of this map in the scene">+ Map</button></div>
+          <div class="addrow"><select id="sceneAddVox" aria-label="Vox model to add"></select><button id="sceneAddVoxBtn" title="Place a marker with this vox model">+ Vox</button></div>
+          <div class="itemlist" id="sceneItems"></div>
+        </aside>
+        <div class="previewwrap scenepreview">
+          <canvas id="scenePreview"></canvas>
+          <div class="hint"><span class="desktop-only">Click to select, drag a selected thing to move it. Drag empty space to orbit, right-drag or Shift-drag to pan, wheel to zoom. Arrows move, <kbd>PgUp</kbd> <kbd>PgDn</kbd> up and down, <kbd>R</kbd> turns, <kbd>Del</kbd> deletes.</span><span class="mobile-only">Tap to select, drag a thing to move it, drag empty space to orbit.</span></div>
+          <div class="row"><button id="sceneFrameAll">Show all</button><button id="sceneFrameSel">Show selected</button></div>
+        </div>
+        <aside class="sceneprops" id="sceneProps">
+          <div class="selhead"><b id="selLabel">Nothing selected</b></div>
+          <div id="selFields">
+            <label id="selNameRow" title="Optional: the game finds this map as s.named[name]">Name <input id="selName" size="9" spellcheck="false" placeholder="optional"></label>
+            <label class="xyz">Pos <input id="sX" type="number" step="1"><input id="sY" type="number" step="1"><input id="sZ" type="number" step="1"></label>
+            <label class="xyz" id="selAngleRow" title="Pitch, yaw, roll in turns">Angle <input id="sP" type="number" step="0.25"><input id="sYaw" type="number" step="0.25"><input id="sR" type="number" step="0.25"></label>
+            <label id="selYawRow" title="Yaw in turns">Yaw <input id="sVYaw" type="number" step="0.25"></label>
+            <div class="nudge">
+              <label>Step <select id="sceneStep"><option>1</option><option>0.5</option><option>0.125</option></select></label>
+              <div class="nudgegrid">
+                <button data-nudge="0,-1">−X</button><button data-nudge="0,1">+X</button>
+                <button data-nudge="1,-1">−Y</button><button data-nudge="1,1">+Y</button>
+                <button data-nudge="2,-1">−Z</button><button data-nudge="2,1">+Z</button>
+                <button id="turnLeft" title="Yaw a quarter turn back (−0.25)">Yaw −¼</button><button id="turnRight" title="Yaw a quarter turn (+0.25; R)">Yaw +¼</button>
+              </div>
+            </div>
+            <div class="row"><button id="selDup">Duplicate</button><button id="selDelete">Delete</button></div>
+          </div>
+          <div class="hint">Pos is where the map's origin (or the model's pivot) goes. In code: <code>s = scene_load(n)</code>, then <code>s.maps</code>, <code>s.named</code>, <code>s.things</code>.</div>
+        </aside>
       </div>
     </div>
 

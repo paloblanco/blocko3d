@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Scenes.** A new **Scene** tab arranges copies of maps (position, angle, an optional name) and vox markers (model, position, yaw) into a level, in a 3D view where you click, drag, nudge and turn things. `scene_load(n)` builds scene n in a game and returns `{ maps, named, things }`: fresh map copies already in place, the named ones, and the markers for your code to turn into the player's start, pickups and so on. Loading again gives an undamaged level. Deleting a map or vox model also removes its uses in scenes.
+- `map_copy(m)` makes a new map with its own copy of map m's blocks and placement; `map_stamp(src, dst, x, y, z)` copies one map's blocks into another.
+- A new demo, **Village**: two levels built as scenes, with one house map placed many times and each house's door opening on its own.
+
 - `mpush(maps, x, y, z, r)` pushes a sphere out of one map or a list of maps and returns `[x, y, z, nx, ny, nz, ground]`: the new position, which way it was pushed, and the map it's standing on (or -1). Collision for a walker, a car or a bouncing ball is now a line or two. `lerp(a, b, t)` blends numbers or arrays. The demos use both.
 - New helpers for the things 3D games keep writing by hand: `dist(a, b)`, `dir3(yaw, pitch)`, `yaw_to(dx, dz)`, `angdiff(a, b)`, `cam_orbit(target, yaw, pitch, dist)`, `printc(str, y, ...)` (centered, also within a clip area) and `textw(str, sx)`. All the demos now use them.
 - `clip(x0, y0, x1, y1)` limits drawing to a rectangle of the screen, 3D and 2D alike, and each `clip()` starts a new 3D view with its own camera, centered in its rectangle: split screen, minimaps and mirrors. `cam_set_fov` now means the angle across the longer side of the view (unchanged on the full, square screen). A new demo, **Split Screen Racing**, shows it off.

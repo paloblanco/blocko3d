@@ -29,6 +29,7 @@ The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from C
 | Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
 | Sfx | Make sound effects, PICO-8 style: draw pitches with a brush (waveform, volume, effect), set speed and loop points, play them, and copy a sound out as a string. Turn on **Snap to scale** (default C minor pentatonic; any root and 9 scales) so every note you draw fits the song. |
 | Music | Arrange songs: 64 patterns of up to 4 sounds playing at once, with loop start, loop back and stop flags. Play follows the song through the patterns. |
+| Scene | Arrange copies of maps and vox markers into a level: add, drag, nudge, turn, duplicate and name them in a 3D view. A game builds it with `scene_load(n)`. |
 | Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
 | Info | API reference. |
 
@@ -45,6 +46,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`, and hit-stun with a camera shake on hard bumps using `freeze()`. |
 | Split Screen Racing | Two cars, three laps. `clip()` splits the screen into two views with their own chase cameras, a minimap view sits on top, text is clipped to each half, and a second gamepad can take over the computer's car. |
 | Third Person | Collect stars across floating islands. An orbit camera kept out of walls with `mray()`, movement relative to the camera, and riding a sliding platform, a turning bridge and an elevator with `wtom()`/`mtow()`. |
+| Village | Open the houses, collect the coins, reach the flag, over two levels. Each level is a scene from the Scene tab built with `scene_load()`: one house map placed many times (each copy's door opens on its own), `s.named` to find the cage, and vox markers for the start, coins and flag. |
 
 Under the game are **pause**, **mute** and **fullscreen** buttons, the same as in an exported game. While a game runs, **Enter** (or the pause button) pauses it, PICO-8 style, with Resume, Restart (runs the game again from the start, in place, so fullscreen stays on), Screenshot (a PNG of the game screen), **Capture cover** (only in the IDE: makes the current screen the cover art exported games show before they start) and Resolution: 1×, 2× or 3× renders the 3D view at 256, 512 or 768 pixels for smoother edges, with outlines kept at the same thickness. Text and rectangles stay at 256. Under the game, **Save data** shows what the game has stored with `save()` and lets you clear it, and **Cover** shows the captured cover art (Clear removes it).
 
@@ -86,7 +88,8 @@ function _draw() {
 ## API at a glance
 
 - **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode). `freeze(n, fn)` runs `fn` (or nothing) instead of `_update` for the next `n` updates while `_draw` keeps going: hit-stun in one line.
-- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `mpush` (collision in one call: push a sphere out of one or more maps, and learn which way and what you stand on), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps).
+- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `mpush` (collision in one call: push a sphere out of one or more maps, and learn which way and what you stand on), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps), `map_copy` (a new map with its own copy of the blocks), `map_stamp` (copy one map's blocks into another).
+- **Scenes:** `scene_load(n)` builds a scene from the Scene tab and returns `{ maps, named, things }`: fresh, already placed map copies to draw and collide with, the ones you named, and the vox markers (`[v, x, y, z, yaw]`) for your code to turn into the player, pickups and so on.
 - **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.

@@ -249,6 +249,32 @@ kbd {
 .console .error:hover { text-decoration: underline; }
 .console .info { color: var(--muted); }
 
+/* ---------- scene editor */
+.scenework { flex: 1; display: grid; grid-template-columns: 200px minmax(0, 1fr) 230px; min-height: 0; }
+.scenelist { border-right: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: auto; min-height: 0; }
+.addrow { display: flex; gap: 4px; }
+.addrow select { flex: 1; min-width: 0; }
+.itemlist { display: flex; flex-direction: column; gap: 2px; }
+.itemlist .grouphead { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.itemlist button { text-align: left; overflow: hidden; text-overflow: ellipsis; padding: 3px 8px; }
+.itemlist button b { font-family: var(--mono); color: var(--yellow); font-weight: 600; margin-right: 4px; }
+.itemlist button.on b { color: #0d1222; }
+.itemlist .empty { color: var(--muted); font-size: 12px; }
+.scenepreview { border-left: none; }
+.scenepreview canvas { aspect-ratio: auto; flex: 1; min-height: 240px; }
+.scenepreview .row { display: flex; gap: 4px; }
+.sceneprops { border-left: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.sceneprops label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.sceneprops label input, .sceneprops label select { color: var(--text); }
+#selFields { display: flex; flex-direction: column; gap: 10px; }
+#selFields[hidden] { display: none; }
+.sceneprops .xyz input { width: 3.3em; min-width: 0; }
+.sceneprops label.xyz { gap: 4px; }
+.selhead b { color: var(--yellow); }
+.nudge { display: flex; flex-direction: column; gap: 6px; }
+.nudgegrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.sceneprops .row { display: flex; gap: 4px; }
+
 @media (max-width: 1100px) {
   .mapwork { grid-template-columns: 1fr; }
   .previewwrap { border-left: none; border-top: 1px solid var(--line); }
@@ -258,6 +284,9 @@ kbd {
   .voxwork { grid-template-columns: 150px minmax(0, 1fr); }
   .voxwork .previewwrap { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); }
   .tilegrid { grid-template-columns: repeat(3, 34px); }
+  .scenework { grid-template-columns: 180px minmax(0, 1fr); }
+  .sceneprops { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); }
+  .scenepreview canvas { max-width: none; }
 }
 
 /* ---------- touch screens: the game page brings its own controls (js/shell.js) */
@@ -329,6 +358,14 @@ kbd {
   .voxgrid { width: 100%; }
   .voxwork .previewwrap canvas { max-width: 320px; margin: 0 auto; }
 
+  /* scene editor: the view first, then the selected thing, then the list */
+  .scenework { display: flex; flex-direction: column; }
+  .scenework > * { flex: none; }
+  .scenepreview { order: 1; }
+  .scenepreview canvas { flex: none; width: 100%; height: auto; aspect-ratio: 1; min-height: 0; }
+  .sceneprops { order: 2; border-top: 1px solid var(--line); }
+  .scenelist { order: 3; border-right: none; border-top: 1px solid var(--line); overflow: visible; }
+
   /* sfx editor */
   .sfxwork { display: flex; flex-direction: column; }
   .sfxlist { grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: 32px; border-right: none; border-bottom: 1px solid var(--line); flex: none; height: 118px; }
@@ -349,3 +386,4 @@ kbd {
   .screen { max-height: none; width: 100%; aspect-ratio: auto; flex: 1; min-height: 0; }
   .console { flex: none; min-height: 72px; max-height: 30vh; }
 }
+.sceneprops [hidden] { display: none !important; }

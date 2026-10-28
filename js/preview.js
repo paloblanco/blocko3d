@@ -1,9 +1,9 @@
-// Small orbit viewer used by the Map, Tile and Vox editors.
+// Small orbit viewer used by the Map, Tile, Vox and Scene editors.
 import * as THREE from 'three';
 import {
   DEFAULT_PALETTE, createAtlas, writeAtlas, createMap, buildMapGeometry,
   createPaletteUniform, syncPaletteUniform, createVoxelMaterial, setupRenderer,
-  VOX, createVox, buildVoxGeometry, createVoxMaterial,
+  VOX, createVox, buildVoxGeometry, createVoxMaterial, updateTransform, voxMatrix,
 } from './core.js';
 
 export class Preview {
@@ -50,22 +50,37 @@ export class Preview {
 
   _bindInput() {
     const c = this.canvas;
-    let lx = 0, ly = 0, sx = 0, sy = 0, moved = false;
-    c.addEventListener('contextmenu', (e) => { if (this.onClick) e.preventDefault(); });
+    let lx = 0, ly = 0, sx = 0, sy = 0, moved = false, panning = false;
+    c.addEventListener('contextmenu', (e) => { if (this.onClick || this.canPan) e.preventDefault(); });
     c.addEventListener('pointerdown', (e) => {
+      // the editor can take over a drag (the scene editor moves the selected item)
+      if (this.onGrab && e.button === 0 && !e.shiftKey && this.onGrab('down', e)) {
+        this._grabbing = true; c.setPointerCapture(e.pointerId); return;
+      }
       this._dragging = true; lx = sx = e.clientX; ly = sy = e.clientY; moved = false;
+      panning = this.canPan && (e.button === 1 || e.button === 2 || e.shiftKey);
       c.setPointerCapture(e.pointerId);
     });
     c.addEventListener('pointerup', (e) => {
+      if (this._grabbing) { this._grabbing = false; this.onGrab('up', e); return; }
       // a click (no drag) is passed on to the editor, with the voxel under the pointer
       if (this._dragging && !moved && this.onClick) this.onClick(e, this.hitVox(e.clientX, e.clientY));
     });
     c.addEventListener('pointermove', (e) => {
+      if (this._grabbing) { this.onGrab('move', e); return; }
       if (!this._dragging) return;
       if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 4) moved = true;
       if (!moved) return;
-      this.yaw -= (e.clientX - lx) * 0.01;
-      this.pitch = Math.max(-1.4, Math.min(1.4, this.pitch + (e.clientY - ly) * 0.01));
+      if (panning) {
+        // slide the point we orbit around, across the screen
+        const k = this.dist * 0.0022;
+        const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0);
+        const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1);
+        this.target.addScaledVector(right, -(e.clientX - lx) * k).addScaledVector(up, (e.clientY - ly) * k);
+      } else {
+        this.yaw -= (e.clientX - lx) * 0.01;
+        this.pitch = Math.max(-1.4, Math.min(1.4, this.pitch + (e.clientY - ly) * 0.01));
+      }
       lx = e.clientX; ly = e.clientY;
       this.render();
     });
@@ -156,6 +171,119 @@ export class Preview {
     const x = Math.floor(floor.x), z = Math.floor(floor.z);
     if (x < 0 || z < 0 || x >= VOX || z >= VOX) return null;
     return { cell: [x, -1, z], normal: [0, 1, 0], floor: true };
+  }
+
+  // ---- scene editor: many maps and vox models at once.
+  // items: [{ type: 'map', key, src: {w, h, d, data, origin}, pos, angle }
+  //         | { type: 'vox', key, src: {data, pivot}, pos, yaw }]
+  // key names the source (e.g. 'm3', 'v5'): meshes are built once per key until clearSceneCache().
+  setScene(items, { sel = -1 } = {}) {
+    if (!this.sceneGroup) {
+      this.sceneGroup = new THREE.Group();
+      this.sceneHelpers = new THREE.Group();
+      this.scene.add(this.sceneGroup, this.sceneHelpers);
+      this._geo = new Map();
+      this._mapMat = createVoxelMaterial(this.atlas, this.palU);
+      this._voxMat = createVoxMaterial(this.palU);
+      this._standMat = new THREE.MeshBasicMaterial({ color: 0x8d93ad, wireframe: true });
+    }
+    this.mesh.visible = false; this.voxMesh.visible = false;
+    for (const o of this.sceneGroup.children) if (o.material === this._standMat) o.geometry.dispose();
+    for (const o of this.sceneHelpers.children) { o.geometry.dispose(); o.material.dispose(); }
+    this.sceneGroup.clear(); this.sceneHelpers.clear();
+    const bounds = new THREE.Box3();
+    let selBox = null;
+    this.itemBoxes = [];
+    items.forEach((it, i) => {
+      let geo = this._geo.get(it.key);
+      if (!geo) {
+        geo = it.type === 'map' ? buildMapGeometry(createMap(it.src.w, it.src.h, it.src.d, it.src.origin, it.src.data))
+          : buildVoxGeometry(createVox(it.src.data, it.src.pivot));
+        this._geo.set(it.key, geo);
+      }
+      const matrix = new THREE.Matrix4();
+      let size;
+      if (it.type === 'map') {
+        const m = createMap(it.src.w, it.src.h, it.src.d, it.src.origin);
+        m.pos = [...it.pos]; m.angle = [...it.angle];
+        updateTransform(m);
+        matrix.copy(m._m);
+        size = [it.src.w, it.src.h, it.src.d];
+      } else {
+        voxMatrix(it.src, it.pos, [0, it.yaw, 0], [1, 1, 1], matrix);
+        size = [VOX, VOX, VOX];
+      }
+      const empty = !geo.index || geo.index.count === 0;
+      // an empty map or model gets a wire box, so it can still be seen and picked
+      const o = empty ? new THREE.Mesh(new THREE.BoxGeometry(...size).translate(size[0] / 2, size[1] / 2, size[2] / 2), this._standMat)
+        : new THREE.Mesh(geo, it.type === 'map' ? this._mapMat : this._voxMat);
+      o.matrixAutoUpdate = false;
+      o.matrix.copy(matrix);
+      o.updateMatrixWorld(true);
+      o.userData.item = i;
+      this.sceneGroup.add(o);
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      const box = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+      bounds.union(box);
+      this.itemBoxes[i] = box.clone();
+      if (i === sel) selBox = box;
+    });
+    // ground grid around everything, at y = 0
+    const lo = bounds.isEmpty() ? [-4, -4] : [Math.floor(bounds.min.x) - 4, Math.floor(bounds.min.z) - 4];
+    const hi = bounds.isEmpty() ? [12, 12] : [Math.ceil(bounds.max.x) + 4, Math.ceil(bounds.max.z) + 4];
+    const lines = [];
+    for (let x = lo[0]; x <= hi[0]; x++) lines.push(x, 0, lo[1], x, 0, hi[1]);
+    for (let z = lo[1]; z <= hi[1]; z++) lines.push(lo[0], 0, z, hi[0], 0, z);
+    const grid = new THREE.BufferGeometry();
+    grid.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+    this.sceneHelpers.add(new THREE.LineSegments(grid, new THREE.LineBasicMaterial({ color: 0x2a3557 })));
+    const axes = new THREE.BufferGeometry();
+    axes.setAttribute('position', new THREE.Float32BufferAttribute([0, 0.01, 0, 2, 0.01, 0, 0, 0.01, 0, 0, 0.01, 2], 3));
+    axes.setAttribute('color', new THREE.Float32BufferAttribute([1, 0, 0.3, 1, 0, 0.3, 0.16, 0.68, 1, 0.16, 0.68, 1], 3));
+    this.sceneHelpers.add(new THREE.LineSegments(axes, new THREE.LineBasicMaterial({ vertexColors: true })));
+    if (selBox) {
+      this.sceneHelpers.add(new THREE.Box3Helper(selBox.expandByScalar(0.03), 0xffec27));
+      const p = items[sel].pos, s = 0.6, cross = new THREE.BufferGeometry();
+      cross.setAttribute('position', new THREE.Float32BufferAttribute([p[0] - s, p[1], p[2], p[0] + s, p[1], p[2], p[0], p[1] - s, p[2], p[0], p[1] + s, p[2], p[0], p[1], p[2] - s, p[0], p[1], p[2] + s], 3));
+      const line = new THREE.LineSegments(cross, new THREE.LineBasicMaterial({ color: 0xff004d, depthTest: false }));
+      line.renderOrder = 2;
+      this.sceneHelpers.add(line);
+    }
+    this.sceneBounds = bounds;
+  }
+
+  clearSceneCache() {
+    if (!this._geo) return;
+    for (const g of this._geo.values()) g.dispose();
+    this._geo.clear();
+  }
+
+  // Point the camera at a box (or the whole scene), from a distance that shows all of it.
+  frameBox(box = this.sceneBounds) {
+    if (!box || box.isEmpty()) { this.target.set(4, 0, 4); this.dist = 16; return; }
+    box.getCenter(this.target);
+    const s = box.getSize(new THREE.Vector3());
+    this.dist = Math.max(6, Math.max(s.x, s.y, s.z) * 1.3 + 2);
+  }
+
+  // The scene item under a screen point, or -1.
+  pickItem(clientX, clientY) {
+    if (!this.sceneGroup) return -1;
+    const hit = this._ray(clientX, clientY).intersectObjects(this.sceneGroup.children, false)[0];
+    return hit ? hit.object.userData.item : -1;
+  }
+
+  // Where a screen point meets the flat plane at height y (world units), or null.
+  planePoint(clientX, clientY, y) {
+    const p = new THREE.Vector3();
+    return this._ray(clientX, clientY).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), p) ? p : null;
+  }
+
+  _ray(clientX, clientY) {
+    const r = this.canvas.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    return ray;
   }
 
   render() {
