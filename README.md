@@ -11,7 +11,11 @@ It's a static site with no build step. ES modules need a web server, so either:
 - **Online:** the IDE is live at https://paloblanco.github.io/demo_blocky_3d/ (GitHub Pages, deployed from `main`), and the exported demos at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/ (a page linking to each one).
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
-The IDE loads CodeMirror 5 and, for the editor previews, Three.js (0.170) from CDNs, so it needs an internet connection. Games themselves run on the bundled runtime in `runtime/` (see below).
+Everything the IDE uses is in this repo (CodeMirror 5, Three.js 0.170 for the editor previews and the two fonts are in `vendor/`), so it never reaches another website. Games themselves run on the bundled runtime in `runtime/` (see below).
+
+### Installing the IDE (offline, desktop)
+
+The IDE is an installable app. Open it in Chrome or Edge and click the install icon at the right of the address bar (in Safari on a Mac: File → Add to Dock). It opens in its own window, with the blocky3D icon in your dock, taskbar or Start menu, and **works offline**: once it has been opened online, the IDE, the game player, Export, the Info tab and every demo are kept on your computer. When you're online it always loads the latest version and updates its copy. Your autosaved cart is shared with the IDE in a browser tab (same site, same storage); Save and Open still use `.b3d.json` files. The app covers the IDE page only, so the standalone demos stay separate apps you can install on their own.
 
 ## Testing the alpha
 
@@ -136,10 +140,10 @@ The IDE needs no build step, but the runtime bundle does. After editing `js/core
 
 ```
 npm install      # once
-npm run build    # rewrites runtime/blocky3d.runtime.js and standalone_demo/
+npm run build    # rewrites runtime/blocky3d.runtime.js, standalone_demo/ and the IDE's offline files
 ```
 
-The build also writes the castle demo to `demos/castle.b3d.json` and exports every demo in `demos/index.json` to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game). Commit the rebuilt bundle and demo with your change. A GitHub Action fails if the committed bundle or demo doesn't match a fresh build.
+The build also writes the castle demo to `demos/castle.b3d.json` and exports every demo in `demos/index.json` to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game). Last, it writes the IDE's offline files: `ide-sw.js` (the service worker, listing every file the IDE uses with a fingerprint of their contents), `ide.webmanifest` and `icons/ide-*.png`. Since that fingerprint covers the IDE's files, run the build after any change to the IDE too (`index.html`, `css/`, `js/`, `demos/`), or the installed IDE won't pick up new files for offline use. Commit what the build writes with your change. A GitHub Action fails if any of it doesn't match a fresh build.
 
 ## Not in this version
 

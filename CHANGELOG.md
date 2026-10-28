@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The IDE is installable and works offline.** Install it from Chrome or Edge (the icon in the address bar) or Safari on a Mac (File → Add to Dock): it opens in its own window and keeps working with no connection, including Run, Export, the Info tab and the demos. Online it always loads the latest version. CodeMirror, Three.js and the fonts now come from the repo's `vendor/` folder instead of other websites.
+
 - `map_reload(m)` puts cart map m's blocks back the way the cart has them (only the blocks; its position and angle stay); `map_reload()` does every cart map. Copies and `map_new` maps aren't affected. Bumper Arena uses it to bring the arena back each round.
 
 - **Scenes.** A new **Scene** tab arranges copies of maps (position, angle, an optional name) and vox markers (model, position, yaw) into a level, in a 3D view where you click, drag, nudge and turn things. `scene_load(n)` builds scene n in a game and returns `{ maps, named, things }`: fresh map copies already in place, the named ones, and the markers for your code to turn into the player's start, pickups and so on. Loading again gives an undamaged level. Deleting a map or vox model also removes its uses in scenes.

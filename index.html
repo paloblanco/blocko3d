@@ -5,15 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#141b30">
 <title>blocky3D</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+<link rel="manifest" href="ide.webmanifest">
+<link rel="icon" href="icons/ide-192.png">
+<link rel="apple-touch-icon" href="icons/ide-192.png">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
+<link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="css/ide.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/mode/javascript/javascript.min.js"></script>
+<script src="vendor/codemirror/codemirror.min.js"></script>
+<script src="vendor/codemirror/javascript.min.js"></script>
 <script type="importmap">
-{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script>
+  // Installable and usable offline (ide-sw.js keeps the IDE's files) when served over https or
+  // from localhost. The installed app covers this page only, so the standalone demos stay apps of
+  // their own; at the bare folder address, show index.html so the page is inside the app.
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    if (location.pathname.endsWith('/')) history.replaceState(null, '', 'index.html' + location.search + location.hash);
+    navigator.serviceWorker.register('ide-sw.js').catch(() => {});
+  }
 </script>
 </head>
 <body>

@@ -1,0 +1,28 @@
+{
+  "name": "blocky3D",
+  "short_name": "blocky3D",
+  "description": "A small 3D fantasy console: code, maps, tiles, voxel models, scenes, sound and music in one page.",
+  "start_url": "./index.html",
+  "scope": "./index.html",
+  "display": "standalone",
+  "background_color": "#0d1222",
+  "theme_color": "#141b30",
+  "icons": [
+    {
+      "src": "icons/ide-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/ide-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/ide-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
