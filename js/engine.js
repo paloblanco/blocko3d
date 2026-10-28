@@ -404,6 +404,22 @@ export function createEngine({
       maps.push(cloneMap(getMap(m)));
       return maps.length - 1;
     },
+    // map_reload(m): put cart map m's blocks back the way the cart has them (undo digging,
+    // crumbling, opened doors). Only blocks: position, angle and origin stay as they are.
+    // map_reload() does every cart map. Copies and map_new maps aren't cart maps.
+    map_reload(m) {
+      if (m === undefined || m === null) {
+        templates.forEach((t, i) => { maps[i].data.set(t.data); maps[i].dirty = true; });
+        return;
+      }
+      const t = templates[m];
+      if (!Number.isInteger(m) || !t) {
+        const which = templates.length ? `0-${templates.length - 1}` : 'this cart has none';
+        throw new Error(`map_reload(${m}): only the cart's maps can be reloaded (${which}); copies and map_new maps have no cart data`);
+      }
+      maps[m].data.set(t.data);
+      maps[m].dirty = true;
+    },
     // map_stamp(src, dst, x, y, z): copy map src's solid blocks into map dst, with src's block
     // (0, 0, 0) landing on dst's block (x, y, z). Empty blocks in src leave dst as it is.
     map_stamp(src, dst, x, y, z) {

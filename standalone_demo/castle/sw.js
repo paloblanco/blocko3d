@@ -1,5 +1,5 @@
-// blocky3D: keeps this game's files on the device so it plays offline (build f30ec992)
-const CACHE = 'b3d-' + self.registration.scope + '-f30ec992';
+// blocky3D: keeps this game's files on the device so it plays offline (build 688f7ba8)
+const CACHE = 'b3d-' + self.registration.scope + '-688f7ba8';
 const FILES = ["./","index.html","castle.js","manifest.webmanifest","icon-192.png","icon-512.png"];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

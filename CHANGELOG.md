@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `map_reload(m)` puts cart map m's blocks back the way the cart has them (only the blocks; its position and angle stay); `map_reload()` does every cart map. Copies and `map_new` maps aren't affected. Bumper Arena uses it to bring the arena back each round.
+
 - **Scenes.** A new **Scene** tab arranges copies of maps (position, angle, an optional name) and vox markers (model, position, yaw) into a level, in a 3D view where you click, drag, nudge and turn things. `scene_load(n)` builds scene n in a game and returns `{ maps, named, things }`: fresh map copies already in place, the named ones, and the markers for your code to turn into the player's start, pickups and so on. Loading again gives an undamaged level. Deleting a map or vox model also removes its uses in scenes.
 - `map_copy(m)` makes a new map with its own copy of map m's blocks and placement; `map_stamp(src, dst, x, y, z)` copies one map's blocks into another.
 - A new demo, **Village**: two levels built as scenes, with one house map placed many times and each house's door opening on its own.
