@@ -22,10 +22,10 @@ const MOBILE = window.matchMedia('(max-width: 820px)');
 // ================================================================= state
 let cart = null;   // { name, code, palette?, tiles }
 let maps = [];     // editable maps: { name, w, h, d, origin, data: Uint8Array }
-let curMap = 0, layer = 0, mapTile = 1;
+let curMap = 0, layer = 0, mapTile = 1, mapAxis = 'y';
 let curTile = 1, color = 7, tool = 'pencil';
 let voxModels = [];   // editable vox models: { name, pivot, data: Uint8Array(512) }, 0 = empty, else color + 1
-let curVox = 0, voxLayer = 0, voxColor = 8, voxTool = 'pencil';
+let curVox = 0, voxLayer = 0, voxColor = 8, voxTool = 'pencil', voxAxis = 'y';
 let sounds = [];   // 64 decoded sounds (see js/audio.js)
 let curSfx = 0, brush = { wave: 0, vol: 5, fx: 0 };
 let patterns = [];   // 64 decoded music patterns
@@ -36,6 +36,49 @@ let curScene = 0, sceneSel = -1;   // sceneSel: index into the scene's maps, the
 let activeTab = 'code';
 
 const palette = () => cart.palette || DEFAULT_PALETTE;
+
+// ---- editing planes (Map and Vox tabs): the grid shows one layer of a w × h × d grid.
+// axis 'y' = Top: layers stack up, +x right, +z down (seen from above).
+// axis 'z' = Front: layers go front to back, +x right, +y up (seen from the +z side, the front).
+// axis 'x' = Side: layers go left to right, +z right, +y up (seen from the -x side).
+// cols × rows is the grid's size; at(u, v, L) is the cell [x, y, z] at column u, row v, layer L.
+function slice(axis, w, h, d) {
+  if (axis === 'z') return { cols: w, rows: h, layers: d, at: (u, v, L) => [u, h - 1 - v, L], hint: 'Seen from the front: +x right, +y up.' };
+  if (axis === 'x') return { cols: d, rows: h, layers: w, at: (u, v, L) => [L, h - 1 - v, u], hint: 'Seen from the side: +z right, +y up.' };
+  return { cols: w, rows: d, layers: h, at: (u, v, L) => [u, L, v], hint: 'Seen from above: +x right, +z down.' };
+}
+// Picks the plane in a row of Top / Front / Side buttons.
+function setupPlanePick(id, onPick) {
+  document.querySelectorAll(`#${id} button`).forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll(`#${id} button`).forEach((o) => o.classList.toggle('on', o === b));
+      onPick(b.dataset.axis);
+    };
+  });
+}
+
+// ---- undo / redo: each editor keeps snapshots taken just before each change (up to 100).
+// take(key) snapshots the thing a change is about to touch (a map or model number; scenes use
+// none), put(snapshot) puts one back and shows it. A new change clears the redo list.
+function history(take, put, undoBtn, redoBtn) {
+  const h = { past: [], future: [] };
+  const show = () => { $(undoBtn).disabled = !h.past.length; $(redoBtn).disabled = !h.future.length; };
+  h.save = (key) => { h.past.push(take(key)); if (h.past.length > 100) h.past.shift(); h.future = []; show(); };
+  const step = (from, to) => {
+    if (!from.length) return false;
+    const snap = from.pop();
+    to.push(take(snap.key));
+    put(snap);
+    show(); dirty();
+    return true;
+  };
+  h.undo = () => step(h.past, h.future);
+  h.redo = () => step(h.future, h.past);
+  h.clear = () => { h.past = []; h.future = []; show(); };
+  h.show = show;
+  return h;
+}
+let mapHist, voxHist, sceneHist;   // made in the editors' setup functions
 
 function loadCart(c, name) {
   cart = normalizeCart(JSON.parse(JSON.stringify(c)));
@@ -75,6 +118,7 @@ function loadCart(c, name) {
   setCode(cart.code);
   if ($('saveData')) showSaveData();
   if ($('coverImg')) showCover();
+  if (mapHist) { mapHist.clear(); voxHist.clear(); sceneHist.clear(); }
   refreshMapUI();
   refreshSprUI();
   refreshVoxUI();
@@ -266,10 +310,13 @@ function refreshMapUI() {
     $('mapName').value = m.name;
     $('mapW').value = m.w; $('mapH').value = m.h; $('mapD').value = m.d;
     [$('oX').value, $('oY').value, $('oZ').value] = m.origin;
-    layer = clamp(layer, 0, m.h - 1);
-    $('layerRange').max = m.h - 1;
+    const sl = curSlice();
+    layer = clamp(layer, 0, sl.layers - 1);
+    $('layerRange').max = sl.layers - 1;
     $('layerRange').value = layer;
     $('layerLabel').textContent = layer;
+    $('layerName').textContent = 'Layer ' + mapAxis;
+    $('mapHint').textContent = sl.hint;
   }
   mapTile = clamp(mapTile, 0, cart.tiles.length - 1);
   const bar = $('mapTiles');
@@ -282,16 +329,19 @@ function refreshMapUI() {
 }
 
 let cell = 16;
+const curSlice = () => { const m = curM(); return slice(mapAxis, m.w, m.h, m.d); };
+const mapIdx = (m, [x, y, z]) => x + m.w * (y + m.h * z);
 function drawGrid() {
   const cv = $('mapGrid'), m = curM();
   const ctx = cv.getContext('2d');
   if (!m) { cv.width = cv.height = 0; return; }
+  const sl = curSlice();
   const box = $('gridScroll');
   // on phones the grid only has to fit the width; the page scrolls
   const availW = Math.max(100, box.clientWidth - 4), availH = MOBILE.matches ? 1e9 : Math.max(100, box.clientHeight - 4);
-  cell = clamp(Math.floor(Math.min(availW / m.w, availH / m.d)), 8, 34);
+  cell = clamp(Math.floor(Math.min(availW / sl.cols, availH / sl.rows)), 8, 34);
   const dpr = window.devicePixelRatio || 1;
-  const W = m.w * cell + 1, H = m.d * cell + 1;
+  const W = sl.cols * cell + 1, H = sl.rows * cell + 1;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -299,19 +349,21 @@ function drawGrid() {
   ctx.fillStyle = '#0a0f1d';
   ctx.fillRect(0, 0, W, H);
   const ghost = $('ghost').checked && layer > 0;
-  for (let z = 0; z < m.d; z++) for (let x = 0; x < m.w; x++) {
-    const t = m.data[x + m.w * (layer + m.h * z)];
-    if (t) { ctx.drawImage(faceCanvas(t), x * cell, z * cell, cell, cell); continue; }
+  // the top view shows tiles' top faces, the front and side views their side faces
+  const face = mapAxis === 'y' ? 'top' : 'side';
+  for (let v = 0; v < sl.rows; v++) for (let u = 0; u < sl.cols; u++) {
+    const t = m.data[mapIdx(m, sl.at(u, v, layer))];
+    if (t) { ctx.drawImage(faceCanvas(t, face), u * cell, v * cell, cell, cell); continue; }
     if (ghost) {
-      const b = m.data[x + m.w * (layer - 1 + m.h * z)];
-      if (b) { ctx.globalAlpha = 0.25; ctx.drawImage(faceCanvas(b), x * cell, z * cell, cell, cell); ctx.globalAlpha = 1; }
+      const b = m.data[mapIdx(m, sl.at(u, v, layer - 1))];
+      if (b) { ctx.globalAlpha = 0.25; ctx.drawImage(faceCanvas(b, face), u * cell, v * cell, cell, cell); ctx.globalAlpha = 1; }
     }
   }
   ctx.strokeStyle = 'rgba(141,147,173,0.22)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let x = 0; x <= m.w; x++) { ctx.moveTo(x * cell + 0.5, 0); ctx.lineTo(x * cell + 0.5, H); }
-  for (let z = 0; z <= m.d; z++) { ctx.moveTo(0, z * cell + 0.5); ctx.lineTo(W, z * cell + 0.5); }
+  for (let u = 0; u <= sl.cols; u++) { ctx.moveTo(u * cell + 0.5, 0); ctx.lineTo(u * cell + 0.5, H); }
+  for (let v = 0; v <= sl.rows; v++) { ctx.moveTo(0, v * cell + 0.5); ctx.lineTo(W, v * cell + 0.5); }
   ctx.stroke();
 }
 
@@ -325,7 +377,7 @@ function queuePreview() {
     if (!mapPreview) mapPreview = new Preview($('mapPreview'));
     mapPreview.setPalette(palette());
     mapPreview.setTiles(cart.tiles);
-    if (m) mapPreview.setMap(m, { layer, frame: true });
+    if (m) mapPreview.setMap(m, { layer, axis: mapAxis, frame: true });
     else mapPreview.setMap({ w: 1, h: 1, d: 1, data: new Uint8Array(1), origin: [0, 0, 0] });
     mapPreview.render();
   });
@@ -334,7 +386,7 @@ function queuePreview() {
 function setLayer(y) {
   const m = curM();
   if (!m) return;
-  layer = clamp(y, 0, m.h - 1);
+  layer = clamp(y, 0, curSlice().layers - 1);
   $('layerRange').value = layer;
   $('layerLabel').textContent = layer;
   drawGrid();
@@ -342,6 +394,14 @@ function setLayer(y) {
 }
 
 function setupMapEditor() {
+  // undo snapshots one map: its size and blocks (and origin, so a resize undoes fully)
+  mapHist = history(
+    (i) => ({ key: i, w: maps[i].w, h: maps[i].h, d: maps[i].d, origin: [...maps[i].origin], data: maps[i].data.slice() }),
+    (s) => { if (!maps[s.key]) return; Object.assign(maps[s.key], { w: s.w, h: s.h, d: s.d, origin: s.origin, data: s.data }); curMap = s.key; refreshMapUI(); },
+    'mapUndo', 'mapRedo');
+  $('mapUndo').onclick = () => mapHist.undo();
+  $('mapRedo').onclick = () => mapHist.redo();
+  setupPlanePick('mapPlane', (a) => { mapAxis = a; layer = 0; refreshMapUI(); });
   $('mapSelect').onchange = (e) => { curMap = +e.target.value; layer = 0; refreshMapUI(); };
   $('mapNew').onclick = () => {
     maps.push({ name: 'map' + maps.length, w: 16, h: 8, d: 16, origin: [0, 0, 0], data: new Uint8Array(16 * 8 * 16) });
@@ -354,6 +414,7 @@ function setupMapEditor() {
     if (!m || !confirm(`Delete map ${curMap} (${m.name})? Maps after it will be renumbered.` + (used ? ` Its ${used} placement(s) in scenes go too.` : ''))) return;
     maps.splice(curMap, 1);
     sceneRemoved('map', curMap);
+    mapHist.clear(); sceneHist.clear();   // numbers after it moved
     curMap = Math.max(0, curMap - 1);
     refreshMapUI(); dirty();
   };
@@ -367,6 +428,7 @@ function setupMapEditor() {
     const m = curM(); if (!m) return;
     const w = clamp(+$('mapW').value | 0, 1, 128), h = clamp(+$('mapH').value | 0, 1, 128), d = clamp(+$('mapD').value | 0, 1, 128);
     if (w * h * d > 512 * 1024) { alert('That map is too large (max 524,288 blocks).'); return; }
+    mapHist.save(curMap);
     const data = new Uint8Array(w * h * d);
     for (let z = 0; z < Math.min(d, m.d); z++) for (let y = 0; y < Math.min(h, m.h); y++) for (let x = 0; x < Math.min(w, m.w); x++) {
       data[x + w * (y + h * z)] = m.data[x + m.w * (y + m.h * z)];
@@ -383,26 +445,31 @@ function setupMapEditor() {
   $('ghost').onchange = drawGrid;
   const fillLayer = (t) => {
     const m = curM(); if (!m) return;
-    for (let z = 0; z < m.d; z++) for (let x = 0; x < m.w; x++) m.data[x + m.w * (layer + m.h * z)] = t;
+    mapHist.save(curMap);
+    const sl = curSlice();
+    for (let v = 0; v < sl.rows; v++) for (let u = 0; u < sl.cols; u++) m.data[mapIdx(m, sl.at(u, v, layer))] = t;
     drawGrid(); queuePreview(); dirty();
   };
   $('layerFill').onclick = () => fillLayer(mapTile);
   $('layerClear').onclick = () => fillLayer(0);
 
   const cv = $('mapGrid');
-  let painting = -1;
+  let painting = -1, stroked = false;
   const paintAt = (e) => {
     const m = curM(); if (!m) return;
-    const r = cv.getBoundingClientRect();
-    const x = Math.floor((e.clientX - r.left) / cell), z = Math.floor((e.clientY - r.top) / cell);
-    if (x < 0 || z < 0 || x >= m.w || z >= m.d) return;
-    const i = x + m.w * (layer + m.h * z);
+    const r = cv.getBoundingClientRect(), sl = curSlice();
+    const u = Math.floor((e.clientX - r.left) / cell), v = Math.floor((e.clientY - r.top) / cell);
+    if (u < 0 || v < 0 || u >= sl.cols || v >= sl.rows) return;
+    const i = mapIdx(m, sl.at(u, v, layer));
     if (m.data[i] === painting) return;
+    if (!stroked) { mapHist.save(curMap); stroked = true; }   // one undo step per stroke
     m.data[i] = painting;
     drawGrid(); queuePreview(); dirty();
   };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('pointerdown', (e) => {
+    if (!curM()) return;
+    stroked = false;
     painting = e.button === 2 ? 0 : mapTile;
     cv.setPointerCapture(e.pointerId);
     paintAt(e);
@@ -582,12 +649,14 @@ function setupSprEditor() {
 }
 
 // ================================================================= vox editor
-// 8 x 8 x 8 models. The grid shows one layer (y) from above: +x right, +z (the model's front) down.
+// 8 x 8 x 8 models. The grid shows one layer, by default from above (+x right, +z, the model's
+// front, down); Front and Side show layers along z or x instead (see slice()).
 let voxPreview = null, voxQueued = false;
 const voxThumbs = new Map();
 const curV = () => voxModels[curVox];
 const newVox = () => ({ name: '', pivot: [...DEFAULT_PIVOT], data: new Uint8Array(VOX * VOX * VOX) });
 const VCELL = 36;   // grid canvas pixels per voxel
+const voxSlice = () => slice(voxAxis, VOX, VOX, VOX);
 
 // Front view thumbnail: the first voxel seen looking at the model's front (+z side).
 function voxThumb(i) {
@@ -633,6 +702,9 @@ function refreshVoxUI() {
   $('voxName').value = v.name;
   [$('pX').value, $('pY').value, $('pZ').value] = v.pivot;
   $('voxLayer').textContent = voxLayer;
+  $('voxLayerName').textContent = 'Layer ' + voxAxis;
+  $('voxHint').textContent = voxAxis === 'y' ? "Seen from above: +x right, +z (the model's front) down."
+    : voxAxis === 'z' ? 'Seen from the front: +x right, +y up.' : 'Seen from the side: +z (the front) right, +y up.';
   $('voxAdd').disabled = $('voxDup').disabled = voxModels.length >= MAX_VOX;
   $('voxDelete').disabled = voxModels.length <= 1;
   if (!playTimer) {
@@ -652,19 +724,22 @@ function drawVoxGrid() {
   ctx.fillStyle = '#0a0f1d';
   ctx.fillRect(0, 0, size, size);
   const onion = $('voxOnion').checked && curVox > 0 ? voxModels[curVox - 1] : null;
-  for (let z = 0; z < VOX; z++) for (let x = 0; x < VOX; x++) {
-    const val = v.data[voxIndex(x, voxLayer, z)];
-    const px = x * VCELL, py = z * VCELL;
+  const sl = voxSlice();
+  for (let gv = 0; gv < VOX; gv++) for (let gu = 0; gu < VOX; gu++) {
+    const here = voxIndex(...sl.at(gu, gv, voxLayer));
+    const val = v.data[here];
+    const px = gu * VCELL, py = gv * VCELL;
+    const before = voxLayer > 0 ? v.data[voxIndex(...sl.at(gu, gv, voxLayer - 1))] : 0;
     if (val) {
       ctx.fillStyle = hexColor(p[val - 1]);
       ctx.fillRect(px, py, VCELL, VCELL);
-    } else if ($('voxGhost').checked && voxLayer > 0 && v.data[voxIndex(x, voxLayer - 1, z)]) {
+    } else if ($('voxGhost').checked && before) {
       ctx.globalAlpha = 0.25;
-      ctx.fillStyle = hexColor(p[v.data[voxIndex(x, voxLayer - 1, z)] - 1]);
+      ctx.fillStyle = hexColor(p[before - 1]);
       ctx.fillRect(px, py, VCELL, VCELL);
       ctx.globalAlpha = 1;
     }
-    if (onion && onion.data[voxIndex(x, voxLayer, z)]) {
+    if (onion && onion.data[here]) {
       // the previous model's voxel on this layer: a dashed square
       ctx.strokeStyle = 'rgba(255,255,255,0.75)';
       ctx.setLineDash([4, 3]);
@@ -680,13 +755,14 @@ function drawVoxGrid() {
     ctx.moveTo(0, k * VCELL + 0.5); ctx.lineTo(size, k * VCELL + 0.5);
   }
   ctx.stroke();
-  // the pivot's x/z, as a small cross
+  // the pivot, as a small cross, in this view's two directions
   const pv = v.pivot;
+  const [cu, cv2] = voxAxis === 'y' ? [pv[0], pv[2]] : voxAxis === 'z' ? [pv[0], VOX - pv[1]] : [pv[2], VOX - pv[1]];
   ctx.strokeStyle = '#ff004d';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(pv[0] * VCELL - 6, pv[2] * VCELL); ctx.lineTo(pv[0] * VCELL + 6, pv[2] * VCELL);
-  ctx.moveTo(pv[0] * VCELL, pv[2] * VCELL - 6); ctx.lineTo(pv[0] * VCELL, pv[2] * VCELL + 6);
+  ctx.moveTo(cu * VCELL - 6, cv2 * VCELL); ctx.lineTo(cu * VCELL + 6, cv2 * VCELL);
+  ctx.moveTo(cu * VCELL, cv2 * VCELL - 6); ctx.lineTo(cu * VCELL, cv2 * VCELL + 6);
   ctx.stroke();
 }
 
@@ -707,7 +783,7 @@ function showVoxInPreview(i, editing) {
   }
   voxPreview.setPalette(palette());
   const onion = editing && $('voxOnion').checked && i > 0 ? voxModels[i - 1] : null;
-  voxPreview.setVox(voxModels[i], { ghost: onion, layer: editing ? voxLayer : null });
+  voxPreview.setVox(voxModels[i], { ghost: onion, layer: editing ? voxLayer : null, axis: voxAxis, edges: $('voxEdges').checked });
   voxPreview.render();
 }
 
@@ -743,15 +819,18 @@ function voxPut(x, y, z, val) {
   return changed;
 }
 
-function voxFill(x, z, val) {
-  const v = curV(), from = v.data[voxIndex(x, voxLayer, z)];
+// Flood fill on the current layer, from grid cell (u, v).
+function voxFill(u, v, val) {
+  const m = curV(), sl = voxSlice(), at = (a, b) => sl.at(a, b, voxLayer);
+  const from = m.data[voxIndex(...at(u, v))];
   if (from === val) return false;
-  const stack = [[x, z]];
+  voxHist.save(curVox);
+  const stack = [[u, v]];
   while (stack.length) {
-    const [cx, cz] = stack.pop();
-    if (cx < 0 || cz < 0 || cx >= VOX || cz >= VOX || v.data[voxIndex(cx, voxLayer, cz)] !== from) continue;
-    voxPut(cx, voxLayer, cz, val);
-    stack.push([cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]);
+    const [cu, cv] = stack.pop();
+    if (cu < 0 || cv < 0 || cu >= VOX || cv >= VOX || m.data[voxIndex(...at(cu, cv))] !== from) continue;
+    voxPut(...at(cu, cv), val);
+    stack.push([cu + 1, cv], [cu - 1, cv], [cu, cv + 1], [cu, cv - 1]);
   }
   return true;
 }
@@ -795,10 +874,15 @@ function voxPreviewClick(e, hit) {
   const [x, y, z] = hit.cell;
   if (voxTool === 'pick') { if (!hit.floor) pickVoxColor(v.data[voxIndex(x, y, z)]); return; }
   const erase = e.button === 2 || voxTool === 'erase';
+  const before = v.data.slice();
   let changed;
   if (erase) changed = !hit.floor && voxPut(x, y, z, 0);
   else changed = voxPut(x + hit.normal[0], y + hit.normal[1], z + hit.normal[2], voxColor + 1);
-  if (changed) voxEdited();
+  if (changed) {
+    // snapshot from before the click, so one click is one undo step
+    const now = v.data; v.data = before; voxHist.save(curVox); v.data = now;
+    voxEdited();
+  }
 }
 
 // ---- animation preview: loop models from..to in the 3D view
@@ -829,6 +913,14 @@ function startPlayback() {
 }
 
 function setupVoxEditor() {
+  voxHist = history(
+    (i) => ({ key: i, data: voxModels[i].data.slice() }),
+    (s) => { if (!voxModels[s.key]) return; stopPlayback(); voxModels[s.key].data = s.data; curVox = s.key; voxThumbs.delete(s.key); refreshVoxUI(); },
+    'voxUndo', 'voxRedo');
+  $('voxUndo').onclick = () => voxHist.undo();
+  $('voxRedo').onclick = () => voxHist.redo();
+  setupPlanePick('voxPlane', (a) => { voxAxis = a; voxLayer = clamp(voxLayer, 0, VOX - 1); refreshVoxUI(); });
+  $('voxEdges').onchange = queueVoxPreview;
   document.querySelectorAll('#voxTools button').forEach((b) => { b.onclick = () => setVoxTool(b.dataset.tool); });
   $('voxUp').onclick = () => setVoxLayer(voxLayer + 1);
   $('voxDown').onclick = () => setVoxLayer(voxLayer - 1);
@@ -855,6 +947,7 @@ function setupVoxEditor() {
   };
   $('voxClear').onclick = () => {
     if (!confirm(`Clear vox ${curVox}?`)) return;
+    voxHist.save(curVox);
     curV().data.fill(0);
     voxEdited();
   };
@@ -864,6 +957,7 @@ function setupVoxEditor() {
     stopPlayback();
     voxModels.splice(curVox, 1);
     sceneRemoved('vox', curVox);
+    voxHist.clear(); sceneHist.clear();   // numbers after it moved
     voxThumbs.clear();
     curVox = Math.max(0, curVox - 1);
     refreshVoxUI(); dirty();
@@ -872,27 +966,35 @@ function setupVoxEditor() {
 
   // painting on the layer grid
   const cv = $('voxGrid');
-  let painting = null;   // value being painted while dragging, or null
+  let painting = null, stroked = false;   // value being painted while dragging, or null
   const cellAt = (e) => {
     const r = cv.getBoundingClientRect();
-    const x = Math.floor((e.clientX - r.left) / r.width * VOX), z = Math.floor((e.clientY - r.top) / r.height * VOX);
-    return x >= 0 && z >= 0 && x < VOX && z < VOX ? [x, z] : null;
+    const u = Math.floor((e.clientX - r.left) / r.width * VOX), v = Math.floor((e.clientY - r.top) / r.height * VOX);
+    return u >= 0 && v >= 0 && u < VOX && v < VOX ? [u, v] : null;
+  };
+  // paint grid cell c (one undo step per stroke, taken just before its first change)
+  const paint = (c, val) => {
+    const [x, y, z] = voxSlice().at(c[0], c[1], voxLayer);
+    const v = curV(), before = stroked ? null : v.data.slice();
+    if (!voxPut(x, y, z, val)) return;
+    if (before) { const now = v.data; v.data = before; voxHist.save(curVox); v.data = now; stroked = true; }
+    voxEdited();
   };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('pointerdown', (e) => {
     const c = cellAt(e);
     if (!c) return;
     const val = e.button === 2 || voxTool === 'erase' ? 0 : voxColor + 1;
-    if (voxTool === 'pick') { pickVoxColor(curV().data[voxIndex(c[0], voxLayer, c[1])]); return; }
+    if (voxTool === 'pick') { pickVoxColor(curV().data[voxIndex(...voxSlice().at(c[0], c[1], voxLayer))]); return; }
     if (voxTool === 'fill') { if (voxFill(c[0], c[1], val)) voxEdited(); return; }
-    painting = val;
+    painting = val; stroked = false;
     cv.setPointerCapture(e.pointerId);
-    if (voxPut(c[0], voxLayer, c[1], val)) voxEdited();
+    paint(c, val);
   });
   cv.addEventListener('pointermove', (e) => {
     if (painting === null) return;
     const c = cellAt(e);
-    if (c && voxPut(c[0], voxLayer, c[1], painting)) voxEdited();
+    if (c) paint(c, painting);
   });
   cv.addEventListener('pointerup', () => { painting = null; });
 }
@@ -900,7 +1002,8 @@ function setupVoxEditor() {
 // ================================================================= scene editor
 // A scene places copies of maps and vox markers. scene_load(n) in a game turns it into fresh map
 // copies (s.maps, s.named) and a list of markers (s.things); see js/engine.js.
-let scenePreview = null, sceneQueued = false, sceneFramed = false, sceneDrag = null;
+let scenePreview = null, sceneQueued = false, sceneFramed = false, sceneDrag = null, sceneAxis = 'y';
+const AXIS = { x: 0, y: 1, z: 2 };
 const curSc = () => scenes[curScene];
 const sceneStep = () => +$('sceneStep').value || 1;
 const snapTo = (v, st) => +(Math.round(v / st) * st).toFixed(6);
@@ -1041,24 +1144,28 @@ function queueScenePreview() {
   });
 }
 
-// pressing on a thing selects it, and dragging moves it across the flat plane at its height
+// Pressing on a thing selects it, and dragging slides it across a flat plane through it: the
+// ground plane at its height, or (Front / Side) an upright plane, chosen with "Drag on".
 function sceneGrab(phase, e) {
   if (phase === 'down') {
     const i = scenePreview.pickItem(e.clientX, e.clientY);
     if (i < 0) return false;
     if (i !== sceneSel) selectItem(i);
-    const it = selItem(), pt = it && scenePreview.planePoint(e.clientX, e.clientY, it.p.pos[1]);
-    sceneDrag = pt ? { dx: it.p.pos[0] - pt.x, dz: it.p.pos[2] - pt.z, y: it.p.pos[1], moved: false } : null;
+    const it = selItem(), k = AXIS[sceneAxis];
+    const pt = it && scenePreview.planePoint(e.clientX, e.clientY, it.p.pos[k], sceneAxis);
+    sceneDrag = pt ? { off: it.p.pos.map((v, j) => v - pt.getComponent(j)), k, value: it.p.pos[k], axis: sceneAxis, moved: false } : null;
     return true;
   }
   if (phase === 'move') {
     const it = selItem();
     if (!sceneDrag || !it) return;
-    const pt = scenePreview.planePoint(e.clientX, e.clientY, sceneDrag.y);
+    const pt = scenePreview.planePoint(e.clientX, e.clientY, sceneDrag.value, sceneDrag.axis);
     if (!pt) return;
-    const st = sceneStep(), x = snapTo(pt.x + sceneDrag.dx, st), z = snapTo(pt.z + sceneDrag.dz, st);
-    if (x === it.p.pos[0] && z === it.p.pos[2]) return;
-    it.p.pos[0] = x; it.p.pos[2] = z;
+    const st = sceneStep();
+    const next = it.p.pos.map((v, j) => (j === sceneDrag.k ? v : snapTo(pt.getComponent(j) + sceneDrag.off[j], st)));
+    if (next.every((v, j) => v === it.p.pos[j])) return;
+    if (!sceneDrag.moved) sceneHist.save();   // one undo step per drag
+    it.p.pos = next;
     sceneDrag.moved = true;
     showSceneProps();
     queueScenePreview();
@@ -1073,6 +1180,7 @@ function sceneEdited() { drawSceneList(); showSceneProps(); queueScenePreview();
 function nudge(axis, dir) {
   const it = selItem();
   if (!it) return;
+  sceneHist.save();
   it.p.pos[axis] = snapTo(it.p.pos[axis] + dir * sceneStep(), 1e-6);
   showSceneProps(); queueScenePreview(); dirty();
 }
@@ -1080,6 +1188,7 @@ function nudge(axis, dir) {
 function turn(dir) {
   const it = selItem();
   if (!it) return;
+  sceneHist.save();
   if (it.kind === 'map') it.p.angle[1] = wrapTurn(it.p.angle[1] + dir * 0.25);
   else it.p.yaw = wrapTurn(it.p.yaw + dir * 0.25);
   showSceneProps(); queueScenePreview(); dirty();
@@ -1091,6 +1200,8 @@ function addToScene(kind) {
   // put new things in the middle of the view, on the ground
   const t = scenePreview ? scenePreview.target : { x: 0, z: 0 };
   const pos = [Math.round(t.x), 0, Math.round(t.z)];
+  if (kind === 'map' ? !maps.length : !voxModels.length) return;
+  sceneHist.save();
   if (kind === 'map') {
     if (!maps.length) return;
     sc.maps.push({ m: +$('sceneAddMap').value || 0, pos, angle: [0, 0, 0] });
@@ -1106,6 +1217,7 @@ function addToScene(kind) {
 function duplicateSel() {
   const sc = curSc(), it = selItem();
   if (!it) return;
+  sceneHist.save();
   if (it.kind === 'map') {
     // next to the original, not on top of it (names stay with the original: they should be unique)
     const w = (maps[it.p.m] || EMPTY_MAP).w;
@@ -1121,6 +1233,7 @@ function duplicateSel() {
 function deleteSel() {
   const sc = curSc(), it = selItem();
   if (!it) return;
+  sceneHist.save();
   if (it.kind === 'map') sc.maps.splice(it.i, 1); else sc.vox.splice(it.i, 1);
   sceneSel = -1;
   sceneEdited();
@@ -1146,14 +1259,30 @@ function sceneKey(e) {
 }
 
 function setupSceneEditor() {
+  // undo snapshots every scene (they're small), plus which one was open and what was selected
+  sceneHist = history(
+    () => ({ key: 0, scenes: JSON.stringify(scenes), cur: curScene, sel: sceneSel }),
+    (s) => { scenes = JSON.parse(s.scenes); curScene = s.cur; sceneSel = s.sel; refreshSceneUI(); },
+    'sceneUndo', 'sceneRedo');
+  $('sceneUndo').onclick = () => sceneHist.undo();
+  $('sceneRedo').onclick = () => sceneHist.redo();
+  setupPlanePick('scenePlane', (a) => { sceneAxis = a; });
+  // typing in a field is one undo step per visit to the field
+  let typed = false;
+  for (const id of ['sceneName', 'selName', 'sX', 'sY', 'sZ', 'sP', 'sYaw', 'sR', 'sVYaw']) {
+    $(id).addEventListener('focus', () => { typed = false; });
+    $(id).addEventListener('input', () => { if (!typed) { sceneHist.save(); typed = true; } }, true);
+  }
   $('sceneSelect').onchange = (e) => { curScene = +e.target.value; sceneSel = -1; sceneFramed = false; refreshSceneUI(); };
   $('sceneNew').onclick = () => {
+    sceneHist.save();
     scenes.push({ name: 'scene' + scenes.length, maps: [], vox: [] });
     curScene = scenes.length - 1; sceneSel = -1; sceneFramed = false;
     refreshSceneUI(); dirty();
   };
   $('sceneDup').onclick = () => {
     const sc = curSc(); if (!sc) return;
+    sceneHist.save();
     scenes.push({ ...JSON.parse(JSON.stringify(sc)), name: (sc.name || 'scene') + ' copy' });
     curScene = scenes.length - 1; sceneSel = -1;
     refreshSceneUI(); dirty();
@@ -1161,6 +1290,7 @@ function setupSceneEditor() {
   $('sceneDelete').onclick = () => {
     const sc = curSc();
     if (!sc || !confirm(`Delete scene ${curScene} (${sc.name})? Scenes after it will be renumbered.`)) return;
+    sceneHist.save();
     scenes.splice(curScene, 1);
     curScene = Math.max(0, curScene - 1); sceneSel = -1; sceneFramed = false;
     refreshSceneUI(); dirty();
@@ -1702,6 +1832,16 @@ function setupTopBar() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); return; }
     const typing = e.target.closest('input, textarea, select, .CodeMirror');
+    // undo / redo in the Map, Vox and Scene tabs (inside a text field, the field's own undo works)
+    const hist = { map: mapHist, vox: voxHist, scene: sceneHist }[activeTab];
+    if (hist && !typing && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' || k === 'y') {
+        e.preventDefault();
+        if (k === 'y' || e.shiftKey) hist.redo(); else hist.undo();
+        return;
+      }
+    }
     if (activeTab === 'map' && !typing) {
       if (e.key === '[') setLayer(layer - 1);
       if (e.key === ']') setLayer(layer + 1);

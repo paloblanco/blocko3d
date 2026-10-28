@@ -29,12 +29,12 @@ The IDE is an installable app. Open it in Chrome or Edge and click the install i
 | Tab | What it does |
 | --- | --- |
 | Code | Your game's JavaScript (`_init`, `_update`, `_draw`). |
-| Map | Paint maps layer by layer, set size, name and origin, with a 3D orbit preview. |
+| Map | Paint maps layer by layer, seen from the top, front or side, set size, name and origin, with a 3D orbit preview. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
 | Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
 | Sfx | Make sound effects, PICO-8 style: draw pitches with a brush (waveform, volume, effect), set speed and loop points, play them, and copy a sound out as a string. Turn on **Snap to scale** (default C minor pentatonic; any root and 9 scales) so every note you draw fits the song. |
 | Music | Arrange songs: 64 patterns of up to 4 sounds playing at once, with loop start, loop back and stop flags. Play follows the song through the patterns. |
-| Scene | Arrange copies of maps and vox markers into a level: add, drag, nudge, turn, duplicate and name them in a 3D view. A game builds it with `scene_load(n)`. |
-| Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer or click in the 3D view, mirror, set the pivot, onion-skin the previous model and play a range of models as an animation. |
+| Scene | Arrange copies of maps and vox markers into a level: add, drag (across the ground or up and down an upright plane), nudge, turn, duplicate and name them in a 3D view, with undo. A game builds it with `scene_load(n)`. |
+| Vox | Build 8×8×8 voxel models for characters and items: paint layer by layer (seen from the top, front or side) or click in the 3D view, mirror, set the pivot, outline every voxel in the 3D view, onion-skin the previous model, undo, and play a range of models as an animation. |
 | Info | API reference. |
 
 The game runs on the right in a square 256×256 view. Errors show in the console below it; click one to jump to the line. The cart autosaves in your browser; **Save** downloads it as a `.b3d.json` file and **Open** loads one. **Demos** is a menu of sample games to load and pick apart, each showing off a core feature:

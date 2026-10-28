@@ -387,3 +387,7 @@ kbd {
   .console { flex: none; min-height: 72px; max-height: 30vh; }
 }
 .sceneprops [hidden] { display: none !important; }
+.planepick button { padding: 3px 8px; }
+.undopick { display: inline-flex; gap: 4px; }
+.planerow { display: flex; align-items: center; gap: 6px; color: var(--muted); flex-wrap: wrap; }
+.voxside label.check { color: var(--muted); }

@@ -75,22 +75,27 @@
         <button id="mapResize">Resize</button>
         <span class="sep"></span>
         <label class="xyz">Origin <input id="oX" type="number" step="0.5"><input id="oY" type="number" step="0.5"><input id="oZ" type="number" step="0.5"></label>
+        <span class="sep"></span>
+        <button id="mapUndo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="mapRedo" title="Redo (Ctrl+Shift+Z or Ctrl+Y)">↷ Redo</button>
       </div>
       <div class="tilebar" id="mapTiles"></div>
       <div class="mapwork">
         <div class="gridwrap">
           <div class="layerbar">
-            <span>Layer y</span>
+            <span class="toolpick planepick" id="mapPlane" title="Which slice of the map the grid edits">
+              <button data-axis="y" class="on" title="Horizontal layers, seen from above">Top</button><button data-axis="z" title="Layers front to back, seen from the front">Front</button><button data-axis="x" title="Layers left to right, seen from the side">Side</button>
+            </span>
+            <span id="layerName">Layer y</span>
             <button id="layerDown" title="Layer down ( [ )">−</button>
             <b id="layerLabel">0</b>
             <button id="layerUp" title="Layer up ( ] )">+</button>
             <input type="range" id="layerRange" min="0" max="0" value="0">
-            <label class="check"><input type="checkbox" id="ghost" checked> ghost below</label>
+            <label class="check" title="Show the layer before this one faintly"><input type="checkbox" id="ghost" checked> ghost</label>
             <button id="layerFill">Fill layer</button>
             <button id="layerClear">Clear layer</button>
           </div>
           <div class="gridscroll" id="gridScroll"><canvas id="mapGrid"></canvas></div>
-          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> Seen from above: +x right, +z down.</div>
+          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> <span id="mapHint">Seen from above: +x right, +z down.</span></div>
         </div>
         <div class="previewwrap">
           <canvas id="mapPreview"></canvas>
@@ -152,23 +157,28 @@
               <button data-tool="pick" title="Tap a voxel to pick its color">Pick</button>
             </span>
             <label class="check" title="Paint both sides at once, mirrored across the middle in x"><input type="checkbox" id="voxMirror"> mirror x</label>
+            <span class="undopick"><button id="voxUndo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="voxRedo" title="Redo (Ctrl+Shift+Z or Ctrl+Y)">↷ Redo</button></span>
           </div>
           <div class="layerbar">
-            <span>Layer y</span>
+            <span class="toolpick planepick" id="voxPlane" title="Which slice of the model the grid edits">
+              <button data-axis="y" class="on" title="Horizontal layers, seen from above">Top</button><button data-axis="z" title="Layers front to back, seen from the front">Front</button><button data-axis="x" title="Layers left to right, seen from the side">Side</button>
+            </span>
+            <span id="voxLayerName">Layer y</span>
             <button id="voxDown" title="Layer down ( [ )">−</button>
             <b id="voxLayer">0</b>
             <button id="voxUp" title="Layer up ( ] )">+</button>
-            <label class="check"><input type="checkbox" id="voxGhost" checked> ghost below</label>
+            <label class="check" title="Show the layer before this one faintly"><input type="checkbox" id="voxGhost" checked> ghost</label>
             <label class="check" title="Show the previous model faintly, for animation frames"><input type="checkbox" id="voxOnion"> onion skin</label>
           </div>
           <canvas id="voxGrid" class="voxgrid"></canvas>
           <div class="palette" id="voxPalette"></div>
           <div class="colorinfo" id="voxColorLabel"></div>
-          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; use Erase to remove voxels.</span> Seen from above: +x right, +z (the model's front) down.</div>
+          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; use Erase to remove voxels.</span> <span id="voxHint">Seen from above: +x right, +z (the model's front) down.</span></div>
         </div>
         <div class="previewwrap voxside">
           <canvas id="voxPreview"></canvas>
           <div class="hint">Drag to orbit. <span class="desktop-only">Click a voxel face to add, right-click to remove.</span><span class="mobile-only">Tap a voxel face to add (or remove, with Erase).</span> Red cross = pivot.</div>
+          <label class="check" title="Outline every voxel in the 3D view"><input type="checkbox" id="voxEdges"> voxel edges</label>
           <label class="xyz">Pivot <input id="pX" type="number" step="0.5"><input id="pY" type="number" step="0.5"><input id="pZ" type="number" step="0.5"></label>
           <div class="playbar">
             <button id="playBtn" title="Loop these models in the preview">▶ Play</button>
@@ -189,6 +199,8 @@
         <button id="sceneDelete" title="Delete this scene; later scenes move down one number">Delete</button>
         <span class="sep"></span>
         <label>Name <input id="sceneName" size="10" spellcheck="false"></label>
+        <span class="sep"></span>
+        <button id="sceneUndo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="sceneRedo" title="Redo (Ctrl+Shift+Z or Ctrl+Y)">↷ Redo</button>
       </div>
       <div class="scenework" id="scenework">
         <aside class="scenelist">
@@ -209,6 +221,9 @@
             <label class="xyz" id="selAngleRow" title="Pitch, yaw, roll in turns">Angle <input id="sP" type="number" step="0.25"><input id="sYaw" type="number" step="0.25"><input id="sR" type="number" step="0.25"></label>
             <label id="selYawRow" title="Yaw in turns">Yaw <input id="sVYaw" type="number" step="0.25"></label>
             <div class="nudge">
+              <div class="planerow">Drag on <span class="toolpick planepick" id="scenePlane" title="The flat plane a dragged thing slides on">
+                <button data-axis="y" class="on" title="Slide across the ground (x and z)">Ground</button><button data-axis="z" title="Slide on an upright plane facing front (x and y)">Front</button><button data-axis="x" title="Slide on an upright plane facing the side (z and y)">Side</button>
+              </span></div>
               <label>Step <select id="sceneStep"><option>1</option><option>0.5</option><option>0.125</option></select></label>
               <div class="nudgegrid">
                 <button data-nudge="0,-1">−X</button><button data-nudge="0,1">+X</button>

@@ -6,6 +6,35 @@ import {
   VOX, createVox, buildVoxGeometry, createVoxMaterial, updateTransform, voxMatrix,
 } from './core.js';
 
+// Outline of one layer of a w × h × d grid, as line segments: the layer's two faces (at L and L + 1)
+// across the other two axes. axis is the axis the layers stack along: 'y', 'z' or 'x'.
+function layerLines(axis, L, w, h, d) {
+  const out = [];
+  for (const k of [L, L + 1]) {
+    // the four corners of the rectangle at k, in [x, y, z]
+    const c = axis === 'y' ? [[0, k, 0], [w, k, 0], [w, k, d], [0, k, d]]
+      : axis === 'z' ? [[0, 0, k], [w, 0, k], [w, h, k], [0, h, k]]
+        : [[k, 0, 0], [k, 0, d], [k, h, d], [k, h, 0]];
+    for (let i = 0; i < 4; i++) out.push(...c[i], ...c[(i + 1) % 4]);
+  }
+  return out;
+}
+
+// The 12 edges of every filled voxel (data: 0 = empty), as line segments in voxel units.
+function voxelEdges(data) {
+  const out = [];
+  for (let z = 0; z < VOX; z++) for (let y = 0; y < VOX; y++) for (let x = 0; x < VOX; x++) {
+    if (!data[x + VOX * (y + VOX * z)]) continue;
+    for (const [a, b] of [[0, 1], [1, 2], [2, 3], [3, 0]]) {
+      const sq = [[0, 0], [1, 0], [1, 1], [0, 1]];
+      out.push(x + sq[a][0], y + sq[a][1], z, x + sq[b][0], y + sq[b][1], z);           // front
+      out.push(x + sq[a][0], y + sq[a][1], z + 1, x + sq[b][0], y + sq[b][1], z + 1);   // back
+    }
+    for (const [dx, dy] of [[0, 0], [1, 0], [1, 1], [0, 1]]) out.push(x + dx, y + dy, z, x + dx, y + dy, z + 1);
+  }
+  return out;
+}
+
 export class Preview {
   constructor(canvas, { autoSpin = false } = {}) {
     this.canvas = canvas;
@@ -20,6 +49,8 @@ export class Preview {
     this.scene.add(this.mesh);
     // vox models: the model, a faint ghost for onion skin, and a floor grid to click on
     this.voxMesh = new THREE.Mesh(new THREE.BufferGeometry(), createVoxMaterial(this.palU));
+    // push the model's faces back a touch, so voxel edge lines drawn on them stay visible
+    Object.assign(this.voxMesh.material, { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     this.ghost = new THREE.Mesh(new THREE.BufferGeometry(),
       new THREE.MeshBasicMaterial({ color: 0xc2c3c7, transparent: true, opacity: 0.22, depthWrite: false }));
     this.ghost.renderOrder = 1;
@@ -95,8 +126,8 @@ export class Preview {
   setPalette(p) { this.palette = p; syncPaletteUniform(this.palU, p); }
   setTiles(tiles) { writeAtlas(this.atlas, tiles); }
 
-  // map: {w, h, d, data: Uint8Array, origin}
-  setMap(map, { layer = null, frame = false } = {}) {
+  // map: {w, h, d, data: Uint8Array, origin}; layer: the layer being edited along axis ('y', 'z', 'x')
+  setMap(map, { layer = null, axis = 'y', frame = false } = {}) {
     this.mesh.visible = true;
     this.voxMesh.visible = false;
     this.ghost.geometry.dispose();
@@ -106,12 +137,7 @@ export class Preview {
     this.mesh.geometry = buildMapGeometry(m);
     this.helpers.clear();
     const lines = [];
-    if (layer !== null) {
-      // outline of the layer being edited
-      for (const y of [layer, layer + 1]) {
-        lines.push(0, y, 0, map.w, y, 0, map.w, y, 0, map.w, y, map.d, map.w, y, map.d, 0, y, map.d, 0, y, map.d, 0, y, 0);
-      }
-    }
+    if (layer !== null) lines.push(...layerLines(axis, layer, map.w, map.h, map.d));   // the layer being edited
     if (frame) {
       const o = map.origin, s = 0.6;
       lines.push(o[0] - s, o[1], o[2], o[0] + s, o[1], o[2], o[0], o[1] - s, o[2], o[0], o[1] + s, o[2], o[0], o[1], o[2] - s, o[0], o[1], o[2] + s);
@@ -126,8 +152,9 @@ export class Preview {
     this.target.set(map.w / 2, map.h / 2, map.d / 2);
   }
 
-  // v: {data, pivot}; ghost: another model to show faintly (onion skin) or null
-  setVox(v, { ghost = null, layer = null } = {}) {
+  // v: {data, pivot}; ghost: another model to show faintly (onion skin) or null; layer: the layer
+  // being edited along axis; edges: outline every voxel
+  setVox(v, { ghost = null, layer = null, axis = 'y', edges = false } = {}) {
     this.mesh.visible = false;
     this.voxMesh.visible = true;
     this.voxMesh.geometry.dispose();
@@ -140,10 +167,13 @@ export class Preview {
     const grid = new THREE.BufferGeometry();
     grid.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
     this.helpers.add(new THREE.LineSegments(grid, new THREE.LineBasicMaterial({ color: 0x2a3557 })));
-    const red = [];
-    if (layer !== null) {
-      for (const y of [layer, layer + 1]) red.push(0, y, 0, VOX, y, 0, VOX, y, 0, VOX, y, VOX, VOX, y, VOX, 0, y, VOX, 0, y, VOX, 0, y, 0);
+    if (edges) {
+      const eg = new THREE.BufferGeometry();
+      eg.setAttribute('position', new THREE.Float32BufferAttribute(voxelEdges(v.data), 3));
+      this.helpers.add(new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x0d1222 })));
     }
+    const red = [];
+    if (layer !== null) red.push(...layerLines(axis, layer, VOX, VOX, VOX));
     const o = v.pivot, s = 1.5;
     red.push(o[0] - s, o[1], o[2], o[0] + s, o[1], o[2], o[0], o[1] - s, o[2], o[0], o[1] + s, o[2], o[0], o[1], o[2] - s, o[0], o[1], o[2] + s);
     const rg = new THREE.BufferGeometry();
@@ -273,10 +303,12 @@ export class Preview {
     return hit ? hit.object.userData.item : -1;
   }
 
-  // Where a screen point meets the flat plane at height y (world units), or null.
-  planePoint(clientX, clientY, y) {
+  // Where a screen point meets a flat plane, or null: by default the level plane at height value;
+  // axis 'z' is the upright plane z = value, 'x' the upright plane x = value.
+  planePoint(clientX, clientY, value, axis = 'y') {
+    const n = new THREE.Vector3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0);
     const p = new THREE.Vector3();
-    return this._ray(clientX, clientY).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), p) ? p : null;
+    return this._ray(clientX, clientY).ray.intersectPlane(new THREE.Plane(n, -value), p) ? p : null;
   }
 
   _ray(clientX, clientY) {
