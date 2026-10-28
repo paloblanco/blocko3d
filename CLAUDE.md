@@ -228,7 +228,12 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 - **The IDE loads nothing from other sites** (the owner agreed, so it works offline): `vendor/` holds CodeMirror 5.65.18 (`lib/codemirror.js`, the javascript mode and the CSS, minified with esbuild from the npm package), three's prebuilt `three.module.min.js`, and IBM Plex Sans 400/500/600 and JetBrains Mono 400/600 (latin woff2 from `@fontsource` 5.x, `vendor/fonts/fonts.css`), with their licenses and a `vendor/README.md`. To upgrade one, replace its files and keep the versions in sync.
 - esbuild, a dev dependency for building the runtime bundle.
 
-**Engine change workflow:** after editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js` or `js/version.js`, run `npm install` (once) and `npm run build`, and commit `runtime/blocky3d.runtime.js`, `standalone_demo/` and `demos/castle.b3d.json` (the build also re-exports the castle). Run in the IDE uses the bundle, so changes don't show up until you rebuild. The GitHub Action in `.github/workflows/runtime-bundle.yml` fails if the committed bundle, `standalone_demo/` or `demos/castle.b3d.json` is stale. Editing `js/cart.js` or `js/export.js` also changes the demo, so rebuild after those too.
+**Build workflow: run `npm run build` before every commit, for any change, not just engine changes.** Run `npm install` once first. The build rewrites, and you commit with your change:
+- `runtime/blocky3d.runtime.js` (from `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run in the IDE uses this bundle, so engine changes don't show up until you rebuild.
+- `standalone_demo/` and `demos/castle.b3d.json` (also from `js/cart.js`, `js/export.js` and anything in `demos/`).
+- **The IDE's offline files** `ide-sw.js`, `ide.webmanifest` and `icons/`. `ide-sw.js` lists every file the IDE uses and a fingerprint of their contents, so it changes whenever anything in `index.html`, `player.html`, `webgl-check.html`, `css/`, `js/`, `demos/`, `vendor/` or `runtime/` changes. That's how the installed IDE learns to re-download its offline copy. **Skip the build after an IDE-only change (a CSS tweak, a new demo, an Info tab edit) and installed IDEs won't keep the new files for offline use.** A brand-new top-level folder the IDE loads from must also be added to `SOURCES` in `tools/build-ide.mjs`.
+
+The GitHub Action in `.github/workflows/runtime-bundle.yml` builds with Node 20 and fails if any of these committed files differ from a fresh build.
 
 **Exported games** must stay fully standalone: the game is two files (`index.html` + `<slug>.js`), makes no network requests, and works from `file://`. Don't add CDN loads, ES modules (they fail from `file://`) or extra asset files the game needs.
 
@@ -294,6 +299,7 @@ A small `tests/` folder built this way would be a good addition.
 
 ## Working with the owner
 
+- Run `npm run build` before every commit and commit what it rewrites (see **Build workflow**). It's needed after IDE-only changes too, for the installed, offline IDE.
 - Keep explanations plain and practical.
 - Discuss API design before changing it. API decisions were made deliberately, one at a time.
 - Keep the README, the Info tab (`js/apidocs.js`), `CHANGELOG.md` and this file in sync with API changes.

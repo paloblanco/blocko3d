@@ -6,8 +6,10 @@
 //    Online it always fetches the latest (so a push shows up the next time the IDE opens) and
 //    stores it; offline it answers from the copies. The list carries a fingerprint of the files'
 //    contents, so any change gives a new ide-sw.js, and the browser re-downloads the whole set.
-// Files the IDE needs that aren't in the list (a new folder, say) work online but not offline:
-// add their folder to SOURCES.
+// Because ide-sw.js carries that fingerprint, run `npm run build` (and commit its output) after ANY
+// change to the IDE's files, not just engine changes; otherwise installed IDEs keep the old offline
+// copy. CI fails if ide-sw.js is stale. Files the IDE needs that aren't in the list (a new folder,
+// say) work online but not offline: add their folder to SOURCES.
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, statSync } from 'node:fs';
 import { encodePng } from '../js/png.js';
 

@@ -132,18 +132,24 @@ The Info tab has the full reference.
 2. Put the file in `demos/`.
 3. Add a line for it to `demos/index.json`: the file name, the name shown in the menu, and a sentence about what it shows (shown as a tooltip and in the console when it loads).
 
-That's enough for the IDE's menu. Then run `npm run build` (see below): it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
+That's enough for the IDE's menu online. Then run `npm run build` (see **Building** below) and commit what it writes: it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too, and adds the new cart to the installed IDE's offline files. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
 
-## Changing the engine
+## Building (after any change)
 
-The IDE needs no build step, but the runtime bundle does. After editing `js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js` or `js/version.js` (or `js/cart.js` and `js/export.js`, which change the demo export):
+**Run `npm run build` before every commit, whatever you changed**, and commit what it rewrites along with your change:
 
 ```
 npm install      # once
-npm run build    # rewrites runtime/blocky3d.runtime.js, standalone_demo/ and the IDE's offline files
+npm run build    # rewrites runtime/, standalone_demo/, demos/castle.b3d.json and the IDE's offline files
 ```
 
-The build also writes the castle demo to `demos/castle.b3d.json` and exports every demo in `demos/index.json` to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game). Last, it writes the IDE's offline files: `ide-sw.js` (the service worker, listing every file the IDE uses with a fingerprint of their contents), `ide.webmanifest` and `icons/ide-*.png`. Since that fingerprint covers the IDE's files, run the build after any change to the IDE too (`index.html`, `css/`, `js/`, `demos/`), or the installed IDE won't pick up new files for offline use. Commit what the build writes with your change. A GitHub Action fails if any of it doesn't match a fresh build.
+The IDE itself runs as plain files with no build step, but the build keeps three things in step with your change:
+
+- **The runtime bundle**, `runtime/blocky3d.runtime.js`, made from the engine (`js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run and Export use it, so engine changes don't show up until you rebuild.
+- **The demos.** The castle (generated in `js/cart.js`) is written to `demos/castle.b3d.json`, and every demo in `demos/index.json` is exported to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game).
+- **The installed, offline IDE.** `ide-sw.js` (the service worker), `ide.webmanifest` and `icons/ide-*.png`. `ide-sw.js` lists every file the IDE uses with a fingerprint of their contents, so it changes whenever any of them does (`index.html`, `player.html`, `css/`, `js/`, `demos/`, `vendor/`, `runtime/`). That's how installed IDEs know to download the new files. **This is why a change that only touches the IDE, like a CSS tweak, a new demo or an Info tab edit, still needs the build**: without it, installed IDEs won't keep the new files for offline use. If you add a new top-level folder the IDE loads files from, also add it to `SOURCES` in `tools/build-ide.mjs`.
+
+A GitHub Action fails if any of these committed files doesn't match a fresh build.
 
 ## Not in this version
 
