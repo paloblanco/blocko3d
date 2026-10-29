@@ -184,7 +184,7 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
 - The extras: `printh`, the keyboard mapping (arrows/WASD, Z C N space for O, X V M for X), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
-- `_update` runs at a fixed 60 per second. The loop is `stepOnce()` (input, pause menu or `_update`) and `drawFrame()`; `engine.step(n, draw = true)` (internal, for tools, not in the game API) stops the clock and runs exactly n steps, each drawn, as on a 60 Hz screen (`draw` false draws only the last). `reset()` hands the loop back to the clock.
+- `_update` runs at a fixed 60 per second. The loop is `stepOnce()` (input, pause menu or `_update`) and `drawFrame()`; `engine.step(n, draw = true)` (internal, for tools, not in the game API) stops the clock and runs exactly n steps, each drawn, as on a 60 Hz screen (`draw` false draws only the last); `step(0)` before `start` keeps the browser's clock from running any update first (the headless runner does this). `reset()` hands the loop back to the clock.
 - `srand(n)` (agreed with the owner, for headless runs and seeded levels): `rnd` then uses mulberry32 seeded with `round(n * 65536)` (so fractional seeds differ, like PICO-8's 16.16); `srand()` and `reset()` go back to `Math.random`.
 - Nothing is transparent by default.
 

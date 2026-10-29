@@ -1,7 +1,7 @@
 // BLOCKO3D IDE: keeps the IDE's files on this device, so the IDE works offline and as an
 // installed app. Made by tools/build-ide.mjs (npm run build); don't edit it by hand.
 // Online, every file is fetched fresh (and the copy updated); offline, the copy answers.
-const CACHE = 'b3d-ide-05c05dac';
+const CACHE = 'b3d-ide-65b17d7f';
 const FILES = ["brand/icon/blocko3d-cube.svg","brand/logo/blocko3d-horizontal-on-dark.svg","brand/web/apple-touch-icon.png","brand/web/favicon.ico","brand/web/favicon.svg","brand/web/icon-192.png","brand/web/icon-512.png","css/ide.css","demos/blockpop.b3d.json","demos/builder.b3d.json","demos/bumper.b3d.json","demos/castle.b3d.json","demos/firstperson.b3d.json","demos/index.json","demos/racing.b3d.json","demos/scrambler.b3d.json","demos/thirdperson.b3d.json","demos/tiltmaze.b3d.json","demos/village.b3d.json","ide.webmanifest","index.html","js/apidocs.js","js/audio.js","js/boot.js","js/cart.js","js/core.js","js/engine.js","js/export.js","js/font.js","js/format.js","js/ide.js","js/png.js","js/preview.js","js/shell.js","js/version.js","js/zip.js","player.html","runtime/blocko3d.runtime.js","vendor/codemirror/codemirror.min.css","vendor/codemirror/codemirror.min.js","vendor/codemirror/javascript.min.js","vendor/fonts/fonts.css","vendor/fonts/ibm-plex-sans-latin-400-normal.woff2","vendor/fonts/ibm-plex-sans-latin-500-normal.woff2","vendor/fonts/ibm-plex-sans-latin-600-normal.woff2","vendor/fonts/jetbrains-mono-latin-400-normal.woff2","vendor/fonts/jetbrains-mono-latin-600-normal.woff2","vendor/three/three.module.min.js","webgl-check.html"];
 const OURS = new Set(FILES.map((f) => new URL(f, self.registration.scope).href));
 self.addEventListener('install', (e) => {

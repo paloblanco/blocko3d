@@ -1100,10 +1100,11 @@ export function createEngine({
 
   // For tools (b3d shot/run): stop the clock and run exactly n steps, each followed by a draw, as
   // on a 60 Hz screen. With draw false only the last step draws (faster when only the end matters).
-  // Returns false once the game has thrown.
+  // Returns false once the game has thrown. step(0) before start() keeps the clock from ever
+  // running (reset() gives the loop back to the clock).
   function step(n = 1, draw = true) {
-    if (!running) return false;
     manual = true; cancelAnimationFrame(raf);
+    if (!running) return n === 0;
     for (let i = 0; i < n; i++) {
       if (!stepOnce() || !running) return false;
       if ((draw || i === n - 1) && !drawFrame()) return false;
