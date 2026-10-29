@@ -1,5 +1,8 @@
 // API reference shown in the IDE's Info tab.
 import { VERSION } from './version.js';
+import { LIMITS } from './format.js';
+
+const n = (x) => x.toLocaleString('en-US');
 
 export const API_SECTIONS = [
   {
@@ -217,6 +220,34 @@ if (t && btnp(20)) mset(0, xi, yi, zi, 0)`,
       ['Rotation order', 'Yaw, then pitch, then roll. +z is forward: positive pitch tips +z up, positive yaw turns +z toward +x, positive roll turns +x toward +y.'],
       ['Rendering', 'No shading or lighting: every face is drawn exactly as textured.'],
       ['Tiles', 'Up to 63 tiles (1-63). Each has three 8 × 8 textures: top, sides and bottom.'],
+    ],
+  },
+  {
+    title: 'Limits',
+    intro: 'The same numbers the editors and b3d check use.',
+    items: [
+      ['Screen', `${LIMITS.screen} × ${LIMITS.screen}, drawn at 1×, 2× or 3× (the player picks in the pause menu); print and rect always use ${LIMITS.screen} pixels.`],
+      ['Palette', `${LIMITS.colors} colors, 0-${LIMITS.colors - 1}.`],
+      ['Tiles', `${LIMITS.tiles}, numbered 1-${LIMITS.tiles} (0 is empty), each three ${LIMITS.tileSize} × ${LIMITS.tileSize} faces.`],
+      ['Maps', `As many as you like. The Map tab edits up to ${LIMITS.mapSide} blocks per side and ${n(LIMITS.mapBlocks)} blocks in all.`],
+      ['Vox models', `${LIMITS.vox}, numbered 0-${LIMITS.vox - 1}, each ${LIMITS.voxSize} × ${LIMITS.voxSize} × ${LIMITS.voxSize} voxels.`],
+      ['Sounds', `${LIMITS.sfx}, numbered 0-${LIMITS.sfx - 1}, each ${LIMITS.notes} notes: pitch 0-63, wave, volume and effect 0-7.`],
+      ['Music', `${LIMITS.patterns} patterns of 4 channels.`],
+      ['Save data', `${n(LIMITS.saveBytes / 1024)} KB of JSON per game.`],
+    ],
+  },
+  {
+    title: 'Command line (b3d)',
+    intro: 'Outside the IDE, the b3d command checks, exports, runs and renders games, and turns a cart into a folder of small text files and back, for a text editor, git or an AI agent. Install it with npm install -g github:paloblanco/blocko3d (Node 18 or later). shot, run and the map and model renders also need Playwright: npm install -g playwright, then npx playwright install chromium. A game is a .b3d.json cart or a project folder; MAKING_GAMES.md in the repo explains the folder.',
+    items: [
+      ['b3d check <game>', 'Checks every limit and format and the code\'s syntax. Problems name the file and line.'],
+      ['b3d export <game> [--out dir] [--zip]', 'The standalone game, exactly as the Export button makes it.'],
+      ['b3d unpack <cart> <folder>', 'A cart to a project folder: cart.json, main.js, tiles/, vox/, sfx/, music.txt, maps/, scenes.json, cover.png.'],
+      ['b3d pack <folder> [--out cart]', 'The folder back to a cart, exactly as the IDE\'s Save would write it, ready to Open in the IDE.'],
+      ['b3d shot <game> [--frames n] [--input "..."] [--out shot.png]', 'Runs the game headless for n updates (default 60) and saves the screen. --input "o@30, up:40-90, p1:x@5" taps O on update 30, holds up from 40 to 90, and taps X for player 1. --seed n (default 0) makes rnd repeat, --res 1-3.'],
+      ['b3d run <game> [same options]', 'The same run, printing printh output (and save calls) to the terminal. A game error names main.js and the line.'],
+      ['b3d render <game> --map n | --vox n | --tiles', 'Pictures of one asset: a map from the top, front, side or a 3/4 view (--view), a model from six sides, or every tile.'],
+      ['b3d sfx render <game> --sfx n | --music [n]', 'A sound or the song to a WAV file, with its length, peak level and any clipping.'],
     ],
   },
 ];

@@ -80,6 +80,26 @@ The zip also holds four small files that make the game an **installable app** (a
 
 The game needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error. The four app files are only used on https sites, so the game runs the same with or without them.
 
+## Making games outside the IDE: the `b3d` command
+
+`b3d` does the IDE's jobs from a terminal, for a text editor, git, scripts or an AI agent:
+
+```
+npm install -g github:paloblanco/blocko3d     # Node 18 or later
+b3d unpack game.b3d.json game/                # a cart saved by the IDE -> a folder of small text files
+b3d check game/                               # every limit and format; problems name the file and line
+b3d shot game/ --frames 300 --input "o@30, up:60-200" --out walk.png   # run headless, save the screen
+b3d run game/ --frames 600                    # the same, printing printh output
+b3d render game/ --map 0 --view top           # pictures of one map, model (--vox n) or all tiles (--tiles)
+b3d sfx render game/ --music 0                # a sound or the song to a WAV, with its levels
+b3d pack game/                                # back to game.b3d.json, exactly as the IDE's Save writes it
+b3d export game/ --zip                        # the same zip as the Export button
+```
+
+A game can live as a **project folder**: `main.js` for the code, one text file per tile, model and sound (pictures drawn with one character per pixel), `music.txt`, raw map files or scripts that build maps, and `cart.json` for the rest. `pack` and `unpack` turn it into a cart and back without losing anything, so the IDE and a text editor can take turns on one game. Headless runs step the game exactly one update at a time with a fixed seed, so they repeat. `shot`, `run` and the map and model renders need Playwright (`npm install -g playwright`, then `npx playwright install chromium`).
+
+[MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command.
+
 ## A tiny cart
 
 ```js
@@ -116,7 +136,7 @@ function _draw() {
 - **Helpers for 3D games:** `dist(a, b)` (arrays or `{x, y, z}` objects), `dir3(yaw, pitch)` (the direction for an angle), `yaw_to(dx, dz)` (the angle for a direction), `angdiff(a, b)` (the shortest turn between two angles), `lerp(a, b, t)` (numbers or arrays), `cam_orbit(target, yaw, pitch, dist)` (an orbit or chase camera in one call), and `printc`/`textw` for centered and measured text.
 - **Extras:** `printh`, `time`/`t`, `rnd`, `srand`, `flr`, `sin`, `cos`, `atan2`, `mid` and friends.
 
-The Info tab has the full reference.
+The Info tab has the full reference, and [docs/API.md](docs/API.md) has the same as one Markdown page (made from the Info tab by the build).
 
 ## How it works
 
@@ -147,13 +167,14 @@ That's enough for the IDE's menu online. Then run `npm run build` (see **Buildin
 
 ```
 npm install      # once
-npm run build    # rewrites runtime/, standalone_demo/, demos/castle.b3d.json and the IDE's offline files
+npm run build    # rewrites runtime/, standalone_demo/, demos/castle.b3d.json, docs/API.md and the IDE's offline files
 ```
 
-The IDE itself runs as plain files with no build step, but the build keeps three things in step with your change:
+The IDE itself runs as plain files with no build step, but the build keeps four things in step with your change:
 
 - **The runtime bundle**, `runtime/blocko3d.runtime.js`, made from the engine (`js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run and Export use it, so engine changes don't show up until you rebuild.
 - **The demos.** The castle (generated in `js/cart.js`) is written to `demos/castle.b3d.json`, and every demo in `demos/index.json` is exported to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game).
+- **The API reference**, `docs/API.md`, made from the Info tab's text in `js/apidocs.js` by `tools/build-docs.mjs`. Edit `js/apidocs.js`, not the Markdown.
 - **The installed, offline IDE.** `ide-sw.js` (the service worker) and `ide.webmanifest`. `ide-sw.js` lists every file the IDE uses with a fingerprint of their contents, so it changes whenever any of them does (`index.html`, `player.html`, `css/`, `js/`, `demos/`, `vendor/`, `runtime/`). That's how installed IDEs know to download the new files. **This is why a change that only touches the IDE, like a CSS tweak, a new demo or an Info tab edit, still needs the build**: without it, installed IDEs won't keep the new files for offline use. If you add a new top-level folder the IDE loads files from, also add it to `SOURCES` in `tools/build-ide.mjs`.
 
 A GitHub Action fails if any of these committed files doesn't match a fresh build.

@@ -4,6 +4,13 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **The `b3d` command**: BLOCKO3D from a terminal, for text editors, git, scripts and AI agents. Install it with `npm install -g github:paloblanco/blocko3d`. [MAKING_GAMES.md](MAKING_GAMES.md) explains it all.
+  - `b3d unpack` / `b3d pack` turn a cart into a **project folder** of small, readable files and back: `main.js`, one text file per tile, vox model and sound, `music.txt`, the maps (as bytes, or as a script that builds them), `cart.json`, `scenes.json` and `cover.png`. A cart saved in the IDE comes back from `unpack` + `pack` byte for byte, so the IDE and an editor can take turns on one game.
+  - `b3d check` checks every limit and format and the code's syntax, naming the file and line of each problem.
+  - `b3d shot` and `b3d run` run a game headless with scripted input (`"o@30, up:60-200, p1:x@5"`), save a screenshot and print `printh` output. Runs repeat exactly.
+  - `b3d render` draws one map, vox model or the tile sheet; `b3d sfx render` writes a sound or the song to a WAV file and reports its levels.
+  - `b3d export` makes the same files as the Export button.
+- `docs/API.md`: the API reference as one Markdown page, made from the Info tab. The Info tab gains **Limits** and **Command line** sections.
 - `srand(n)` seeds `rnd`, so the same seed gives the same numbers every run; `srand()` goes back to unseeded.
 - Tiles and sounds can have a **name** (a field next to the number in the Tile and Sfx tabs), saved in the cart. Older carts open unchanged.
 
