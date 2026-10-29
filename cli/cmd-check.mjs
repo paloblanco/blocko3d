@@ -1,16 +1,22 @@
 // b3d check <game>: prints each problem as "where: message", errors first. Exit code 1 on errors.
 import { loadGame } from './project.mjs';
-import { checkCart } from './check.mjs';
+import { checkGame } from './check.mjs';
 
-export function report({ errors, warnings }) {
+// check lists every warning with its code; the other commands (quiet) list errors and only count
+// warnings, so a warning a game lives with doesn't fill every command's output
+export function report({ errors, warnings, hidden = 0 }, quiet = false) {
   for (const e of errors) console.log(`${e.at}: error: ${e.msg}`);
-  for (const w of warnings) console.log(`${w.at}: warning: ${w.msg}`);
+  if (quiet) {
+    if (warnings.length) console.log(`${warnings.length} warning${warnings.length === 1 ? '' : 's'} (b3d check lists ${warnings.length === 1 ? 'it' : 'them'})`);
+    return;
+  }
+  for (const w of warnings) console.log(`${w.at}: warning${w.code ? ` [${w.code}]` : ''}: ${w.msg}`);
+  if (hidden) console.log(`(${hidden} more accepted in cart.json "ok")`);
 }
 
 export default async function (cmd, { pos, opt }) {
   const game = await loadGame(pos[0]);
-  const res = await checkCart(game.raw, game.where);
-  res.errors.unshift(...game.errors);
+  const res = await checkGame(game);
   report(res);
   const c = game.raw;
   if (!opt.quiet) {

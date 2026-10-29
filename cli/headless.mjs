@@ -55,8 +55,16 @@ function seeded(n) {   // Math.random for games that use it directly
   let s = (n >>> 0) ^ 0x9e3779b9;
   return () => { s = (s + 0x6d2b79f5) >>> 0; let x = s; x = Math.imul(x ^ (x >>> 15), x | 1); x ^= x + Math.imul(x ^ (x >>> 7), x | 61); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
 }
+// a watched value as one line: numbers to 4 decimals, arrays and objects as JSON (cut at 300)
+function fmt(v) {
+  if (typeof v === 'function') return 'function';
+  let s;
+  try { s = JSON.stringify(v, (k, x) => (typeof x === 'number' && !Number.isInteger(x) ? +x.toFixed(4) : x)); } catch { s = String(v); }
+  if (s === undefined) s = String(v);
+  return s.length > 300 ? s.slice(0, 297) + '...' : s;
+}
 window.B3D = {
-  logs: [], error: null, frame: 0, input: [], engine: null,
+  logs: [], error: null, frame: 0, input: [], engine: null, evalIn: null, at: [], watch: [], every: 0,
   setup(cart, opt) {
     if (opt.seed !== null) Math.random = seeded(opt.seed);
     const maxP = Math.max(0, ...opt.input.map((e) => e.p));
@@ -69,10 +77,36 @@ window.B3D = {
     } catch (e) { fail(e); return false; }
     if (opt.res > 1) this.engine.setScale(opt.res);
     if (opt.seed !== null) srand(opt.seed);
+    // The game's code inside a function (as in the IDE and exports), whose hooks also carry an eval
+    // that runs inside it, so --eval, --at and --watch see the game's own top-level variables.
+    // The wrapper adds no lines, so error line numbers still match main.js.
     let fn;
-    try { fn = (0, eval)(Blocko3D.cartFunctionSource(cart.code) + '\\n//# sourceURL=main.js'); } catch (e) { fail(e); return false; }
+    const src = '(function () {' + cart.code + '\\n;return Object.assign(' + Blocko3D.HOOKS_EXPR
+      + ', { __eval: function (__b3d) { return eval(__b3d); } });\\n})\\n//# sourceURL=main.js';
+    try { fn = (0, eval)(src); } catch (e) { fail(e); return false; }
+    const run = () => { const h = fn(); this.evalIn = h.__eval; return h; };
+    this.at = opt.at; this.watch = opt.watch.map((x) => ({ x, last: undefined })); this.every = opt.every;
     this.engine.step(0);   // updates only when B3D.step says so, never on the browser's clock
-    return Blocko3D.start(fn) !== false && !this.error;
+    if (Blocko3D.start(run) === false || this.error) return false;
+    for (const code of opt.evals) if (!this.run(code, '--eval')) return false;   // right after _init
+    this.watchAll();
+    return true;
+  },
+  // run test code in the game's scope; a throw stops the run, like a game error
+  run(code, label) {
+    try { this.evalIn(code); return true; }
+    catch (e) { this.error = { message: label + ' "' + code + '": ' + String((e && e.message) || e), stack: '' }; return false; }
+  },
+  // print each watched expression when its value changes (or every N frames)
+  watchAll() {
+    if (this.every && this.frame % this.every !== 0) return;
+    for (const w of this.watch) {
+      let v;
+      try { v = fmt(this.evalIn(w.x)); } catch (e) { v = 'error: ' + ((e && e.message) || e); }
+      if (!this.every && v === w.last) continue;
+      w.last = v;
+      this.logs.push({ f: this.frame, watch: w.x, t: v });
+    }
   },
   // run the next n frames. Frames count from 1: during frame f, time() * 60 is f. Each frame sets
   // the scripted buttons, then runs one update (and a draw).
@@ -86,8 +120,10 @@ window.B3D = {
         if (e.p === 0) this.engine.setButton(e.b, on);
         else { const k = STD[e.b]; pads[e.p].buttons[k].pressed = on; pads[e.p].buttons[k].value = on ? 1 : 0; }
       }
+      for (const a of this.at) if (a.f === this.frame && !this.run(a.code, '--at ' + a.f)) return false;
       const ok = this.engine.step(1, drawAll || (last && i === n - 1));
       if (!ok || this.error) return false;
+      this.watchAll();
     }
     return true;
   },
@@ -129,7 +165,9 @@ export function errorText(err, where) {
   return (m ? where('code:' + m[1]) + ': ' : '') + err.message;
 }
 
-// Runs a cart. opts: frames, input (parsed), seed (number or null), res, drawAll, onLog(entry). Returns { ok, frames, error, page, close }.
+// Runs a cart. opts: frames, input (parsed), seed (number or null), res, drawAll, onLog(entry),
+// evals (code run after _init), at ([{ f, code }], run at the start of frame f), watch
+// (expressions), every (print watches every N frames instead of on change). Returns { ok, frames, error, page, close }.
 export async function runCart(cart, where, opts) {
   const { browser, ctx } = await openBrowser();
   const page = await ctx.newPage();
@@ -139,7 +177,7 @@ export async function runCart(cart, where, opts) {
   const close = () => browser.close();
   const input = opts.input.map((e) => ({ ...e, to: Number.isFinite(e.to) ? e.to : null }));
   const flush = async () => { for (const l of await page.evaluate(() => B3D.takeLogs())) opts.onLog && opts.onLog(l); };
-  let ok = await page.evaluate(([c, o]) => B3D.setup(c, o), [cart, { seed: opts.seed, res: opts.res || 1, input }]);
+  let ok = await page.evaluate(([c, o]) => B3D.setup(c, o), [cart, { seed: opts.seed, res: opts.res || 1, input, evals: opts.evals || [], at: opts.at || [], watch: opts.watch || [], every: opts.every || 0 }]);
   await flush();
   let frames = 0;
   const CHUNK = 30;

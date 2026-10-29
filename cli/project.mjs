@@ -4,7 +4,8 @@
 //   raw     what check looks at (the cart before the IDE's quiet clean-up);
 //   where   turns a place in the cart ('tiles[3].top[19]', 'code:12') into what the user should
 //           open: the cart file, or the folder's file and line;
-//   errors  problems reading a folder's files, as { at: 'file:line', msg }.
+//   errors  problems reading a folder's files, as { at: 'file:line', msg } (warnings likewise);
+//   ok      warning codes a folder's cart.json accepts.
 // Commands other than check refuse a folder with errors (loadGame(path, { strict: true })).
 import { readFileSync, statSync, existsSync } from 'node:fs';
 
@@ -25,6 +26,6 @@ export async function loadGame(path, { strict = false } = {}) {
   }
   let cart;
   try { cart = JSON.parse(readFileSync(path, 'utf8')); } catch (e) { throw new UserError(`${path}: not a JSON cart (${e.message})`); }
-  return { kind: 'cart', cart, raw: cart, errors: [], where: (at) => (at ? `${path}: ${at}` : path) };
+  return { kind: 'cart', cart, raw: cart, errors: [], warnings: [], ok: [], where: (at) => (at ? `${path}: ${at}` : path) };
 }
 

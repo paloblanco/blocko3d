@@ -20,7 +20,21 @@ npm install -g playwright
 npx playwright install chromium
 ```
 
-`check`, `export`, `pack`, `unpack`, `render --tiles` and `sfx render` work without it.
+Every other command works without it.
+
+The tool carries its own docs, so you never need the engine's source: `b3d docs` prints this guide, `b3d api mpush` prints one function, `b3d api maps` a section, `b3d api` lists everything, and `b3d docs api` prints the whole reference.
+
+## Starting
+
+```
+b3d new mygame/                    # a small working game to start from
+b3d unpack game.b3d.json game/     # or an existing cart, saved from the IDE
+b3d info game/                     # every asset by number and name, on one screen
+```
+
+`b3d info` shows unnamed assets as `(no name)`. Naming tiles, models and sounds (a `name` line in their files) makes the game easier to work on.
+
+`new` and `unpack` also write a short `CLAUDE.md` into the folder, with notes for AI agents working on the game: the commands and the work loop. They only write it when the folder has none, so they never overwrite yours. Pass `--no-notes` to `unpack` to skip it.
 
 ## A game is a cart or a folder
 
@@ -44,7 +58,8 @@ Unpacking replaces the folder's asset files, so commit or pack your folder edits
 
 ```
 game/
-  cart.json            name, map sizes and origins, the palette (optional), the Sfx tab's scale
+  cart.json            name, map sizes and origins, the palette (optional), the Sfx tab's scale,
+                       warnings the game accepts (optional)
   main.js              the game code
   tiles/01-grass.txt   one file per tile
   vox/00-hero.txt      one file per vox model
@@ -74,13 +89,15 @@ The smallest game is `cart.json` with `{ "name": "my game", "maps": [] }`, plus 
     { "name": "house", "size": [6, 5, 6], "origin": [3, 0, 3] }
   ],
   "scale": { "snap": false, "root": 0, "type": "minor pentatonic" },
-  "palette": ["#000000", "#1d2b53", "..."]
+  "palette": ["#000000", "#1d2b53", "..."],
+  "ok": ["big-map"]
 }
 ```
 
 - **Maps** are listed in order: the first is map 0. `size` is `[w, h, d]` in blocks (y is up). `origin` is the map's pivot in its own block coordinates.
 - **The palette** is optional (32 colors). Leave it out for the default.
 - **The scale** is the Sfx tab's note snapping. Only the editor uses it.
+- **`ok`** is optional: warning codes this game accepts, so `b3d check` stops listing them (see **Checking your work**). `unpack` keeps it.
 
 ### Tiles: `tiles/NN-name.txt`
 
@@ -190,10 +207,39 @@ The script gets `map.w`, `map.h`, `map.d`, `map.get(x, y, z)`, `map.set(x, y, z,
 ```
 game/tiles/02.txt:4: error: "z" isn't a color; colors are 0-9 then a-v (0-31)
 game/main.js:5: error: syntax error: Unexpected token ';'
-game/maps/0-island.bin: warning: 800 blocks use tile 2, which is empty (drawn as nothing)
+game/maps/0-island.bin: warning [empty-tile]: 800 blocks use tile 2, which is empty (drawn as nothing)
+game/scenes.json (scenes[0].vox[6]): warning [marker-floating]: marker 6 (vox 3) at 7, 8, 13 floats 5 blocks above the floor (y 3); b3d map --at 7,13 --scene 0 shows the column
 ```
 
 Run it after every change: it takes a moment. `pack`, `export`, `shot` and `run` refuse a game with errors.
+
+**Warnings** don't stop anything. Only `check` lists them; the other commands print just how many there are. Each has a code in brackets. A warning your game lives with (a map bigger than the IDE makes, a marker that's meant to float) can be accepted in `cart.json`, and `check` then stops listing it:
+
+```json
+"ok": ["big-map", "marker-floating"]
+```
+
+The codes: `big-map`, `empty-tile`, `marker-buried`, `marker-floating`, `silent-channel`, `no-loop`, `no-draw`, `no-name`, `cover-size`, `tile-0`, `sfx-speed`.
+
+**Scene markers** are checked against the maps the scene places. A marker inside a solid block, more than 2 blocks above the floor, or over nothing gets a warning. (A marker's position is its base: a coin at y 3 sits on a block whose top is at 3.)
+
+### `b3d map --at x,z`: what's in a column
+
+To place something, ask what's under a spot instead of reading map bytes:
+
+```
+b3d map game/ --at 7,13 --scene 0
+scene 0 "meadow" (6 maps), column x 7, z 13:
+  y 2       1 grass
+  y 0-1     2 dirt
+  stand at: 3
+```
+
+It lists the column from the top down, as runs of the same tile with its number and name, and the gaps. **stand at** gives the heights a character can stand at: the top of a solid block with two empty blocks above it, highest first. A ledge under a low ceiling doesn't count, but roofs and treetops do, so pick the height you mean: the last one is usually the ground.
+
+- **`--scene s`** looks at the maps as scene s places them (with their positions and angles), in world coordinates, the same ones scene markers use.
+- Without `--scene`, it looks at map n (`--map n`, default 0) where the game starts it: position 0, not turned. Its blocks then sit at their grid position minus the map's origin, and the output also gives the grid cell.
+- With `--scene`, `--map n` keeps only map n's placements.
 
 ### `b3d shot` and `b3d run`
 
@@ -225,7 +271,21 @@ function _update() {
 }
 ```
 
-Calls to `save()` show as `[save] {...}`. If the game throws, the run stops and names the frame, the file and the line:
+Calls to `save()` show as `[save] {...}`.
+
+**Test hooks** reach into the running game without editing it. They run in the game's own scope, so they see and change its top-level variables:
+
+```
+b3d run game/ --frames 220 --input "x@1, up:50-110" \
+  --at 5:"px = 60.5; py = 17.35; pz = 15.5" --watch "carried.length" --watch "home"
+```
+
+- **`--eval "code"`** runs right after `_init`, before frame 1. Use it to set up a situation: a position, a score, a level.
+- **`--at 50:"code"`** runs at the start of frame 50, before that frame's update.
+- **`--watch "expr"`** prints an expression whenever its value changes, as `f<frame> <expr> = <value>`. The first line (frame 0) is its value after `_init` and `--eval`. Numbers show 4 decimals, and arrays and objects show as JSON.
+- **`--every n`** prints the watches every n frames instead of on change.
+
+Each option can be given several times. A test hook that throws stops the run like a game error. A watched expression that throws prints its error as its value, and the run goes on. Teleporting the player with `--at` is often easier than steering them there with buttons, especially when the camera turns with them. If the game throws, the run stops and names the frame, the file and the line:
 
 ```
 error at frame 58: game/main.js:10: nothing_here is not defined

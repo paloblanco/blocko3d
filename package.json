@@ -11,7 +11,9 @@
     "bin/",
     "cli/",
     "js/",
-    "runtime/"
+    "runtime/",
+    "docs/",
+    "MAKING_GAMES.md"
   ],
   "engines": {
     "node": ">=18"

@@ -98,7 +98,7 @@ b3d export game/ --zip                        # the same zip as the Export butto
 
 A game can live as a **project folder**: `main.js` for the code, one text file per tile, model and sound (pictures drawn with one character per pixel), `music.txt`, raw map files or scripts that build maps, and `cart.json` for the rest. `pack` and `unpack` turn it into a cart and back without losing anything, so the IDE and a text editor can take turns on one game. Headless runs step the game exactly one update at a time with a fixed seed, so they repeat. `shot`, `run` and the map and model renders need Playwright (`npm install -g playwright`, then `npx playwright install chromium`).
 
-[MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command.
+[MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command (`b3d docs` prints it). There's also `b3d info` (every asset on one screen), `b3d map --at x,z` (what's in a column and where you can stand), `b3d api <name>`, `b3d new`, and test hooks for headless runs: `--eval`, `--at 50:"code"` and `--watch "expr"`.
 
 ## A tiny cart
 
@@ -162,6 +162,8 @@ The Info tab has the full reference, and [docs/API.md](docs/API.md) has the same
 That's enough for the IDE's menu online. Then run `npm run build` (see **Building** below) and commit what it writes: it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too, and adds the new cart to the installed IDE's offline files. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
 
 ## Building (after any change)
+
+Working on the engine itself? [docs/ENGINE.md](docs/ENGINE.md) has the design decisions, the architecture and what's been tested.
 
 **Run `npm run build` before every commit, whatever you changed**, and commit what it rewrites along with your change:
 

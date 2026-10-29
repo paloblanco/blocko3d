@@ -1,11 +1,13 @@
 // b3d shot <game> [--frames n] [--input "..."] [--seed n] [--res 1|2|3] [--out shot.png] [--log]
 // b3d run  <game> [same options]   (prints printh output; --out also saves a screenshot)
+// Test options: --eval "code" (after _init), --at f:"code" (start of frame f), --watch "expr"
+// (printed as "f<frame> expr = value" when it changes, or every N frames with --every N).
 // The game runs headless for n updates (default 60, one second) from _init, with the scripted
 // input, then the screen is saved. printh lines go to stdout as they are; the run's summary and
 // any error go to stderr. Exit code 1 if the game threw.
 import { writeFileSync } from 'node:fs';
 import { loadGame, UserError } from './project.mjs';
-import { checkCart } from './check.mjs';
+import { checkGame } from './check.mjs';
 import { report } from './cmd-check.mjs';
 import { parseInput, runCart, screenshotPng } from './headless.mjs';
 
@@ -16,21 +18,40 @@ export function runOptions(opt) {
   if (![1, 2, 3].includes(res)) throw new UserError('--res is 1, 2 or 3');
   const seed = opt.seed === undefined ? 0 : Number(opt.seed);
   if (!Number.isFinite(seed)) throw new UserError('--seed is a number');
-  return { frames, res, seed, input: parseInput(opt.input === true ? '' : opt.input), drawAll: !opt['skip-draw'] };
+  const evals = list(opt, 'eval');
+  const at = list(opt, 'at').map((a) => {
+    const m = /^\s*(\d+)\s*:([\s\S]*)$/.exec(a);
+    if (!m || !m[2].trim()) throw new UserError(`--at "${a}": use --at frame:"code", like --at 50:"px = 10"`);
+    return { f: +m[1], code: m[2] };
+  });
+  const watch = list(opt, 'watch');
+  const every = opt.every === undefined ? 0 : Number(opt.every);
+  if (!Number.isInteger(every) || every < 0) throw new UserError('--every is a whole number of frames');
+  return { frames, res, seed, input: parseInput(list(opt, 'input').join(',')), drawAll: !opt['skip-draw'], evals, at, watch, every };
+}
+
+// An option that may be given several times, as a list of strings.
+function list(opt, k) {
+  const v = opt[k];
+  if (v === undefined) return [];
+  const a = [].concat(v);
+  if (a.some((x) => x === true)) throw new UserError(`--${k} needs a value`);
+  return a;
 }
 
 export default async function (cmd, { pos, opt }) {
   const game = await loadGame(pos[0], { strict: true });
-  const res = await checkCart(game.raw, game.where);
-  if (res.errors.length) { report(res); console.error('not run: fix the errors first (b3d check)'); return 1; }
+  const res = await checkGame(game);
+  if (res.errors.length) { report(res, true); console.error('not run: fix the errors first (b3d check)'); return 1; }
   const o = runOptions(opt);
-  const showLogs = cmd === 'run' || opt.log;
+  const showLogs = cmd === 'run' || opt.log || o.watch.length > 0;
   const t0 = Date.now();
   const r = await runCart(game.cart, game.where, {
     ...o,
     onLog: (l) => {
       if (!showLogs) return;
       if (l.save !== undefined) console.log(`[save] ${l.save}`);
+      else if (l.watch !== undefined) console.log(`f${l.f} ${l.watch} = ${l.t}`);
       else console.log(l.t);
     },
   });

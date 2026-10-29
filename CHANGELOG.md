@@ -4,6 +4,15 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **More for `b3d`**, from an agent's report on adding star collecting to Star Observatory:
+  - Test hooks for `run` and `shot`: `--eval "code"` after `_init`, `--at 50:"code"` at the start of a frame, and `--watch "expr"` (or `--every n`) to print a value when it changes. They see the game's own variables, so tests no longer need edited copies of the game.
+  - `b3d map <game> --at x,z [--scene s]`: what's in one column of the world, and the heights you can stand at.
+  - `b3d check` warns about scene markers buried in a block, floating above the floor or over nothing.
+  - Warnings now have codes, only `check` lists them (other commands print a count), and a project folder can accept one in `cart.json` (`"ok": ["big-map"]`).
+  - `b3d info` lists every asset by number and name; `b3d docs` and `b3d api <name>` print the guide and the API from the tool itself; `b3d new` starts a small working game.
+  - `unpack` and `new` write a short `CLAUDE.md` for AI agents into a game folder that has none.
+- The repo's `CLAUDE.md` is now a short pointer; the engine notes it held moved to `docs/ENGINE.md`, so an agent making a game doesn't load them.
+
 - **The `b3d` command**: BLOCKO3D from a terminal, for text editors, git, scripts and AI agents. Install it with `npm install -g github:paloblanco/blocko3d`. [MAKING_GAMES.md](MAKING_GAMES.md) explains it all.
   - `b3d unpack` / `b3d pack` turn a cart into a **project folder** of small, readable files and back: `main.js`, one text file per tile, vox model and sound, `music.txt`, the maps (as bytes, or as a script that builds them), `cart.json`, `scenes.json` and `cover.png`. A cart saved in the IDE comes back from `unpack` + `pack` byte for byte, so the IDE and an editor can take turns on one game.
   - `b3d check` checks every limit and format and the code's syntax, naming the file and line of each problem.

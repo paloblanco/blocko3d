@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadGame } from './project.mjs';
-import { checkCart } from './check.mjs';
+import { checkGame } from './check.mjs';
 import { report } from './cmd-check.mjs';
 import { normalizeCart } from '../js/cart.js';
 import { indexHtml, gameJs, gameSlug, appFiles } from '../js/export.js';
@@ -27,9 +27,9 @@ export async function exportFiles(rawCart) {
 
 export default async function (cmd, { pos, opt }) {
   const game = await loadGame(pos[0], { strict: true });
-  const res = await checkCart(game.raw, game.where);
-  if (res.errors.length) { report(res); console.log('not exported: fix the errors first'); return 1; }
-  report(res);
+  const res = await checkGame(game);
+  report(res, true);
+  if (res.errors.length) { console.log('not exported: fix the errors first'); return 1; }
   const { slug, files } = await exportFiles(game.cart);
   if (opt.zip) {
     const out = typeof opt.zip === 'string' ? opt.zip : typeof opt.out === 'string' ? opt.out : slug + '.zip';

@@ -8,9 +8,11 @@ import vm from 'node:vm';
 import { LIMITS, b64ToBytes } from '../js/format.js';
 import { decodeSfx, encodeSfx, decodePattern, encodePattern, isSilent } from '../js/audio.js';
 import { decodePng } from '../js/png.js';
+import { placements, tileAt, column } from './space.mjs';
 
 export const SCALES = ['minor pentatonic', 'major pentatonic', 'major', 'minor', 'harmonic minor', 'dorian', 'mixolydian', 'blues', 'whole tone'];
 
+const FLOAT = 2;   // a scene marker more than this many blocks above the floor gets a warning
 const isInt = (v) => Number.isInteger(v);
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isNum3 = (v) => Array.isArray(v) && v.length === 3 && v.every(isNum);
@@ -27,20 +29,30 @@ export function codeSyntax(code) {
   }
 }
 
-export async function checkCart(cart, where = (at) => at) {
+// A loaded game (cli/project.mjs) checked: the folder's own problems first, then the cart's.
+export async function checkGame(game) {
+  const res = await checkCart(game.raw, game.where, { ok: game.ok || [] });
+  res.errors.unshift(...(game.errors || []));
+  res.warnings.unshift(...(game.warnings || []));
+  return res;
+}
+
+export async function checkCart(cart, where = (at) => at, { ok = [] } = {}) {
   const errors = [], warnings = [];
   const err = (at, msg) => errors.push({ at: where(at), msg });
-  const warn = (at, msg) => warnings.push({ at: where(at), msg });
+  // every warning has a short code; a project folder can list codes it accepts in cart.json's "ok"
+  const warn = (at, msg, code) => { if (ok.includes(code)) hidden++; else warnings.push({ at: where(at), msg, code }); };
+  let hidden = 0;
   if (!cart || typeof cart !== 'object' || Array.isArray(cart)) { err('', 'a cart is a JSON object'); return { errors, warnings }; }
 
-  if (typeof cart.name !== 'string' || !cart.name.trim()) warn('name', 'the cart has no name (exports and save data use it)');
+  if (typeof cart.name !== 'string' || !cart.name.trim()) warn('name', 'the cart has no name (exports and save data use it)', 'no-name');
 
   // ---- code
   if (typeof cart.code !== 'string') err('code', 'code must be a string');
   else {
     const bad = codeSyntax(cart.code);
     if (bad) err('code:' + bad.line, 'syntax error: ' + bad.msg);
-    else if (!/\b_draw\b/.test(cart.code)) warn('code', 'no _draw function: nothing will be drawn');
+    else if (!/\b_draw\b/.test(cart.code)) warn('code', 'no _draw function: nothing will be drawn', 'no-draw');
   }
 
   // ---- palette
@@ -54,7 +66,7 @@ export async function checkCart(cart, where = (at) => at) {
   if (!tiles) err('tiles', 'tiles must be a list');
   else {
     if (tiles.length > LIMITS.tiles + 1) err('tiles', `at most ${LIMITS.tiles} tiles (1-${LIMITS.tiles}); this cart has ${tiles.length - 1}`);
-    if (tiles[0] != null) warn('tiles[0]', 'tile 0 is always empty; this one is ignored');
+    if (tiles[0] != null) warn('tiles[0]', 'tile 0 is always empty; this one is ignored', 'tile-0');
     tiles.forEach((t, i) => {
       if (i === 0 || t == null) return;
       if (typeof t !== 'object') { err(`tiles[${i}]`, 'a tile is { top, side, bottom } or null'); return; }
@@ -78,7 +90,7 @@ export async function checkCart(cart, where = (at) => at) {
     const { w, h, d } = m;
     if (![w, h, d].every((v) => isInt(v) && v >= 1)) { err(at + '.size', 'w, h and d must be whole numbers of at least 1'); return; }
     if (Math.max(w, h, d) > LIMITS.mapSide) err(at + '.size', `${w} x ${h} x ${d}: the IDE edits maps up to ${LIMITS.mapSide} blocks per side`);
-    if (w * h * d > LIMITS.mapBlocks) warn(at + '.size', `${(w * h * d).toLocaleString('en-US')} blocks: more than the IDE's ${LIMITS.mapBlocks.toLocaleString('en-US')} for new maps (it still runs and opens)`);
+    if (w * h * d > LIMITS.mapBlocks) warn(at + '.size', `${(w * h * d).toLocaleString('en-US')} blocks: more than the IDE's ${LIMITS.mapBlocks.toLocaleString('en-US')} for new maps (it still runs and opens)`, 'big-map');
     if (m.origin !== undefined && !isNum3(m.origin)) err(at + '.origin', 'origin is [x, y, z]');
     if (typeof m.data !== 'string') { err(at + '.data', 'data is the blocks in base64'); return; }
     let bytes;
@@ -91,7 +103,7 @@ export async function checkCart(cart, where = (at) => at) {
       if (t > LIMITS.tiles) { const x = k % w, y = Math.floor(k / w) % h, z = Math.floor(k / (w * h)); err(at + '.data', `block ${x},${y},${z} is tile ${t}; tiles are 1-${LIMITS.tiles}`); return; }
       if (!tileExists(t)) missing.set(t, (missing.get(t) || 0) + 1);
     }
-    for (const [t, n] of missing) warn(at + '.data', `${n} block${n > 1 ? 's use' : ' uses'} tile ${t}, which is empty (drawn as nothing)`);
+    for (const [t, n] of missing) warn(at + '.data', `${n} block${n > 1 ? 's use' : ' uses'} tile ${t}, which is empty (drawn as nothing)`, 'empty-tile');
   });
 
   // ---- vox
@@ -132,7 +144,7 @@ export async function checkCart(cart, where = (at) => at) {
         }
         return;
       }
-      if (d.loopEnd > 0 && d.loopStart >= d.loopEnd) warn(at, `loop ${d.loopStart}-${d.loopEnd} is empty, so the sound doesn't loop`);
+      if (d.loopEnd > 0 && d.loopStart >= d.loopEnd) warn(at, `loop ${d.loopStart}-${d.loopEnd} is empty, so the sound doesn't loop`, 'no-loop');
       soundOk[i] = !isSilent(d);
     });
   }
@@ -149,7 +161,7 @@ export async function checkCart(cart, where = (at) => at) {
       const at = `music[${i}]`;
       const p = typeof s === 'string' && /^[0-9a-f]{9}$/i.test(s.trim()) ? decodePattern(s) : null;
       if (!p || encodePattern(p) !== s.trim().toLowerCase()) { err(at, 'a pattern is 9 hex digits: flags (0-7), then 4 channels of 00-3f, or 40 for empty'); return; }
-      p.ch.forEach((c, k) => { if (c < LIMITS.sfx && !soundOk[c]) warn(at, `channel ${k} plays sound ${c}, which is empty or silent`); });
+      p.ch.forEach((c, k) => { if (c < LIMITS.sfx && !soundOk[c]) warn(at, `channel ${k} plays sound ${c}, which is empty or silent`, 'silent-channel'); });
     });
   }
 
@@ -179,6 +191,21 @@ export async function checkCart(cart, where = (at) => at) {
     });
   }
 
+  // ---- scene markers: buried in a block, or floating well above the floor
+  if (Array.isArray(cart.scenes) && maps) cart.scenes.forEach((sc, i) => {
+    let list;
+    try { list = placements(cart, i); } catch { return; }   // broken maps are reported above
+    (Array.isArray(sc && sc.vox) ? sc.vox : []).forEach((v, k) => {
+      if (!v || !isNum3(v.pos)) return;
+      const [x, y, z] = v.pos, at = `scenes[${i}].vox[${k}]`, what = `marker ${k} (vox ${v.v}) at ${x}, ${y}, ${z}`;
+      const inside = list.find((p) => tileAt(p, [x, y + 0.01, z]).t);
+      if (inside) { warn(at, `${what} is inside a block of map ${inside.m} (tile ${tileAt(inside, [x, y + 0.01, z]).t})`, 'marker-buried'); return; }
+      const below = column(list, x, z).find((c) => c.t && c.y + 1 <= y + 0.01);
+      if (!below) warn(at, `${what} has no block under it`, 'marker-floating');
+      else if (y - (below.y + 1) > FLOAT) warn(at, `${what} floats ${+(y - below.y - 1).toFixed(2)} blocks above the floor (y ${below.y + 1}); b3d map --at ${x},${z} --scene ${i} shows the column`, 'marker-floating');
+    });
+  });
+
   // ---- cover
   if (cart.cover !== undefined) {
     const pre = 'data:image/png;base64,';
@@ -187,8 +214,8 @@ export async function checkCart(cart, where = (at) => at) {
       let img = null;
       try { img = await decodePng(b64ToBytes(cart.cover.slice(pre.length))); } catch { /* reported below */ }
       if (!img) err('cover', 'the cover PNG could not be read (8-bit, non-interlaced PNGs only)');
-      else if (img.w !== LIMITS.screen || img.h !== LIMITS.screen) warn('cover', `the cover is ${img.w} x ${img.h}; it's shown at ${LIMITS.screen} x ${LIMITS.screen}`);
+      else if (img.w !== LIMITS.screen || img.h !== LIMITS.screen) warn('cover', `the cover is ${img.w} x ${img.h}; it's shown at ${LIMITS.screen} x ${LIMITS.screen}`, 'cover-size');
     }
   }
-  return { errors, warnings };
+  return { errors, warnings, hidden };
 }

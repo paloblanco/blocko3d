@@ -1,7 +1,8 @@
 // The project folder: a game as small text files, for text editors, git and AI agents.
 // `b3d unpack` writes it from a cart, `b3d pack` reads it back (always as the IDE would save it).
 //
-//   cart.json          name, palette (optional), the Sfx tab's scale settings, each map's name, size, origin
+//   cart.json          name, palette (optional), the Sfx tab's scale settings, each map's name, size,
+//                      origin, and "ok": warning codes the game accepts (check stops showing them)
 //   main.js            the game code
 //   cover.png          cover art (optional)
 //   scenes.json        the Scene tab's scenes (optional)
@@ -123,6 +124,8 @@ export function writeFolder(input, dir) {
   for (const f of ['cover.png', 'scenes.json', 'music.txt']) rmSync(join(dir, f), { force: true });
 
   const meta = { name: cart.name, maps: cart.maps.map((m) => ({ name: m.name, size: [m.w, m.h, m.d], origin: m.origin })), scale: cart.scale };
+  // warnings the folder has accepted (cart.json "ok") aren't in the cart, so they're kept from the old cart.json
+  try { const old = JSON.parse(readFileSync(join(dir, 'cart.json'), 'utf8')); if (Array.isArray(old.ok) && old.ok.length) meta.ok = old.ok; } catch { /* none yet */ }
   if (cart.palette) meta.palette = cart.palette.map((c) => '#' + c.toString(16).padStart(6, '0'));
   writeFileSync(join(dir, 'cart.json'), prettyJson(meta) + '\n');
   writeFileSync(join(dir, 'main.js'), cart.code);
@@ -237,7 +240,7 @@ function readSfx(text, file, errors) {
     if ([wave, vol, fx].some((x) => x < 0 || x > 7)) { err(l.n, 'wave, volume and effect are 0-7'); return null; }
     s.notes[k] = { pitch, wave, vol, fx }; noteAt[k] = l.n; k++;
   }
-  if (!header && k) errors.push({ at: file, msg: 'no "speed S loop A B" line; using speed 16, no loop' });
+  if (!header && k) errors.push({ at: file, msg: 'no "speed S loop A B" line; using speed 16, no loop', code: 'sfx-speed', warning: true });
   return { str: encodeSfx(s), silent: isSilent(s) && s.loopEnd === 0 && s.speed === 16, name, noteAt };
 }
 
@@ -406,5 +409,8 @@ export async function readFolder(dir) {
     if (at === 'cover') return 'cover.png';
     return at || 'cart.json';
   };
-  return { raw, cart: ideCart(raw, raw.name), where: (at) => join(dir, where(at)), errors: errors.map((e) => ({ at: join(dir, e.at), msg: e.msg })) };
+  const ok = Array.isArray(meta.ok) ? meta.ok.filter((c) => typeof c === 'string') : [];
+  const placed = (e) => ({ at: join(dir, e.at), msg: e.msg, code: e.code });
+  return { raw, cart: ideCart(raw, raw.name), where: (at) => join(dir, where(at)), ok,
+    errors: errors.filter((e) => !e.warning).map(placed), warnings: errors.filter((e) => e.warning && !ok.includes(e.code)).map(placed) };
 }

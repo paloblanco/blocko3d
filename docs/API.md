@@ -259,14 +259,19 @@ The same numbers the editors and b3d check use.
 
 Outside the IDE, the b3d command checks, exports, runs and renders games, and turns a cart into a folder of small text files and back, for a text editor, git or an AI agent. Install it with npm install -g github:paloblanco/blocko3d (Node 18 or later). shot, run and the map and model renders also need Playwright: npm install -g playwright, then npx playwright install chromium. A game is a .b3d.json cart or a project folder; MAKING_GAMES.md in the repo explains the folder.
 
-- **`b3d check <game>`**: Checks every limit and format and the code's syntax. Problems name the file and line.
+- **`b3d new <folder>`**: A small working game to start from, as a project folder.
+- **`b3d info <game>`**: Every tile, map, model, sound, pattern and scene by number and name, on one screen.
+- **`b3d check <game>`**: Checks every limit and format, the code's syntax, and scene markers buried in blocks or floating. Problems name the file and line. Other commands only count warnings; a folder can accept one by its code in cart.json's "ok".
 - **`b3d export <game> [--out dir] [--zip]`**: The standalone game, exactly as the Export button makes it.
-- **`b3d unpack <cart> <folder>`**: A cart to a project folder: cart.json, main.js, tiles/, vox/, sfx/, music.txt, maps/, scenes.json, cover.png.
+- **`b3d unpack <cart> <folder>`**: A cart to a project folder: cart.json, main.js, tiles/, vox/, sfx/, music.txt, maps/, scenes.json, cover.png, and a short CLAUDE.md for AI agents if the folder has none.
 - **`b3d pack <folder> [--out cart]`**: The folder back to a cart, exactly as the IDE's Save would write it, ready to Open in the IDE.
 - **`b3d shot <game> [--frames n] [--input "..."] [--out shot.png]`**: Runs the game headless for n updates (default 60) and saves the screen. --input "o@30, up:40-90, p1:x@5" taps O on update 30, holds up from 40 to 90, and taps X for player 1. --seed n (default 0) makes rnd repeat, --res 1-3.
 - **`b3d run <game> [same options]`**: The same run, printing printh output (and save calls) to the terminal. A game error names main.js and the line.
+- **`--eval "code", --at f:"code", --watch "expr"`**: Test hooks for shot and run, in the game's own scope: run code after _init or at the start of frame f (set a position, a score), and print an expression whenever it changes (--every n: every n frames).
+- **`b3d map <game> --at x,z [--scene s]`**: One column of the world from the top down: each run of blocks with its tile, and the heights a character can stand at.
 - **`b3d render <game> --map n | --vox n | --tiles`**: Pictures of one asset: a map from the top, front, side or a 3/4 view (--view), a model from six sides, or every tile.
 - **`b3d sfx render <game> --sfx n | --music [n]`**: A sound or the song to a WAV file, with its length, peak level and any clipping.
+- **`b3d docs, b3d api [name]`**: The guide and this reference, from the tool itself: b3d api mpush for one function, b3d api maps for a section.
 
 ## Cart format
 
