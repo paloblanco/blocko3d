@@ -28,7 +28,7 @@ const HELP = `b3d ${VERSION}: BLOCKO3D from the command line
   b3d render  <game> --tiles [--out tiles.png]     every tile's top, side and bottom
   b3d sfx render <game> (--sfx n | --music [n]) [--out sound.wav]
   b3d map     <game> --at x,z [--scene s] [--map n]   what's in a column and where you can stand
-  b3d docs [api]                           the guide (or the whole API reference)
+  b3d docs [api | llms]                    the guide (or the API reference, or the chatbot guide)
   b3d api [name | section]                 one function or section of the API
 
 <game> is a project folder or a .b3d.json cart.

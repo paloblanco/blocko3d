@@ -4,6 +4,9 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Games from AI chatbots.** [`llms.txt`](https://paloblanco.github.io/blocko3d/llms.txt) is a one-page guide that any chatbot can read to write a whole game as one JavaScript file: the rules, the API with exact return values, common mistakes, and a complete example. The game is pasted into the new **Starter** cart (Demos menu), which has 16 named tiles, 9 vox models, 8 sound effects and a song ready to use, plus a small platformer to change.
+- `map_box(m, x0, y0, z0, x1, y1, z1, t)` fills a box of blocks with a tile (or carves it out with 0), so a level can be built in a few lines of code.
+- The README's "Not in this version" list was out of date (riding moving maps, map undo and clicking blocks are all possible) and has been fixed.
 - The IDE links to the GitHub repo: a small **GitHub ↗** link at the right of the header, and at the top of the Info tab (phones show only the Info tab one, since their header has no room).
 - **More for `b3d`**, from an agent's report on adding star collecting to Star Observatory:
   - Test hooks for `run` and `shot`: `--eval "code"` after `_init`, `--at 50:"code"` at the start of a frame, and `--watch "expr"` (or `--every n`) to print a value when it changes. They see the game's own variables, so tests no longer need edited copies of the game.

@@ -80,6 +80,12 @@ The zip also holds four small files that make the game an **installable app** (a
 
 The game needs nothing else: no network, no server. It works when opened straight from disk, embedded in a page, or uploaded as an HTML game to itch.io or Game Jolt (upload the zip as-is). If the game hits an error, the message is shown on screen. Export refuses to run if the code has a syntax error. The four app files are only used on https sites, so the game runs the same with or without them.
 
+## Making a game with an AI chatbot
+
+Any chatbot, free ones included, can write a whole BLOCKO3D game. Ask for the game you want and give it this link first: **https://paloblanco.github.io/blocko3d/llms.txt**. That one page tells it everything it needs: write a single JavaScript file, build the levels in code with `map_box`, and use the art and sounds of the **Starter** cart. You then pick **Starter** from the IDE's Demos menu, paste the code into the Code tab, and press Run.
+
+The Starter cart has 16 named tiles (grass, brick, lava, a bounce pad…), 9 vox models (a walking hero, a guard, a coin, a flag, a tree…), 8 sound effects and a song, plus a small platformer to change. `llms.txt` is made by the build from `tools/llms.md` and the Starter cart, so its list of assets and its example code always match the cart.
+
 ## Making games outside the IDE: the `b3d` command
 
 `b3d` does the IDE's jobs from a terminal, for a text editor, git, scripts or an AI agent:
@@ -119,7 +125,7 @@ function _draw() {
 ## API at a glance
 
 - **Loop:** `_init()`, `_update()` (60 per second), `_draw()` (immediate mode). `freeze(n, fn)` runs `fn` (or nothing) instead of `_update` for the next `n` updates while `_draw` keeps going: hit-stun in one line.
-- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `mpush` (collision in one call: push a sphere out of one or more maps, and learn which way and what you stand on), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps), `map_reload` (put a cart map's blocks back as the cart has them, or all of them), `map_copy` (a new map with its own copy of the blocks), `map_stamp` (copy one map's blocks into another).
+- **Maps:** `map(m)`, `map_new`, `map_set_pos`, `map_set_angle` (turns; yaw, then pitch, then roll), `map_set_origin` (keeps the map in place), `mget`, `mset`, `mgetw` (point or sphere query with push-out), `mpush` (collision in one call: push a sphere out of one or more maps, and learn which way and what you stand on), `msetw`, `mray` (first block along a ray), `mtow` / `wtom` (a point on a map's grid to the world and back, for things attached to moving maps), `map_reload` (put a cart map's blocks back as the cart has them, or all of them), `map_copy` (a new map with its own copy of the blocks), `map_stamp` (copy one map's blocks into another), `map_box` (fill or carve a box of blocks: a level in a few lines of code).
 - **Scenes:** `scene_load(n)` builds a scene from the Scene tab and returns `{ maps, named, things }`: fresh, already placed map copies to draw and collide with, the ones you named, and the vox markers (`[v, x, y, z, yaw]`) for your code to turn into the player, pickups and so on.
 - **Vox models:** `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)` draws model n (8×8×8 voxels = 1 block) at its pivot; everything after the position is optional. Animate by swapping models, or by drawing a character from parts.
 - **Primitives:** `cube`, `sphere`, `line3`.
@@ -183,8 +189,8 @@ A GitHub Action fails if any of these committed files doesn't match a fresh buil
 
 ## Not in this version
 
-- Carrying the player along on moving or rotating maps.
-- Undo in the map and tile editors (the code editor has undo).
+- A built-in way to ride moving or rotating maps: games do it in a few lines with `wtom` and `mtow` (the Third Person demo shows how).
+- Undo in the Tile editor (the Map, Vox and Scene tabs and the code editor have it).
 - Editing the palette in the IDE (change `palette[i]` from code for now).
-- Custom pause menu items (PICO-8's `menuitem`), clicking on blocks with the mouse, and analog trigger values.
+- Custom pause menu items (PICO-8's `menuitem`) and analog trigger values.
 - Fullscreen on iPhone Safari, which doesn't allow it. Real iPhones and iPads haven't been tested yet.

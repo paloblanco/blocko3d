@@ -13,7 +13,8 @@
     "js/",
     "runtime/",
     "docs/",
-    "MAKING_GAMES.md"
+    "MAKING_GAMES.md",
+    "llms.txt"
   ],
   "engines": {
     "node": ">=18"

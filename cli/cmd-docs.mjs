@@ -21,8 +21,8 @@ function printSection(s) {
 export default async function (cmd, { pos }) {
   if (cmd === 'docs') {
     const which = pos[0] || 'guide';
-    const file = { guide: '../MAKING_GAMES.md', games: '../MAKING_GAMES.md', api: '../docs/API.md' }[which];
-    if (!file) throw new UserError('b3d docs prints the guide; b3d docs api prints the whole API reference');
+    const file = { guide: '../MAKING_GAMES.md', games: '../MAKING_GAMES.md', api: '../docs/API.md', llms: '../llms.txt' }[which];
+    if (!file) throw new UserError('b3d docs prints the guide; b3d docs api the whole API reference; b3d docs llms the one-page guide for AI chatbots');
     process.stdout.write(readFileSync(new URL(file, import.meta.url), 'utf8'));
     return 0;
   }

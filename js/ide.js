@@ -1770,7 +1770,9 @@ const REPO_URL = 'https://github.com/paloblanco/blocko3d';
 function renderInfo() {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   // the repo link first (on phones the header has no room for it)
-  $('info').innerHTML = `<p class="info-link">Source code, docs and issues: <a href="${REPO_URL}" target="_blank" rel="noopener">github.com/paloblanco/blocko3d</a></p>` + API_SECTIONS.map((s) => `
+  $('info').innerHTML = `<p class="info-link">Source code, docs and issues: <a href="${REPO_URL}" target="_blank" rel="noopener">github.com/paloblanco/blocko3d</a></p>`
+    + `<p class="info-link">Making a game with an AI chatbot? Give it <a href="llms.txt" target="_blank" rel="noopener">llms.txt</a>, then pick <b>Starter</b> in the Demos menu and paste in its code.</p>`
+    + API_SECTIONS.map((s) => `
     <h2>${esc(s.title)}</h2>
     ${s.intro ? `<p>${esc(s.intro)}</p>` : ''}
     ${s.items.length ? `<table>${s.items.map(([sig, desc]) => `<tr><td><code>${esc(sig)}</code></td><td>${esc(desc)}</td></tr>`).join('')}</table>` : ''}

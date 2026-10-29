@@ -27,6 +27,7 @@ export const API_SECTIONS = [
       ['map_new(w, h, d, origin?)', 'Create an empty map of w × h × d blocks. Returns its index.'],
       ['map_copy(m)', 'A new map with its own copy of map m\'s blocks, origin, position and angle. Returns its index. Draw a house five times as five copies, and each can move or change on its own.'],
       ['map_reload(m)', 'Put cart map m\'s blocks back the way the cart has them: undo digging, crumbling, opened doors. Only the blocks: its position, angle and origin stay as they are. map_reload() does every cart map. Only cart maps (the ones from the Map tab) can be reloaded; copies and map_new maps are left alone (a scene comes back fresh with scene_load).'],
+      ['map_box(m, x0, y0, z0, x1, y1, z1, t)', 'Fill a box of map m\'s grid with tile t: every cell from corner (x0, y0, z0) to corner (x1, y1, z1), both included, in either order. t = 0 carves the box out. Cells past the map\'s edge are skipped. Build a level in a few lines: map_new(40, 10, 40) for the space, then a map_box for each floor, wall and platform.'],
       ['map_stamp(src, dst, x, y, z)', 'Copy map src\'s solid blocks into map dst, with src\'s block (0, 0, 0) landing on dst\'s block (x, y, z). Empty blocks in src leave dst as it was; blocks past dst\'s edge are cut off. For scenery that never moves: one big map is one mesh and one collision check.'],
       ['map_set_pos(m, [x, y, z])', 'Put the map\'s origin at this world position.'],
       ['map_set_angle(m, [pitch, yaw, roll])', 'Rotate the map around its origin. Angles are in turns.'],

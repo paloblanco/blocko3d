@@ -441,6 +441,18 @@ export function createEngine({
         if (t) mapSet(d, ox + i, oy + j, oz + k, t);
       }
     },
+    // map_box(m, x0, y0, z0, x1, y1, z1, t): fill the box of grid cells between two corners
+    // (both included, in either order, like rect) with tile t; t = 0 carves it out. Cells past
+    // the map's edge are skipped.
+    map_box(m, x0, y0, z0, x1, y1, z1, t) {
+      const map = getMap(m);
+      const lo = (a, b) => Math.max(0, Math.floor(Math.min(+a || 0, +b || 0)));
+      const hi = (a, b, n) => Math.min(n - 1, Math.floor(Math.max(+a || 0, +b || 0)));
+      const ax = lo(x0, x1), bx = hi(x0, x1, map.w), ay = lo(y0, y1), by = hi(y0, y1, map.h), az = lo(z0, z1), bz = hi(z0, z1, map.d);
+      const v = (t | 0) & 63;
+      for (let z = az; z <= bz; z++) for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) map.data[x + map.w * (y + map.h * z)] = v;
+      map.dirty = true;
+    },
     // scene_load(n): build scene n from the Scene editor. Returns { maps, named, things }:
     // maps = the numbers of fresh map copies, already placed (draw and collide with them),
     // named = { name: map number } for placements given a name, things = [[v, x, y, z, yaw], ...]

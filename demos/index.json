@@ -5,6 +5,11 @@
     "about": "Lower the drawbridge, collect the gems and get into the castle. Shows maps, a moving map, vox characters with a walk cycle, pal() recolors, outlines, sound, music, a title card and a saved best time."
   },
   {
+    "file": "starter.b3d.json",
+    "name": "Starter",
+    "about": "A starter kit to make your own game from: 16 named tiles, 9 vox models, 8 sound effects and a song, plus a small platformer built in code with map_box. Pick it, then replace or change the code."
+  },
+  {
     "file": "blockpop.b3d.json",
     "name": "Block Pop",
     "about": "Click or tap a group of same-colored blocks to pop it. Shows mouse_ray() and mray() for clicking blocks, and mget/mset to change a map while playing."

@@ -338,5 +338,6 @@ The result is exactly what the IDE's Export makes. It runs from disk or any web 
 - **The API is global**, PICO-8 style: `map(0)`, `btn(4)`, `vox(1, x, y, z)`. Angles are in turns (1 = a full turn). y is up, and one block is one world unit. Drawing is immediate-mode, so `_draw` draws everything, every frame.
 - **Collision** is a sphere against maps: `mpush(maps, x, y, z, r)` in one call. Use `mray` for line of sight and clicking.
 - **Debug output:** `printh` lines appear in the IDE's console and in `b3d run`.
+- **Levels in code:** `map_new(w, h, d)` then a `map_box(0, x0, y0, z0, x1, y1, z1, tile)` for each floor, wall and platform. The **Starter** cart (Demos menu) has named tiles, models and sounds to build with.
 - **Repeatable random levels:** `srand(n)` in `_init` makes the game's own randomness repeat too.
 - **Before you finish:** `b3d check`, a few `b3d shot`s of the important moments, then `b3d pack` and open the cart in the IDE once.
