@@ -1,7 +1,7 @@
 // BLOCKO3D IDE: code editor, map editor, tile editor, vox editor, API info and the run pane.
 import {
   DEFAULT_PALETTE, MAX_TILES, FACES, hexColor, emptyTile, bytesToB64, b64ToBytes,
-  VOX, MAX_VOX, DEFAULT_PIVOT, voxIndex,
+  VOX, MAX_VOX, DEFAULT_PIVOT, voxIndex, LIMITS,
 } from './core.js';
 import { demoCart, emptyCart, normalizeCart, CART_VERSION } from './cart.js';
 import { Preview } from './preview.js';
@@ -101,7 +101,8 @@ function loadCart(c, name) {
   delete cart.scenes;
   curScene = 0; sceneSel = -1; sceneFramed = false;
   sounds = Array.from({ length: MAX_SFX }, (_, i) => decodeSfx((cart.sfx || [])[i]) || emptySfx());
-  delete cart.sfx;
+  (cart.sfxNames || []).forEach((n, i) => { if (n && sounds[i]) sounds[i].name = n; });
+  delete cart.sfx; delete cart.sfxNames;
   curSfx = 0;
   patterns = Array.from({ length: MAX_PATTERNS }, (_, i) => decodePattern((cart.music || [])[i]) || emptyPattern());
   delete cart.music;
@@ -137,6 +138,7 @@ function serialize() {
     maps: maps.map((m) => ({ name: m.name, w: m.w, h: m.h, d: m.d, origin: m.origin, data: bytesToB64(m.data) })),
     vox: voxModels.map((v) => ({ name: v.name, pivot: v.pivot, data: bytesToB64(v.data) })),
     sfx: trimSounds(),
+    ...sfxNamesOut(),
     music: trimPatterns(),
     scale,
   };
@@ -176,7 +178,7 @@ function invalidateTile(t) { for (const f of FACES) thumbs.delete(t + f); }
 function tileButton(t, selected, onPick) {
   const b = document.createElement('button');
   b.className = 'tilebtn' + (selected ? ' on' : '') + (t === 0 ? ' eraser' : '');
-  b.title = t === 0 ? 'Empty (0)' : 'Tile ' + t;
+  b.title = t === 0 ? 'Empty (0)' : 'Tile ' + t + (cart.tiles[t] && cart.tiles[t].name ? ` (${cart.tiles[t].name})` : '');
   if (t > 0) {
     const c = document.createElement('canvas');
     c.width = c.height = 8;
@@ -427,8 +429,9 @@ function setupMapEditor() {
   };
   $('mapResize').onclick = () => {
     const m = curM(); if (!m) return;
-    const w = clamp(+$('mapW').value | 0, 1, 128), h = clamp(+$('mapH').value | 0, 1, 128), d = clamp(+$('mapD').value | 0, 1, 128);
-    if (w * h * d > 512 * 1024) { alert('That map is too large (max 524,288 blocks).'); return; }
+    const S = LIMITS.mapSide;
+    const w = clamp(+$('mapW').value | 0, 1, S), h = clamp(+$('mapH').value | 0, 1, S), d = clamp(+$('mapD').value | 0, 1, S);
+    if (w * h * d > LIMITS.mapBlocks) { alert(`That map is too large (max ${LIMITS.mapBlocks.toLocaleString('en-US')} blocks).`); return; }
     mapHist.save(curMap);
     const data = new Uint8Array(w * h * d);
     for (let z = 0; z < Math.min(d, m.d); z++) for (let y = 0; y < Math.min(h, m.h); y++) for (let x = 0; x < Math.min(w, m.w); x++) {
@@ -488,6 +491,7 @@ function refreshSprUI() {
   if (!cart) return;
   curTile = clamp(curTile, 1, cart.tiles.length - 1);
   $('sprIndex').textContent = curTile;
+  $('tileName').value = (cart.tiles[curTile] && cart.tiles[curTile].name) || '';
   const list = $('sprTiles');
   list.innerHTML = '';
   for (let t = 1; t < cart.tiles.length; t++) {
@@ -630,6 +634,12 @@ function setTool(t) {
 function setupSprEditor() {
   buildFaces();
   document.querySelectorAll('#tileTools button').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
+  $('tileName').oninput = (e) => {
+    const t = cart.tiles[curTile]; if (!t) return;
+    const v = e.target.value.trim();
+    if (v) t.name = v; else delete t.name;
+    dirty();
+  };
   $('tileAdd').onclick = () => {
     if (cart.tiles.length >= MAX_TILES) return;
     cart.tiles.push(emptyTile(6));
@@ -644,7 +654,9 @@ function setupSprEditor() {
   };
   $('tileClear').onclick = () => {
     if (!confirm(`Clear tile ${curTile} to black?`)) return;
+    const name = cart.tiles[curTile].name;
     cart.tiles[curTile] = emptyTile(0);
+    if (name) cart.tiles[curTile].name = name;
     tileEdited();
   };
 }
@@ -1397,6 +1409,13 @@ let sfxAnim = 0;
 const curS = () => sounds[curSfx];
 
 // Saved as strings; trailing empty slots are dropped and empty ones in between become null.
+// sound names, when any sound has one: { sfxNames: [...] } (trailing empty slots dropped), else {}
+function sfxNamesOut() {
+  const names = sounds.map((s) => s.name || null);
+  while (names.length && names[names.length - 1] === null) names.pop();
+  return names.length ? { sfxNames: names } : {};
+}
+
 function trimSounds() {
   const out = sounds.map((s) => (isSilent(s) && s.loopEnd === 0 && s.speed === 16 ? null : encodeSfx(s)));
   while (out.length && out[out.length - 1] === null) out.pop();
@@ -1417,9 +1436,11 @@ function refreshSfxUI() {
   [...list.children].forEach((b, i) => {
     b.classList.toggle('on', i === curSfx);
     b.classList.toggle('has', !isSilent(sounds[i]));
+    b.title = 'Sfx ' + i + (sounds[i].name ? ` (${sounds[i].name})` : '');
   });
   const s = curS();
   $('sfxIndex').textContent = curSfx;
+  $('sfxName').value = s.name || '';
   $('sfxSpeed').value = s.speed;
   $('sfxLoopA').value = s.loopStart;
   $('sfxLoopB').value = s.loopEnd;
@@ -1560,6 +1581,13 @@ function toggleSfxPreview() {
 }
 
 function setupSfxEditor() {
+  $('sfxName').oninput = (e) => {
+    const v = e.target.value.trim();
+    if (v) curS().name = v; else delete curS().name;
+    const b = $('sfxList').children[curSfx];
+    if (b) b.title = 'Sfx ' + curSfx + (v ? ` (${v})` : '');
+    dirty();
+  };
   setupScale();
   $('sfxPlay').onclick = toggleSfxPreview;
   $('sfxSpeed').oninput = (e) => { curS().speed = clamp(+e.target.value | 0, 1, 255); sfxEdited(); };
@@ -1568,7 +1596,9 @@ function setupSfxEditor() {
   $('sfxClear').onclick = () => {
     if (!confirm(`Clear sfx ${curSfx}?`)) return;
     stopSfxPreview();
+    const name = sounds[curSfx].name;
     sounds[curSfx] = emptySfx();
+    if (name) sounds[curSfx].name = name;
     refreshSfxUI(); dirty();
   };
   $('sfxCopy').onclick = async () => {
@@ -1580,6 +1610,7 @@ function setupSfxEditor() {
   $('sfxString').addEventListener('input', (e) => {
     const s = decodeSfx(e.target.value);
     if (!s) return;
+    if (sounds[curSfx].name) s.name = sounds[curSfx].name;
     sounds[curSfx] = s;
     refreshSfxUI(); dirty();
     log(`loaded a sound string into sfx ${curSfx}`, 'info');

@@ -1,9 +1,10 @@
 // Cart format + the built-in demo cart.
-// A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom}, ...], maps: [{name,w,h,d,origin,data(base64)}],
+// A cart is plain JSON: { version, code, palette?, tiles: [null, {top,side,bottom,name?}, ...], maps: [{name,w,h,d,origin,data(base64)}],
 //   vox: [{name, pivot, data(base64, 512 bytes: 0 empty, else color + 1)}], sfx: [string or null, ...],
-//   music: [pattern string or null, ...], scale?: {snap, root, type} (Sfx tab snapping),
+//   sfxNames?: [string or null, ...] (optional sound names), music: [pattern string or null, ...],
+//   scale?: {snap, root, type} (Sfx tab snapping),
 //   scenes: [{name, maps: [{m, pos, angle, name?}], vox: [{v, pos, yaw}]}] (see normalizeScene) }
-import { MAX_TILES, bytesToB64, emptyTile } from './core.js';
+import { MAX_TILES, bytesToB64, emptyTile } from './format.js';
 import { emptySfx, encodeSfx, encodePattern, emptyPattern } from './audio.js';
 
 export const CART_VERSION = 1;
@@ -45,11 +46,18 @@ export function normalizeCart(c) {
   for (let i = 1; i < cart.tiles.length; i++) {
     const t = cart.tiles[i];
     if (!t || !Array.isArray(t.top) || !Array.isArray(t.side) || !Array.isArray(t.bottom)) cart.tiles[i] = emptyTile(7);
+    else if ('name' in t && (typeof t.name !== 'string' || !t.name)) delete t.name;   // an optional name
   }
   if (!Array.isArray(cart.maps)) cart.maps = [];
   if (!Array.isArray(cart.vox)) cart.vox = [];
   if (!Array.isArray(cart.sfx)) cart.sfx = [];
   cart.sfx = cart.sfx.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
+  // optional sound names, one per sound slot (the sounds themselves are strings)
+  if (Array.isArray(cart.sfxNames)) {
+    cart.sfxNames = cart.sfxNames.slice(0, 64).map((x) => (typeof x === 'string' && x ? x : null));
+    while (cart.sfxNames.length && cart.sfxNames[cart.sfxNames.length - 1] === null) cart.sfxNames.pop();
+  }
+  if (!Array.isArray(cart.sfxNames) || !cart.sfxNames.length) delete cart.sfxNames;
   if (!Array.isArray(cart.music)) cart.music = [];
   cart.music = cart.music.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
   cart.vox = cart.vox.slice(0, 64);

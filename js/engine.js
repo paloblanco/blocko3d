@@ -354,6 +354,16 @@ export function createEngine({
 
   // ---- timing
   let frames = 0;
+  // rnd's numbers: the browser's, or after srand(n) a seeded mulberry32 (same n, same sequence)
+  let seed = null;
+  function random() {
+    if (seed === null) return Math.random();
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let x = seed;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  }
 
   // ================================================================= API
   const api = {
@@ -633,7 +643,10 @@ export function createEngine({
     // Calling it again replaces the current freeze; freeze(0) ends it.
     freeze(n, fn) { freezeN = Math.max(0, Math.floor(+n || 0)); freezeFn = typeof fn === 'function' ? fn : null; },
     t() { return frames / 60; },
-    rnd(n = 1) { return Array.isArray(n) ? n[Math.floor(Math.random() * n.length)] : Math.random() * n; },
+    rnd(n = 1) { const r = random(); return Array.isArray(n) ? n[Math.floor(r * n.length)] : r * n; },
+    // srand(n): from now on rnd gives the same sequence for the same n (mulberry32); srand() goes
+    // back to the browser's random numbers
+    srand(n) { seed = n == null ? null : Math.round(Number(n) * 65536) >>> 0; },
     flr: Math.floor, ceil: Math.ceil, abs: Math.abs, sqrt: Math.sqrt, min: Math.min, max: Math.max,
     sgn(x) { return x < 0 ? -1 : 1; },
     mid(a, b, c) { return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c)); },
@@ -815,7 +828,7 @@ export function createEngine({
   }
 
   // ================================================================= loop
-  let hooks = {}, running = false, raf = 0, last = 0, acc = 0;
+  let hooks = {}, running = false, raf = 0, last = 0, acc = 0, manual = false;
   let freezeN = 0, freezeFn = null;   // see freeze()
 
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
@@ -1049,33 +1062,53 @@ export function createEngine({
     endDraw();
   }
 
+  // One fixed 1/60 s step: input, then the pause menu or the game's update. False if the game threw.
+  function stepOnce() {
+    pollInput();
+    if (paused) { menuUpdate(); return running; }
+    if (pauseTapped()) { setPaused(true); return true; }
+    frames++;
+    if (freezeN > 0) {                     // frozen: the freeze function (if any) runs instead
+      const f = freezeFn;
+      freezeN--;
+      if (freezeN === 0 && freezeFn === f) freezeFn = null;
+      if (f && !guard(f)) return false;
+    } else if (hooks._update && !guard(hooks._update)) return false;
+    return true;
+  }
+
+  function drawFrame() {
+    if (paused) { drawMenu(); return true; }
+    beginDraw();
+    if (hooks._draw && !guard(hooks._draw)) return false;
+    endDraw();
+    return true;
+  }
+
   function tick(t) {
-    if (!running) return;
+    if (!running || manual) return;
     acc += Math.min(t - last, 100);
     last = t;
     let steps = 0;
     while (acc >= STEP && steps < 4) {
       acc -= STEP; steps++;
-      pollInput();
-      if (paused) { menuUpdate(); if (!running) return; continue; }
-      if (pauseTapped()) { setPaused(true); continue; }
-      frames++;
-      if (freezeN > 0) {                     // frozen: the freeze function (if any) runs instead
-        const f = freezeFn;
-        freezeN--;
-        if (freezeN === 0 && freezeFn === f) freezeFn = null;
-        if (f && !guard(f)) return;
-      } else if (hooks._update && !guard(hooks._update)) return;
+      if (!stepOnce() || !running) return;
     }
-    if (steps > 0) {
-      if (paused) drawMenu();
-      else {
-        beginDraw();
-        if (hooks._draw && !guard(hooks._draw)) return;
-        endDraw();
-      }
-    }
+    if (steps > 0 && !drawFrame()) return;
     raf = requestAnimationFrame(tick);
+  }
+
+  // For tools (b3d shot/run): stop the clock and run exactly n steps, each followed by a draw, as
+  // on a 60 Hz screen. With draw false only the last step draws (faster when only the end matters).
+  // Returns false once the game has thrown.
+  function step(n = 1, draw = true) {
+    if (!running) return false;
+    manual = true; cancelAnimationFrame(raf);
+    for (let i = 0; i < n; i++) {
+      if (!stepOnce() || !running) return false;
+      if ((draw || i === n - 1) && !drawFrame()) return false;
+    }
+    return true;
   }
 
   function start(h) {
@@ -1106,7 +1139,7 @@ export function createEngine({
     bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; clipRect = null; lastViews = [];
-    frames = 0; acc = 0; freezeN = 0; freezeFn = null;
+    frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();
     setMouseMode(0);
     dxAcc = dyAcc = wheelAcc = mdx = mdy = mwheel = 0;
@@ -1148,7 +1181,7 @@ export function createEngine({
   }
 
   return {
-    api, start, stop, reset, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, setMuted,
+    api, start, stop, reset, step, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, setMuted,
     set onTouchMode(fn) { onTouchMode = fn; showTouchMode(); }, get touchMode() { return paused ? 0 : touchMode; },
     get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
   };

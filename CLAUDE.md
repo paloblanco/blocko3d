@@ -184,13 +184,15 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 
 - The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
 - The extras: `printh`, the keyboard mapping (arrows/WASD, Z C N space for O, X V M for X), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
-- `_update` runs at a fixed 60 per second.
+- `_update` runs at a fixed 60 per second. The loop is `stepOnce()` (input, pause menu or `_update`) and `drawFrame()`; `engine.step(n, draw = true)` (internal, for tools, not in the game API) stops the clock and runs exactly n steps, each drawn, as on a 60 Hz screen (`draw` false draws only the last). `reset()` hands the loop back to the clock.
+- `srand(n)` (agreed with the owner, for headless runs and seeded levels): `rnd` then uses mulberry32 seeded with `round(n * 65536)` (so fractional seeds differ, like PICO-8's 16.16); `srand()` and `reset()` go back to `Math.random`.
 - Nothing is transparent by default.
 
 ## Architecture
 
 | File | Role |
 | --- | --- |
+| `js/format.js` | The parts of the cart format that need no three.js (default palette, tile/vox sizes, base64 helpers, `emptyTile`) and **`LIMITS`**, every limit in one place, used by the IDE, the engine and the `b3d` tool. `core.js` re-exports it. `cart.js`, `audio.js`, `export.js`, `png.js`, `font.js`, `zip.js` and `format.js` load in plain Node (the package is `"type": "module"`). |
 | `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×512, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders (GLSL3, two outputs), the scene render target and outline pass, renderer setup, cart base64 helpers. |
 | `js/engine.js` | `createEngine()`: the runtime plus the global API object, object pools per draw kind, sphere query, fixed-step loop, input. |
 | `js/boot.js` | `install(cart, opts)` creates the engine and puts the API on `window` with `Object.defineProperties` (keeps `palette` as a getter/setter); `start(cart)` takes the cart as a function returning its hooks (or plain hooks, or nothing to look them up globally) and runs the loop; `restart()` resets the engine and runs that function again; `showError` draws errors on screen for exported games. |
@@ -225,13 +227,14 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 **Cart format (JSON)**
 
 ```
-{ version, name, code, palette?, tiles: [null, {top, side, bottom}...], maps: [{name, w, h, d, origin, data(base64)}],
-  vox: [{name, pivot, data(base64, 512 bytes)}], sfx: [string or null, ...],
+{ version, name, code, palette?, tiles: [null, {top, side, bottom, name?}...], maps: [{name, w, h, d, origin, data(base64)}],
+  vox: [{name, pivot, data(base64, 512 bytes)}], sfx: [string or null, ...], sfxNames?: [string or null, ...],
   music: [pattern string or null, ...], scale?: {snap, root, type}, cover?: 'data:image/png;base64,...',
   scenes?: [{name, maps: [{m, pos, angle, name?}], vox: [{v, pos, yaw}]}] }
 ```
 
 - Map data is flattened as `x + w * (y + h * z)`.
+- Tile and sound names are optional (the owner's choice, for the `b3d` folder form and the IDE's Tile/Sfx name fields). Sound names sit in a parallel `sfxNames` list because sounds are plain strings; `normalizeCart` drops empty names and an empty list, so carts without names are unchanged.
 - In tile textures, row 0 is the top row of the image.
 
 **Dependencies**
