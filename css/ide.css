@@ -54,6 +54,11 @@ kbd {
 .cartname:hover { border-color: var(--line); }
 .spacer { flex: 1; }
 .group { display: flex; gap: 6px; }
+/* the small link to the repo, at the end of the header */
+.gh { color: var(--muted); font-size: 12px; text-decoration: none; white-space: nowrap; padding: 4px 2px; }
+.gh:hover { color: var(--text); text-decoration: underline; }
+.info-link { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.info-link a { color: var(--text); }
 .run { background: var(--green); border-color: var(--green); color: #0d1222; font-weight: 600; }
 .stop { background: transparent; }
 

@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- The IDE links to the GitHub repo: a small **GitHub ↗** link at the right of the header, and at the top of the Info tab (phones show only the Info tab one, since their header has no room).
 - **More for `b3d`**, from an agent's report on adding star collecting to Star Observatory:
   - Test hooks for `run` and `shot`: `--eval "code"` after `_init`, `--at 50:"code"` at the start of a frame, and `--watch "expr"` (or `--every n`) to print a value when it changes. They see the game's own variables, so tests no longer need edited copies of the game.
   - `b3d map <game> --at x,z [--scene s]`: what's in one column of the world, and the heights you can stand at.
