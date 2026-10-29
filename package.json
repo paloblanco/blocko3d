@@ -3,7 +3,19 @@
   "version": "0.1.0-alpha",
   "private": true,
   "type": "module",
-  "description": "Build tooling for the BLOCKO3D runtime bundle, the standalone demos and the IDE's offline files. The IDE itself runs as plain files.",
+  "description": "The BLOCKO3D build tooling and the b3d command-line tool (check, export, pack/unpack, headless runs, renders). The IDE itself runs as plain files.",
+  "bin": {
+    "b3d": "bin/b3d.mjs"
+  },
+  "files": [
+    "bin/",
+    "cli/",
+    "js/",
+    "runtime/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "esbuild tools/runtime-entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=inline --outfile=runtime/blocko3d.runtime.js && node --no-warnings tools/build-demo.mjs && node --no-warnings tools/build-ide.mjs"
   },
