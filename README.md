@@ -1,26 +1,33 @@
-# blocky3D
+<h1><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/logo/blocko3d-horizontal-on-dark.svg">
+  <img alt="BLOCKO3D" src="brand/logo/blocko3d-horizontal-on-light.svg" height="72">
+</picture></h1>
 
 A small, deliberately limited 3D game engine for JavaScript with a PICO-8-style developer experience. The whole API lives in the global namespace, everything is drawn from 8×8 palette-indexed textures, and the IDE is one static web page: write code, draw tiles, build voxel maps and press **Run**.
 
 **Version 0.1.0-alpha**: ready for testing by real people. It works and has been tested in a browser, but it's had little time on real devices and the API can still change. See [CHANGELOG.md](CHANGELOG.md) for what's in it, and **Testing the alpha** below for how to report problems.
 
+## Brand
+
+BLOCKO3D was called blocky3D until October 2026. The logo, icons, favicon, share image and the wordmark's font (Chakra Petch Bold, SIL Open Font License) are in [`brand/`](brand/), with a [README](brand/README.md) giving the colors and how to use them. Saves, autosaved carts and player settings from the blocky3D days carry over, since their storage keys kept the old name.
+
 ## Running it
 
 It's a static site with no build step. ES modules need a web server, so either:
 
-- **Online:** the IDE is live at https://paloblanco.github.io/demo_blocky_3d/ (GitHub Pages, deployed from `main`), and the exported demos at https://paloblanco.github.io/demo_blocky_3d/standalone_demo/ (a page linking to each one).
+- **Online:** the IDE is live at https://paloblanco.github.io/blocko3d/ (GitHub Pages, deployed from `main`), and the exported demos at https://paloblanco.github.io/blocko3d/standalone_demo/ (a page linking to each one).
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
 Everything the IDE uses is in this repo (CodeMirror 5, Three.js 0.170 for the editor previews and the two fonts are in `vendor/`), so it never reaches another website. Games themselves run on the bundled runtime in `runtime/` (see below).
 
 ### Installing the IDE (offline, desktop)
 
-The IDE is an installable app. Open it in Chrome or Edge and click the install icon at the right of the address bar (in Safari on a Mac: File → Add to Dock). It opens in its own window, with the blocky3D icon in your dock, taskbar or Start menu, and **works offline**: once it has been opened online, the IDE, the game player, Export, the Info tab and every demo are kept on your computer. When you're online it always loads the latest version and updates its copy. Your autosaved cart is shared with the IDE in a browser tab (same site, same storage); Save and Open still use `.b3d.json` files. The app covers the IDE page only, so the standalone demos stay separate apps you can install on their own.
+The IDE is an installable app. Open it in Chrome or Edge and click the install icon at the right of the address bar (in Safari on a Mac: File → Add to Dock). It opens in its own window, with the BLOCKO3D icon in your dock, taskbar or Start menu, and **works offline**: once it has been opened online, the IDE, the game player, Export, the Info tab and every demo are kept on your computer. When you're online it always loads the latest version and updates its copy. Your autosaved cart is shared with the IDE in a browser tab (same site, same storage); Save and Open still use `.b3d.json` files. The app covers the IDE page only, so the standalone demos stay separate apps you can install on their own.
 
 ## Testing the alpha
 
-- **Try the IDE:** open https://paloblanco.github.io/demo_blocky_3d/, pick a demo from **Demos**, then press **Run**.
-- **Try an exported game:** open https://paloblanco.github.io/demo_blocky_3d/standalone_demo/ and pick a demo. Each is exactly what **Export** makes. It's the easiest thing to try on a phone or tablet.
+- **Try the IDE:** open https://paloblanco.github.io/blocko3d/, pick a demo from **Demos**, then press **Run**.
+- **Try an exported game:** open https://paloblanco.github.io/blocko3d/standalone_demo/ and pick a demo. Each is exactly what **Export** makes. It's the easiest thing to try on a phone or tablet.
 - **Things worth trying:** the touch controls in portrait and landscape, pause, mute, fullscreen and Restart (fullscreen should stay on), a gamepad, and making a small game of your own.
 - **When something goes wrong,** please note the version (it's at the top of the Info tab and in the console), your device and browser, whether you were in the IDE or an exported game, and what you did just before.
 
@@ -117,7 +124,7 @@ The Info tab has the full reference.
 - `js/engine.js`: the runtime and the global API.
 - `js/boot.js`: installs the API as globals and starts a cart; shared by Run and exported games.
 - `js/shell.js`: the page around the game: layout, touch controls, and the pause, mute and fullscreen buttons.
-- `runtime/blocky3d.runtime.js`: the engine, boot code and Three.js bundled into one plain script (`window.Blocky3D`). Both **Run** and **Export** use this file, so what you test is what you ship.
+- `runtime/blocko3d.runtime.js`: the engine, boot code and Three.js bundled into one plain script (`window.Blocko3D`). Both **Run** and **Export** use this file, so what you test is what you ship.
 - `player.html`: runs a cart inside an iframe, so every press of **Run** starts clean. The pause menu's Restart runs the cart again in place, in the IDE and in exported games alike.
 - `js/export.js`, `js/zip.js`: build the export zip in the browser, with no dependencies.
 - `index.html`, `js/ide.js`, `css/ide.css`: the IDE. `js/preview.js` is the orbit viewer used by the editors.
@@ -145,9 +152,9 @@ npm run build    # rewrites runtime/, standalone_demo/, demos/castle.b3d.json an
 
 The IDE itself runs as plain files with no build step, but the build keeps three things in step with your change:
 
-- **The runtime bundle**, `runtime/blocky3d.runtime.js`, made from the engine (`js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run and Export use it, so engine changes don't show up until you rebuild.
+- **The runtime bundle**, `runtime/blocko3d.runtime.js`, made from the engine (`js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run and Export use it, so engine changes don't show up until you rebuild.
 - **The demos.** The castle (generated in `js/cart.js`) is written to `demos/castle.b3d.json`, and every demo in `demos/index.json` is exported to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game).
-- **The installed, offline IDE.** `ide-sw.js` (the service worker), `ide.webmanifest` and `icons/ide-*.png`. `ide-sw.js` lists every file the IDE uses with a fingerprint of their contents, so it changes whenever any of them does (`index.html`, `player.html`, `css/`, `js/`, `demos/`, `vendor/`, `runtime/`). That's how installed IDEs know to download the new files. **This is why a change that only touches the IDE, like a CSS tweak, a new demo or an Info tab edit, still needs the build**: without it, installed IDEs won't keep the new files for offline use. If you add a new top-level folder the IDE loads files from, also add it to `SOURCES` in `tools/build-ide.mjs`.
+- **The installed, offline IDE.** `ide-sw.js` (the service worker) and `ide.webmanifest`. `ide-sw.js` lists every file the IDE uses with a fingerprint of their contents, so it changes whenever any of them does (`index.html`, `player.html`, `css/`, `js/`, `demos/`, `vendor/`, `runtime/`). That's how installed IDEs know to download the new files. **This is why a change that only touches the IDE, like a CSS tweak, a new demo or an Info tab edit, still needs the build**: without it, installed IDEs won't keep the new files for offline use. If you add a new top-level folder the IDE loads files from, also add it to `SOURCES` in `tools/build-ide.mjs`.
 
 A GitHub Action fails if any of these committed files doesn't match a fresh build.
 

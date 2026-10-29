@@ -4,10 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#141b30">
-<title>blocky3D</title>
+<title>BLOCKO3D</title>
+<meta name="description" content="BLOCKO3D: a small 3D fantasy console in your browser. Code, maps, tiles, voxel models, scenes, sound and music in one page.">
+<meta property="og:title" content="BLOCKO3D">
+<meta property="og:description" content="A small 3D fantasy console in your browser.">
+<meta property="og:image" content="brand/web/og-image.png">
 <link rel="manifest" href="ide.webmanifest">
-<link rel="icon" href="icons/ide-192.png">
-<link rel="apple-touch-icon" href="icons/ide-192.png">
+<link rel="icon" href="brand/web/favicon.ico" sizes="any">
+<link rel="icon" href="brand/web/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/web/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/fonts/fonts.css">
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="css/ide.css">
@@ -28,7 +33,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="cube" aria-hidden="true"></span><span>blocky<b>3D</b></span></div>
+  <div class="brand"><img src="brand/logo/blocko3d-horizontal-on-dark.svg" alt="BLOCKO3D" height="28"></div>
   <input id="cartName" class="cartname" spellcheck="false" aria-label="Cart name">
   <div class="spacer"></div>
   <div class="group files">
@@ -306,7 +311,7 @@
   <section class="right">
     <div class="screen" id="screen">
       <div class="placeholder" id="placeholder">
-        <div class="cube big" aria-hidden="true"></div>
+        <img class="cube big" src="brand/icon/blocko3d-cube.svg" alt="" aria-hidden="true">
         <p>Press <b>Run</b> or <kbd>Ctrl</kbd>+<kbd>Enter</kbd></p>
       </div>
     </div>

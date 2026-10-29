@@ -1,5 +1,5 @@
-// blocky3D: keeps this game's files on the device so it plays offline (build 22fd852b)
-const CACHE = 'b3d-' + self.registration.scope + '-22fd852b';
+// BLOCKO3D: keeps this game's files on the device so it plays offline (build 3dec82ff)
+const CACHE = 'b3d-' + self.registration.scope + '-3dec82ff';
 const FILES = ["./","index.html","tilt-maze.js","manifest.webmanifest","icon-192.png","icon-512.png"];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

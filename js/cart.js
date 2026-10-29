@@ -11,7 +11,7 @@ export const CART_VERSION = 1;
 export function emptyCart() {
   return {
     version: CART_VERSION,
-    code: `// your blocky3D game
+    code: `// your BLOCKO3D game
 function _init() {
   bg(1)
 }
@@ -28,7 +28,7 @@ function _draw() {
   cam_set_pos([4, 6, -6])
   cam_set_lookat([4, 0, 4])
   map(0)
-  print('Hello, blocky3D!', 4, 4, 7)
+  print('Hello, BLOCKO3D!', 4, 4, 7)
 }
 `,
     tiles: [null, makeTile((r, c) => ((r + c) % 2 ? 6 : 13))],
@@ -150,7 +150,7 @@ function demoLevel() {
   });
 }
 
-const DEMO_CODE = `// blocky3D demo
+const DEMO_CODE = `// BLOCKO3D demo
 // arrows or WASD move, X jumps, Z raises / lowers the drawbridge
 // Enter pauses (resume, restart, screenshot)
 // vox models: 0 hero, 1-2 hero steps, 3-4 guard steps, 5 gem
@@ -311,8 +311,8 @@ function _draw() {
     rectfill(24, 66, 231, 193, 1)
     rect(24, 66, 231, 193, 7)
     rect(26, 68, 229, 191, 12)
-    printc('blocky', 74, 10, 0, 4)           // printc centers the text across the screen
-    printc('3D', 122, 8, 0, 3, 2)            // stretched: 3 wide, 2 tall
+    printc('BLOCKO', 74, 7, 0, 4)            // printc centers the text across the screen
+    printc('3D', 122, 10, 0, 3, 2)           // stretched: 3 wide, 2 tall
     if (time() % 1 < 0.6) printc('press O or X', 156, 7)
     let b = best == null ? 'No best time yet' : 'Best time: ' + fmt(best)
     printc(b, 172, 6)

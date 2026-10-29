@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>blocky3D WebGL check</title>
+<title>BLOCKO3D WebGL check</title>
 <style>
   body { background: #1d2b53; color: #fff1e8; font: 16px/1.45 -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
@@ -16,12 +16,12 @@
 </style>
 </head>
 <body>
-<h1>blocky3D WebGL check</h1>
+<h1>BLOCKO3D WebGL check</h1>
 <p>Open this page on the device with the problem, wait a few seconds, then take a screenshot of the whole page.</p>
 <div id="verdict">Checking…</div>
 <table id="out"></table>
 <script>
-// Checks what blocky3D needs from the browser (a working WebGL 2 context) without using the engine.
+// Checks what BLOCKO3D needs from the browser (a working WebGL 2 context) without using the engine.
 const rows = [];
 const out = document.getElementById('out');
 function row(k, v) { rows.push([k, String(v)]); out.innerHTML = rows.map(([a, b]) => '<tr><td>' + a + '</td><td>' + b.replace(/</g, '&lt;') + '</td></tr>').join(''); }
@@ -44,7 +44,7 @@ function probe(kind, attrs) {
   return r;
 }
 
-// the same settings blocky3D asks for
+// the same settings BLOCKO3D asks for
 const p2 = probe('webgl2', { antialias: false, preserveDrawingBuffer: true, alpha: false, depth: true, stencil: false });
 const gl = p2.gl;
 row('WebGL 2 context', gl ? 'created' : 'NOT created' + (p2.err ? ' (' + p2.err + ')' : ''));
@@ -75,8 +75,8 @@ row('WebGL 1 context (for comparison)', p1.gl ? (p1.gl.isContextLost() ? 'create
 function verdict(final) {
   const v = document.getElementById('verdict');
   v.className = ok ? 'ok' : 'bad';
-  v.textContent = ok ? (final ? 'WebGL 2 works here: blocky3D should run.' : 'So far so good…')
-    : 'WebGL 2 is not working here, so blocky3D can\'t run.';
+  v.textContent = ok ? (final ? 'WebGL 2 works here: BLOCKO3D should run.' : 'So far so good…')
+    : 'WebGL 2 is not working here, so BLOCKO3D can\'t run.';
 }
 verdict(false);
 // iPhones sometimes lose the context a moment later; watch for a few seconds

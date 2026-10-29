@@ -1,4 +1,4 @@
-// blocky3D IDE: code editor, map editor, tile editor, vox editor, API info and the run pane.
+// BLOCKO3D IDE: code editor, map editor, tile editor, vox editor, API info and the run pane.
 import {
   DEFAULT_PALETTE, MAX_TILES, FACES, hexColor, emptyTile, bytesToB64, b64ToBytes,
   VOX, MAX_VOX, DEFAULT_PIVOT, voxIndex,
@@ -14,6 +14,7 @@ import {
 } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
+// storage keys keep the pre-BLOCKO3D name, so autosaves and game saves carry over
 const STORE = 'blocky3d.cart.v1';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // Phone layout (matches the max-width: 820px block in ide.css): one panel at a time, the game is a tab.
@@ -265,7 +266,7 @@ function stop(showPlaceholder = true) {
 window.addEventListener('message', (e) => {
   if (!frame || e.source !== frame.contentWindow) return;
   const d = e.data || {};
-  if (d.source !== 'blocky3d-player') return;
+  if (d.source !== 'blocko3d-player') return;
   if (d.type === 'ready') frame.contentWindow.postMessage({ type: 'run', cart: pendingCart }, '*');
   else if (d.type === 'started') { log('running', 'info'); frame.focus(); frame.contentWindow.focus(); }
   else if (d.type === 'error') logError(d.message, d.line);
@@ -1911,4 +1912,4 @@ let saved = null;
 try { saved = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch { saved = null; }
 loadCart(saved || demoCart(), saved ? saved.name : 'castle');
 showSaveData();
-log(`blocky3D ${VERSION} ready. Press Run or Ctrl+Enter.`, 'info');
+log(`BLOCKO3D ${VERSION} ready. Press Run or Ctrl+Enter.`, 'info');

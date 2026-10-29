@@ -1,4 +1,4 @@
-// blocky3D pixel font for print().
+// BLOCKO3D pixel font for print().
 //
 // Each character sits in a 7 x 10 cell: glyphs are 5 pixels wide, capitals and digits are 7 tall,
 // and g j p q y drop 2 rows below the baseline. The cell keeps a 1-pixel margin on every side,

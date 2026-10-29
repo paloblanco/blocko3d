@@ -47,14 +47,9 @@ kbd {
   display: flex; align-items: center; gap: 14px; padding: 8px 14px;
   border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap;
 }
-.brand { display: flex; align-items: center; gap: 8px; font: 600 18px var(--mono); letter-spacing: -0.5px; }
-.brand b { color: var(--accent); }
-.cube {
-  width: 18px; height: 18px; display: inline-block;
-  background: linear-gradient(135deg, var(--yellow) 0 33%, var(--accent) 33% 66%, var(--blue) 66%);
-  border-radius: 3px; transform: rotate(-8deg);
-}
-.cube.big { width: 54px; height: 54px; border-radius: 8px; margin: 0 auto 12px; }
+.brand { display: flex; align-items: center; }
+.brand img { height: 28px; width: auto; display: block; }
+.cube.big { width: 64px; height: 64px; display: block; margin: 0 auto 12px; }
 .cartname { background: transparent; border-color: transparent; font-weight: 500; width: 14em; }
 .cartname:hover { border-color: var(--line); }
 .spacer { flex: 1; }
@@ -308,7 +303,7 @@ kbd {
     padding: max(8px, env(safe-area-inset-top)) 10px 8px;
   }
   .topbar .spacer { display: none; }
-  .brand { font-size: 16px; }
+  .brand img { height: 22px; }
   .cartname { width: 100%; min-width: 0; }
   .group.play { grid-column: 3; grid-row: 1; }
   .group.files { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; scrollbar-width: none; }

@@ -11,7 +11,7 @@ import { indexHtml, gameJs, gameSlug, checkSyntax, appFiles } from '../js/export
 import { VERSION } from '../js/version.js';
 
 const root = new URL('../', import.meta.url);
-const runtime = readFileSync(new URL('runtime/blocky3d.runtime.js', root), 'utf8');
+const runtime = readFileSync(new URL('runtime/blocko3d.runtime.js', root), 'utf8');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // 1. the castle as a cart file (with its cover art from demos/castle-cover.png)
@@ -50,16 +50,18 @@ writeFileSync(new URL('index.html', out), `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>blocky3D demos</title>
+<title>BLOCKO3D demos</title>
+<link rel="icon" href="../brand/web/favicon.ico" sizes="any">
+<link rel="icon" href="../brand/web/favicon.svg" type="image/svg+xml">
 <style>
   :root { color-scheme: dark; }
-  body { margin: 0; background: #0d1222; color: #d6dcf0; font: 16px/1.5 system-ui, sans-serif; }
+  body { margin: 0; background: #141b30; color: #d6dcf0; font: 16px/1.5 system-ui, sans-serif; }
   main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { margin: 0 0 4px; font-size: 28px; }
-  h1 b { color: #ff004d; }
+  h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; color: #f4f1e8; }
+  h1 img { display: block; height: 52px; width: auto; margin-bottom: 10px; }
   .sub { margin: 0 0 24px; color: #8a93b2; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-  li a { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1px solid #2a3352; border-radius: 10px; background: #151c33; color: inherit; text-decoration: none; }
+  li a { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1px solid #2a3352; border-radius: 10px; background: #1a2340; color: inherit; text-decoration: none; }
   li a:hover, li a:focus-visible { border-color: #29adff; }
   li img { width: 96px; height: 96px; flex: none; image-rendering: pixelated; border-radius: 6px; }
   .name { font-weight: 600; font-size: 18px; color: #fff; }
@@ -71,12 +73,12 @@ writeFileSync(new URL('index.html', out), `<!doctype html>
 </head>
 <body>
 <main>
-  <h1>blocky<b>3D</b> demos</h1>
+  <h1><img src="../brand/logo/blocko3d-horizontal-on-dark.svg" alt="BLOCKO3D">Demos</h1>
   <p class="sub">Exported games, exactly as the IDE's Export makes them. Version ${esc(VERSION)}. On a phone or tablet, the touch controls appear around the game.</p>
   <ul>
 ${built.map((d) => `    <li><a href="${esc(d.slug)}/index.html">${d.cover ? `<img src="${d.cover}" alt="">` : ''}<div><div class="name">${esc(d.name)}</div>${d.about ? `<div class="about">${esc(d.about)}</div>` : ''}</div></a></li>`).join('\n')}
   </ul>
-  <footer>Want to see how they're made? Open the <a href="../index.html">blocky3D IDE</a> and pick one from <b>Demos</b>.</footer>
+  <footer>Want to see how they're made? Open the <a href="../index.html">BLOCKO3D IDE</a> and pick one from <b>Demos</b>.</footer>
 </main>
 </body>
 </html>

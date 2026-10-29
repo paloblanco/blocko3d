@@ -14,7 +14,7 @@ const HOOKS_EXPR = '({ _init: typeof _init === "function" ? _init : null,' +
   ' _update: typeof _update === "function" ? _update : null,' +
   ' _draw: typeof _draw === "function" ? _draw : null })';
 
-const RUNTIME_URL = new URL('../runtime/blocky3d.runtime.js', import.meta.url);
+const RUNTIME_URL = new URL('../runtime/blocko3d.runtime.js', import.meta.url);
 
 export function gameSlug(name) {
   const s = String(name || '').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -58,13 +58,13 @@ export function gameJs(cart, runtime) {
   const data = { ...cart };
   delete data.code;
   return [
-    `// ${String(cart.name || 'game').replace(/[\r\n]+/g, ' ')}, made with blocky3D ${VERSION}`,
-    '// ---------------------------------------------------------------- runtime (blocky3D engine + three.js)',
+    `// ${String(cart.name || 'game').replace(/[\r\n]+/g, ' ')}, made with BLOCKO3D ${VERSION}`,
+    '// ---------------------------------------------------------------- runtime (BLOCKO3D engine + three.js)',
     runtime.trim(),
     '// ---------------------------------------------------------------- cart data',
-    'Blocky3D.catchGlobalErrors();',
+    'Blocko3D.catchGlobalErrors();',
     '// the page shows the cover and a play button; the game starts on a click, tap or key press',
-    `Blocky3D.play(${JSON.stringify(data)},`,
+    `Blocko3D.play(${JSON.stringify(data)},`,
     '// ---------------------------------------------------------------- game code',
     '// (inside a function, so Restart can run it again from the top)',
     'function () {',
@@ -132,7 +132,7 @@ function fingerprint(...parts) {
 // new files the next time the game is opened online, and they're used from the launch after.
 export function serviceWorkerJs(jsFile, version) {
   const files = ['./', 'index.html', jsFile, 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
-  return `// blocky3D: keeps this game's files on the device so it plays offline (build ${version})
+  return `// BLOCKO3D: keeps this game's files on the device so it plays offline (build ${version})
 const CACHE = 'b3d-' + self.registration.scope + '-${version}';
 const FILES = ${JSON.stringify(files)};
 self.addEventListener('install', (e) => {

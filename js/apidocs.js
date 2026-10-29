@@ -3,7 +3,7 @@ import { VERSION } from './version.js';
 
 export const API_SECTIONS = [
   {
-    title: `blocky3D ${VERSION}`,
+    title: `BLOCKO3D ${VERSION}`,
     intro: 'An alpha: everything here works and is tested, but the API can still change. Found a bug or something confusing? Note the version, your device and browser, whether it was in the IDE or an exported game, and what you did just before.',
     items: [],
   },

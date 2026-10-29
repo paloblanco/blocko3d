@@ -1,4 +1,4 @@
-// blocky3D sound: a small PICO-8-style SFX synth.
+// BLOCKO3D sound: a small PICO-8-style SFX synth.
 //
 // A sound (sfx) is 32 notes. Each note has a pitch (0-63, C0 to D#5; 33 is A2 = 440 Hz), a
 // waveform (0-7), a volume (0-7, 0 = silent) and an effect (0-7). The sound also has a speed

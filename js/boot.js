@@ -1,5 +1,5 @@
 // Boot helpers shared by the IDE's player (player.html) and exported games.
-// Bundled with the engine and three.js into runtime/blocky3d.runtime.js as window.Blocky3D.
+// Bundled with the engine and three.js into runtime/blocko3d.runtime.js as window.Blocko3D.
 import { createEngine } from './engine.js';
 import { drawText, textWidth, drawTitle } from './font.js';
 import { mountShell, wireShell } from './shell.js';

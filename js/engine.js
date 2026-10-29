@@ -1,4 +1,4 @@
-// blocky3D runtime. createEngine() returns the global API a cart runs against.
+// BLOCKO3D runtime. createEngine() returns the global API a cart runs against.
 import * as THREE from 'three';
 import {
   DEFAULT_PALETTE, NCOLORS, TURN, hexColor,
@@ -76,6 +76,7 @@ export function createEngine({
   const decodedSounds = sounds.map((str) => (str ? decodeSfx(str) : null));
   const patterns = Array.from({ length: MAX_PATTERNS }, (_, i) => decodePattern(cart.music && cart.music[i]));
   const audio = new SfxPlayer();
+  // the storage keys (save, res, mute) keep the pre-BLOCKO3D name, so saves made before still load
   const saveKey = 'blocky3d.save.' + slug(cart.name);
   const voxels = voxFromCart(cart);
 

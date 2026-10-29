@@ -1,6 +1,10 @@
 # Changelog
 
+BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
+
 ## Unreleased
+
+- **Renamed to BLOCKO3D**, with the new brand: logo in the IDE header and on the demo list page, a new favicon and app icon, a share image, and the castle demo's title card. The repo is now `paloblanco/blocko3d` and the site https://paloblanco.github.io/blocko3d/. Autosaved carts, game saves and settings carry over. The runtime file is now `runtime/blocko3d.runtime.js` and its global `Blocko3D` (`Blocky3D` still works). The brand kit is in `brand/`.
 
 - **Editors:** the Map, Vox and Scene tabs have **Undo** and **Redo** (buttons, Ctrl+Z and Ctrl+Shift+Z or Ctrl+Y). Map and Vox can paint layers seen from the **top, front or side**, and the Scene tab can drag things across the ground or up and down an upright plane. The Vox tab can **outline every voxel** in its 3D view.
 

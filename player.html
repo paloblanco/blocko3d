@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>blocky3D player</title>
+<title>BLOCKO3D player</title>
 <style>
   html, body { margin: 0; height: 100%; background: #000; }
 </style>
@@ -11,9 +11,9 @@
 <body>
 <!-- The same bundled runtime that exported games use, so Run matches Export. It builds the
      screen, touch controls and system buttons (js/shell.js), exactly as in an exported game. -->
-<script src="runtime/blocky3d.runtime.js"></script>
+<script src="runtime/blocko3d.runtime.js"></script>
 <script>
-const send = (msg) => parent.postMessage({ source: 'blocky3d-player', ...msg }, '*');
+const send = (msg) => parent.postMessage({ source: 'blocko3d-player', ...msg }, '*');
 let started = false;
 
 // Turn an error's stack into a line number in the cart's code.
@@ -23,13 +23,13 @@ function cartLine(err) {
 }
 
 function reportError(err) {
-  Blocky3D.stop();
+  Blocko3D.stop();
   send({ type: 'error', message: String((err && err.message) || err), line: cartLine(err) });
 }
 
 function run(cart) {
   started = true;
-  Blocky3D.install(cart, {
+  Blocko3D.install(cart, {
     onError: reportError,
     onLog: (text) => send({ type: 'log', text }),
     onSave: (json) => send({ type: 'save', json }),
@@ -38,15 +38,15 @@ function run(cart) {
   // The cart's code becomes a function returning its hooks, so Restart can run it again in place.
   let runCart;
   try {
-    runCart = (0, eval)(Blocky3D.cartFunctionSource(cart.code) + '\n//# sourceURL=cart.js');
+    runCart = (0, eval)(Blocko3D.cartFunctionSource(cart.code) + '\n//# sourceURL=cart.js');
   } catch (e) { reportError(e); return; }
-  if (Blocky3D.start(runCart)) send({ type: 'started' });
+  if (Blocko3D.start(runCart)) send({ type: 'started' });
 }
 
 window.addEventListener('message', (e) => {
   const d = e.data || {};
   if (d.type === 'run' && !started) run(d.cart);
-  if (d.type === 'stop') Blocky3D.stop();
+  if (d.type === 'stop') Blocko3D.stop();
 });
 window.addEventListener('error', (e) => reportError(e.error || e.message));
 send({ type: 'ready' });

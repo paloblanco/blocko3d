@@ -1,4 +1,4 @@
-// blocky3D core: palette, tile atlas, voxel meshing, shaders and map transforms.
+// BLOCKO3D core: palette, tile atlas, voxel meshing, shaders and map transforms.
 // Shared by the game runtime (player.html) and the IDE previews (index.html).
 import * as THREE from 'three';
 
@@ -569,7 +569,7 @@ export function setupRenderer(canvas, size) {
     // three.js fails with cryptic messages when the browser won't give a working WebGL 2 context
     // (seen on iPhones: "getShaderPrecisionFormat(...).precision" means the context came back lost).
     const why = typeof WebGL2RenderingContext === 'undefined'
-      ? 'This browser has no WebGL 2, which blocky3D needs. Try updating it.'
+      ? 'This browser has no WebGL 2, which BLOCKO3D needs. Try updating it.'
       : 'This browser would not start 3D graphics (WebGL 2). Try closing other tabs and reloading, ' +
         'restarting the browser, or updating it. On iPhone and iPad, Lockdown Mode turns WebGL off.';
     throw new Error(why + ' (' + ((e && e.message) || e) + ')');
