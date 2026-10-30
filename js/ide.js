@@ -81,6 +81,25 @@ function history(take, put, undoBtn, redoBtn) {
 }
 let mapHist, voxHist, sceneHist;   // made in the editors' setup functions
 
+// A w x h x d grid of bytes (index x + w * (y + h * z)) moved one cell along an axis (0 x, 1 y,
+// 2 z) in direction dir (+1 or -1); cells pushed past the edge wrap round to the other side.
+function shiftGrid(data, w, h, d, axis, dir) {
+  const out = new Uint8Array(data.length), n = [w, h, d][axis];
+  for (let z = 0; z < d; z++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = [x, y, z];
+    p[axis] = (p[axis] + dir + n) % n;
+    out[p[0] + w * (p[1] + h * p[2])] = data[x + w * (y + h * z)];
+  }
+  return out;
+}
+// Wire a Shift row's six buttons (data-shift="axis,dir") to fn(axis, dir).
+function setupShift(id, fn) {
+  for (const b of document.querySelectorAll(`#${id} [data-shift]`)) {
+    const [axis, dir] = b.dataset.shift.split(',').map(Number);
+    b.onclick = () => fn(axis, dir);
+  }
+}
+
 function loadCart(c, name) {
   cart = normalizeCart(JSON.parse(JSON.stringify(c)));
   if (name) cart.name = name;
@@ -308,7 +327,8 @@ function refreshMapUI() {
   maps.forEach((m, i) => sel.append(new Option(`${i}: ${m.name || 'map'}`, i)));
   sel.value = curMap;
   const m = curM();
-  for (const id of ['mapName', 'mapW', 'mapH', 'mapD', 'oX', 'oY', 'oZ', 'mapResize', 'mapDelete']) $(id).disabled = !m;
+  for (const id of ['mapName', 'mapW', 'mapH', 'mapD', 'oX', 'oY', 'oZ', 'mapResize', 'mapDelete', 'mapDup']) $(id).disabled = !m;
+  for (const b of document.querySelectorAll('#mapShift button')) b.disabled = !m;
   if (m) {
     $('mapName').value = m.name;
     $('mapW').value = m.w; $('mapH').value = m.h; $('mapD').value = m.d;
@@ -411,6 +431,18 @@ function setupMapEditor() {
     curMap = maps.length - 1; layer = 0;
     refreshMapUI(); dirty();
   };
+  $('mapDup').onclick = () => {
+    const m = curM(); if (!m) return;
+    maps.push({ name: m.name ? m.name + ' copy' : '', w: m.w, h: m.h, d: m.d, origin: [...m.origin], data: new Uint8Array(m.data) });
+    curMap = maps.length - 1;
+    refreshMapUI(); dirty();
+  };
+  setupShift('mapShift', (axis, dir) => {
+    const m = curM(); if (!m) return;
+    mapHist.save(curMap);
+    m.data = shiftGrid(m.data, m.w, m.h, m.d, axis, dir);
+    refreshMapUI(); dirty();
+  });
   $('mapDelete').onclick = () => {
     const m = curM();
     const used = sceneUses('map', curMap);
@@ -958,6 +990,11 @@ function setupVoxEditor() {
     curVox = voxModels.length - 1;
     refreshVoxUI(); dirty();
   };
+  setupShift('voxShift', (axis, dir) => {
+    voxHist.save(curVox);
+    curV().data = shiftGrid(curV().data, VOX, VOX, VOX, axis, dir);
+    voxEdited();
+  });
   $('voxClear').onclick = () => {
     if (!confirm(`Clear vox ${curVox}?`)) return;
     voxHist.save(curVox);
@@ -1338,6 +1375,14 @@ function setupSceneEditor() {
     const [axis, dir] = b.dataset.nudge.split(',').map(Number);
     b.onclick = () => nudge(axis, dir);
   }
+  // Shift moves everything in the scene by one Step (a scene has no grid, so nothing wraps)
+  setupShift('sceneShift', (axis, dir) => {
+    const sc = scenes[curScene];
+    if (!sc || !(sc.maps.length + sc.vox.length)) return;
+    sceneHist.save();
+    for (const p of [...sc.maps, ...sc.vox]) p.pos[axis] = snapTo(p.pos[axis] + dir * sceneStep(), 1e-6);
+    sceneEdited();
+  });
   $('sceneStep').onchange = (e) => { for (const id of ['sX', 'sY', 'sZ']) $(id).step = e.target.value; };
   $('turnLeft').onclick = () => turn(-1);
   $('turnRight').onclick = () => turn(1);

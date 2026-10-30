@@ -4,6 +4,8 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Shift** in the Map, Vox and Scene tabs: six buttons (−X +X −Y +Y −Z +Z) move a whole map or model one block (or voxel) along an axis; blocks pushed past the edge come back on the other side. In the Scene tab they move every map and marker by the Step, which now sits in the toolbar next to them. Each shift is one Undo step.
+- **Duplicate** in the Map tab copies the map to the end of the list (its blocks, size and origin, named "… copy").
 - **Games from AI chatbots.** [`llms.txt`](https://paloblanco.github.io/blocko3d/llms.txt) is a one-page guide that any chatbot can read to write a whole game as one JavaScript file: the rules, the API with exact return values, common mistakes, and a complete example. The game is pasted into the new **Starter** cart (Demos menu), which has 16 named tiles, 9 vox models, 8 sound effects and a song ready to use, plus a small platformer to change.
 - `map_box(m, x0, y0, z0, x1, y1, z1, t)` fills a box of blocks with a tile (or carves it out with 0), so a level can be built in a few lines of code.
 - The README's "Not in this version" list was out of date (riding moving maps, map undo and clicking blocks are all possible) and has been fixed.

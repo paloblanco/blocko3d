@@ -108,6 +108,10 @@ kbd {
 .toolbar label input, .toolbar label select { color: var(--text); }
 .xyz input { width: 3.6em; }
 .sep { width: 1px; height: 20px; background: var(--line); }
+/* Shift: move a whole map, model or scene one step along an axis */
+.shiftpick { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); }
+.shiftpick > span { margin-right: 3px; }
+.shiftpick button { padding-left: 6px; padding-right: 6px; }
 .tilebar { display: flex; gap: 4px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
 .tilebtn {
   position: relative; padding: 0; width: 34px; height: 34px; border-radius: 5px; overflow: hidden;
