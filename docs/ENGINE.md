@@ -28,6 +28,8 @@ The project is **BLOCKO3D** (all caps, "3D" in the accent color), renamed from b
 
 ## Design decisions (agreed with the owner)
 
+**`map(m, backs)`** (the owner's request and design): `backs` true sets that draw's material to `THREE.DoubleSide` (set on every draw, so a pooled object never keeps it), so through `palt` holes the far faces' insides show. The back face carries the front's face direction for outlines, which looks right in tests (outlines on and off at 2×). Default `FrontSide`, unchanged output.
+
 **Drawing tiers** mirror PICO-8:
 
 1. `map`: voxel maps, the equivalent of PICO-8's map.
@@ -343,7 +345,7 @@ A small `tests/` folder built this way would be a good addition.
 - **Riding moving maps**: done in game code for now (Third Person: `wtom` before moving the platform, `mtow` after, about six lines). The owner said to add an API only if that looks clunky; it didn't.
 - Undo in the Tile editor (Map, Vox and Scene have it).
 - Palette editing in the IDE. For now, change `palette[i]` from code.
-- Faces between two solid blocks are always culled, even if a tile has `palt` transparency. That's fine for now.
+- Faces between two solid blocks are always culled, even if a tile has `palt` transparency (three see-through blocks in a row read as one open tube; `map(m, true)` doesn't change that). The owner hasn't asked for it yet; a fix would need the mesher to know which tiles have see-through pixels, which today is per-draw `palt` state, not tile data.
 - Games can't add their own pause menu items yet (PICO-8's `menuitem`).
 
 ## Working with the owner

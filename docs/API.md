@@ -39,6 +39,7 @@ Define any of these three functions in your code. Everything else is already glo
 A map is a 3D grid of tile indices (0 = empty). Maps from the Map tab are numbered 0, 1, 2… Each map has an origin (pivot, in its own block coordinates), a world position for that origin, and an angle.
 
 - **`map(m)`**: Draw map m with its current position and angle.
+- **`map(m, true)`**: Also draw the back of every face. Use it for maps with see-through tiles (palt): through a block's holes you then see the inside of its far side, as with a cage or a window frame, instead of straight through it.
 - **`map_new(w, h, d, origin?)`**: Create an empty map of w × h × d blocks. Returns its index.
 - **`map_copy(m)`**: A new map with its own copy of map m's blocks, origin, position and angle. Returns its index. Draw a house five times as five copies, and each can move or change on its own.
 - **`map_reload(m)`**: Put cart map m's blocks back the way the cart has them: undo digging, crumbling, opened doors. Only the blocks: its position, angle and origin stay as they are. map_reload() does every cart map. Only cart maps (the ones from the Map tab) can be reloaded; copies and map_new maps are left alone (a scene comes back fresh with scene_load).

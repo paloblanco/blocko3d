@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- `map(m, true)` also draws the back of every face, so through the see-through pixels of a tile (`palt`) you see the inside of the block's far side, like a cage or a window frame, instead of straight through it. `map(m)` is unchanged.
 - **Map tab tools:** Pencil (as before), **Rect** and **Rect fill** (drag from corner to corner on the layer, with a preview), **Fill** (a paint bucket on the layer, like the Vox tab's) and **Vol fill** (the same in 3D, through every layer: fill a room with water or hollow out a solid). The right button erases with every tool, and each action is one Undo step.
 - **Shift** in the Map, Vox and Scene tabs: six buttons (−X +X −Y +Y −Z +Z) move a whole map or model one block (or voxel) along an axis; blocks pushed past the edge come back on the other side. In the Scene tab they move every map and marker by the Step, which now sits in the toolbar next to them. Each shift is one Undo step.
 - **Duplicate** in the Map tab copies the map to the end of the list (its blocks, size and origin, named "… copy").

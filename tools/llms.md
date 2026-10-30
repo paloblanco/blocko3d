@@ -41,7 +41,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `map_new(w, h, d)`: a new empty map, w wide (x), h tall (y), d deep (z). Returns its number: the first one you make in the Starter cart is map 0.
 - `map_box(m, x0, y0, z0, x1, y1, z1, t)`: fill a box of map m with tile t. Both corners are included; t = 0 carves the box out.
 - `mset(m, x, y, z, t)` / `mget(m, x, y, z)`: set or read one block (whole grid numbers).
-- `map(m)`: draw map m. Call it in `_draw`, every frame.
+- `map(m)`: draw map m. Call it in `_draw`, every frame. `map(m, true)` also draws the backs of faces, for tiles made see-through with `palt`.
 - `mpush(m, x, y, z, r)`: collision. Pushes a ball of radius r at (x, y, z) out of map m (or a list of maps, like `[0, 1]`). Returns `[x, y, z, nx, ny, nz, ground]`: the corrected position, the push direction, and the number of the map you're standing on, or -1 when in the air.
 - `mgetw(m, x, y, z)`: the block at a world point, as `[t, xi, yi, zi]`. Handy for "what am I standing on": `let [t] = mgetw(0, px, py - 0.5, pz)`.
 - `mray(m, ox, oy, oz, dx, dy, dz, maxd)`: the first block along a ray, `[t, xi, yi, zi, nx, ny, nz, d]`; t is 0 on a miss.

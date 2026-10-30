@@ -489,13 +489,16 @@ export function createEngine({
       map.origin = o;
       map._xfDirty = true;
     },
-    map(m) {
+    // map(m, backs): backs true also draws each face's back, so through a block's transparent
+    // pixels (palt) you see the inside of its far faces instead of straight through it
+    map(m, backs = false) {
       const map = getMap(m);
       ensureGeometry(map);
       updateTransform(map);
       const o = take('map');
       o.geometry = map.geometry;
       o.matrix.copy(map._m);
+      o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
     },
     mget(m, x, y, z) { return mapGet(getMap(m), Math.floor(x), Math.floor(y), Math.floor(z)); },
     mset(m, x, y, z, t) { mapSet(getMap(m), Math.floor(x), Math.floor(y), Math.floor(z), t | 0); },
