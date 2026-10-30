@@ -91,6 +91,9 @@
       <div class="mapwork">
         <div class="gridwrap">
           <div class="layerbar">
+            <span class="toolpick" id="mapTools">
+              <button data-tool="pencil" class="on" title="Paint blocks one at a time">Pencil</button><button data-tool="rect" title="Drag from corner to corner: the outline of a rectangle on this layer">Rect</button><button data-tool="rectfill" title="Drag from corner to corner: a filled rectangle on this layer">Rect fill</button><button data-tool="fill" title="Fill the connected blocks of one kind on this layer (like a paint bucket)">Fill</button><button data-tool="volfill" title="Fill the connected blocks of one kind in 3D, through every layer: fill a room with water, or hollow out a solid">Vol fill</button>
+            </span>
             <span class="toolpick planepick" id="mapPlane" title="Which slice of the map the grid edits">
               <button data-axis="y" class="on" title="Horizontal layers, seen from above">Top</button><button data-axis="z" title="Layers front to back, seen from the front">Front</button><button data-axis="x" title="Layers left to right, seen from the side">Side</button>
             </span>
@@ -104,7 +107,7 @@
             <button id="layerClear">Clear layer</button>
           </div>
           <div class="gridscroll" id="gridScroll"><canvas id="mapGrid"></canvas></div>
-          <div class="hint"><span class="desktop-only">Left-drag paints, right-drag erases, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> <span id="mapHint">Seen from above: +x right, +z down.</span></div>
+          <div class="hint"><span class="desktop-only">The left button uses the tile, the right button erases (every tool), <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> <span id="mapHint">Seen from above: +x right, +z down.</span></div>
         </div>
         <div class="previewwrap">
           <canvas id="mapPreview"></canvas>

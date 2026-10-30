@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Map tab tools:** Pencil (as before), **Rect** and **Rect fill** (drag from corner to corner on the layer, with a preview), **Fill** (a paint bucket on the layer, like the Vox tab's) and **Vol fill** (the same in 3D, through every layer: fill a room with water or hollow out a solid). The right button erases with every tool, and each action is one Undo step.
 - **Shift** in the Map, Vox and Scene tabs: six buttons (−X +X −Y +Y −Z +Z) move a whole map or model one block (or voxel) along an axis; blocks pushed past the edge come back on the other side. In the Scene tab they move every map and marker by the Step, which now sits in the toolbar next to them. Each shift is one Undo step.
 - **Duplicate** in the Map tab copies the map to the end of the list (its blocks, size and origin, named "… copy").
 - **Games from AI chatbots.** [`llms.txt`](https://paloblanco.github.io/blocko3d/llms.txt) is a one-page guide that any chatbot can read to write a whole game as one JavaScript file: the rules, the API with exact return values, common mistakes, and a complete example. The game is pasted into the new **Starter** cart (Demos menu), which has 16 named tiles, 9 vox models, 8 sound effects and a song ready to use, plus a small platformer to change.

@@ -80,6 +80,8 @@ function history(take, put, undoBtn, redoBtn) {
   return h;
 }
 let mapHist, voxHist, sceneHist;   // made in the editors' setup functions
+let mapTool = 'pencil';   // the Map tab's tool: pencil, rect, rectfill, fill, volfill
+let mapRect = null;       // a rectangle being dragged: { u0, v0, u1, v1, val, fill }, in grid cells
 
 // A w x h x d grid of bytes (index x + w * (y + h * z)) moved one cell along an axis (0 x, 1 y,
 // 2 z) in direction dir (+1 or -1); cells pushed past the edge wrap round to the other side.
@@ -354,6 +356,47 @@ function refreshMapUI() {
 let cell = 16;
 const curSlice = () => { const m = curM(); return slice(mapAxis, m.w, m.h, m.d); };
 const mapIdx = (m, [x, y, z]) => x + m.w * (y + m.h * z);
+// The cells of a dragged rectangle (corners included): its outline, or all of it when filled.
+function rectCells(r) {
+  const out = [], ua = Math.min(r.u0, r.u1), ub = Math.max(r.u0, r.u1), va = Math.min(r.v0, r.v1), vb = Math.max(r.v0, r.v1);
+  for (let v = va; v <= vb; v++) for (let u = ua; u <= ub; u++) {
+    if (r.fill || u === ua || u === ub || v === va || v === vb) out.push([u, v]);
+  }
+  return out;
+}
+
+// Paint bucket on the layer being edited: the cells connected to (u, v) (up, down, left, right)
+// holding the same tile as it become tile t.
+function floodLayer(m, u0, v0, t) {
+  const sl = curSlice(), from = m.data[mapIdx(m, sl.at(u0, v0, layer))];
+  if (from === t) return;
+  const seen = new Uint8Array(sl.cols * sl.rows), stack = [[u0, v0]];
+  while (stack.length) {
+    const [u, v] = stack.pop();
+    if (u < 0 || v < 0 || u >= sl.cols || v >= sl.rows || seen[u + v * sl.cols]) continue;
+    seen[u + v * sl.cols] = 1;
+    const i = mapIdx(m, sl.at(u, v, layer));
+    if (m.data[i] !== from) continue;
+    m.data[i] = t;
+    stack.push([u + 1, v], [u - 1, v], [u, v + 1], [u, v - 1]);
+  }
+}
+
+// The same in 3D, through every layer: the blocks connected to p (by a face) holding the same
+// tile as it become tile t. Fill a hollow room with water, or empty out a solid.
+function floodVolume(m, [x0, y0, z0], t) {
+  const from = m.data[x0 + m.w * (y0 + m.h * z0)];
+  if (from === t) return;
+  const stack = [x0 + m.w * (y0 + m.h * z0)], wh = m.w * m.h;
+  m.data[stack[0]] = t;
+  while (stack.length) {
+    const i = stack.pop();
+    const x = i % m.w, y = Math.floor(i / m.w) % m.h, z = Math.floor(i / wh);
+    const next = [x > 0 && i - 1, x < m.w - 1 && i + 1, y > 0 && i - m.w, y < m.h - 1 && i + m.w, z > 0 && i - wh, z < m.d - 1 && i + wh];
+    for (const j of next) if (j !== false && m.data[j] === from) { m.data[j] = t; stack.push(j); }
+  }
+}
+
 function drawGrid() {
   const cv = $('mapGrid'), m = curM();
   const ctx = cv.getContext('2d');
@@ -388,6 +431,18 @@ function drawGrid() {
   for (let u = 0; u <= sl.cols; u++) { ctx.moveTo(u * cell + 0.5, 0); ctx.lineTo(u * cell + 0.5, H); }
   for (let v = 0; v <= sl.rows; v++) { ctx.moveTo(0, v * cell + 0.5); ctx.lineTo(W, v * cell + 0.5); }
   ctx.stroke();
+  // a rectangle being dragged: what it will paint, and its bounds
+  if (mapRect) {
+    ctx.globalAlpha = 0.8;
+    for (const [u, v] of rectCells(mapRect)) {
+      if (mapRect.val) ctx.drawImage(faceCanvas(mapRect.val, face), u * cell, v * cell, cell, cell);
+      else { ctx.fillStyle = '#0a0f1d'; ctx.fillRect(u * cell, v * cell, cell, cell); }
+    }
+    ctx.globalAlpha = 1;
+    const ua = Math.min(mapRect.u0, mapRect.u1), va = Math.min(mapRect.v0, mapRect.v1);
+    ctx.strokeStyle = '#ffc93c'; ctx.lineWidth = 2;
+    ctx.strokeRect(ua * cell + 1, va * cell + 1, (Math.abs(mapRect.u1 - mapRect.u0) + 1) * cell - 1, (Math.abs(mapRect.v1 - mapRect.v0) + 1) * cell - 1);
+  }
 }
 
 function queuePreview() {
@@ -489,29 +544,74 @@ function setupMapEditor() {
   $('layerFill').onclick = () => fillLayer(mapTile);
   $('layerClear').onclick = () => fillLayer(0);
 
+  document.querySelectorAll('#mapTools button').forEach((b) => {
+    b.onclick = () => { mapTool = b.dataset.tool; document.querySelectorAll('#mapTools button').forEach((x) => x.classList.toggle('on', x === b)); };
+  });
+
   const cv = $('mapGrid');
   let painting = -1, stroked = false;
-  const paintAt = (e) => {
-    const m = curM(); if (!m) return;
+  const cellAt = (e) => {
     const r = cv.getBoundingClientRect(), sl = curSlice();
     const u = Math.floor((e.clientX - r.left) / cell), v = Math.floor((e.clientY - r.top) / cell);
-    if (u < 0 || v < 0 || u >= sl.cols || v >= sl.rows) return;
-    const i = mapIdx(m, sl.at(u, v, layer));
+    return { u: clamp(u, 0, sl.cols - 1), v: clamp(v, 0, sl.rows - 1), inside: u >= 0 && v >= 0 && u < sl.cols && v < sl.rows };
+  };
+  const edited = () => { drawGrid(); queuePreview(); dirty(); };
+  const paintAt = (e) => {
+    const m = curM(); if (!m) return;
+    const c = cellAt(e);
+    if (!c.inside) return;
+    const i = mapIdx(m, curSlice().at(c.u, c.v, layer));
     if (m.data[i] === painting) return;
     if (!stroked) { mapHist.save(curMap); stroked = true; }   // one undo step per stroke
     m.data[i] = painting;
-    drawGrid(); queuePreview(); dirty();
+    edited();
   };
   cv.addEventListener('contextmenu', (e) => e.preventDefault());
   cv.addEventListener('pointerdown', (e) => {
-    if (!curM()) return;
+    const m = curM(); if (!m) return;
     stroked = false;
     painting = e.button === 2 ? 0 : mapTile;
+    const c = cellAt(e);
+    if (!c.inside) { painting = -1; return; }
+    if (mapTool === 'fill' || mapTool === 'volfill') {
+      const p = curSlice().at(c.u, c.v, layer);
+      if (m.data[mapIdx(m, p)] !== painting) {
+        mapHist.save(curMap);
+        if (mapTool === 'fill') floodLayer(m, c.u, c.v, painting); else floodVolume(m, p, painting);
+        edited();
+      }
+      painting = -1;
+      return;
+    }
     cv.setPointerCapture(e.pointerId);
+    if (mapTool === 'rect' || mapTool === 'rectfill') {
+
+      mapRect = { u0: c.u, v0: c.v, u1: c.u, v1: c.v, val: painting, fill: mapTool === 'rectfill' };
+      drawGrid();
+      return;
+    }
     paintAt(e);
   });
-  cv.addEventListener('pointermove', (e) => { if (painting >= 0) paintAt(e); });
-  cv.addEventListener('pointerup', () => { painting = -1; });
+  cv.addEventListener('pointermove', (e) => {
+    if (painting < 0) return;
+    if (mapRect) {
+      const c = cellAt(e);
+      if (c.u !== mapRect.u1 || c.v !== mapRect.v1) { mapRect.u1 = c.u; mapRect.v1 = c.v; drawGrid(); }
+      return;
+    }
+    paintAt(e);
+  });
+  const endRect = () => {
+    const m = curM(), r = mapRect;
+    mapRect = null;
+    if (!m || !r) return;
+    mapHist.save(curMap);
+    const sl = curSlice();
+    for (const [u, v] of rectCells(r)) m.data[mapIdx(m, sl.at(u, v, layer))] = r.val;
+    edited();
+  };
+  cv.addEventListener('pointerup', () => { if (mapRect) endRect(); painting = -1; });
+  cv.addEventListener('pointercancel', () => { mapRect = null; painting = -1; drawGrid(); });
   new ResizeObserver(() => { if (activeTab === 'map') drawGrid(); }).observe($('gridScroll'));
 }
 
