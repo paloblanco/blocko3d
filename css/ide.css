@@ -66,6 +66,13 @@ kbd {
 .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 42%); }
 .left { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--line); }
 .right { display: flex; flex-direction: column; gap: 8px; padding: 14px; min-height: 0; }
+/* the game pane can be hidden on desktop, giving the editors the whole width */
+.tabs .gametoggle { margin-left: auto; align-self: center; margin-bottom: 4px; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; font-size: 12px; }
+@media (min-width: 821px) {
+  body.game-hidden .layout { grid-template-columns: minmax(0, 1fr); }
+  body.game-hidden .right { display: none; }
+  body.game-hidden .left { border-right: none; }
+}
 
 .tabs { display: flex; gap: 2px; padding: 8px 10px 0; background: var(--panel); border-bottom: 1px solid var(--line); }
 .tabs button {

@@ -267,7 +267,19 @@ function logError(message, line) {
 // ================================================================= run / stop
 let frame = null, pendingCart = null;
 
+// Hide or show the game pane (desktop). Remembered on this device; Run always shows it.
+const GAME_KEY = 'blocko3d.hideGame';
+function setGameHidden(hide) {
+  document.body.classList.toggle('game-hidden', hide);
+  $('gameToggle').textContent = hide ? '◂ Show game' : 'Hide game ▸';
+  $('gameToggle').title = hide ? 'Show the game pane again' : 'Hide the game pane so the editors get the whole width (Run shows it again)';
+  try { localStorage.setItem(GAME_KEY, hide ? '1' : '0'); } catch { /* storage blocked */ }
+  if (cm) cm.refresh();
+  window.dispatchEvent(new Event('resize'));   // editors and 3D previews fit the new width
+}
+
 function run() {
+  if (document.body.classList.contains('game-hidden') && !MOBILE.matches) setGameHidden(false);
   stop(false);
   $('console').textContent = '';
   clearErrMark();
@@ -303,7 +315,7 @@ function showTab(name) {
   if (name === 'game' && !MOBILE.matches) name = 'code';   // the game tab only exists on phones
   activeTab = name;
   document.body.dataset.tab = name;
-  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.tabs button[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('on', p.id === 'tab-' + name));
   if (name === 'code' && cm) cm.refresh();
   if (name === 'map') refreshMapUI();
@@ -1973,6 +1985,8 @@ async function setupDemos() {
 
 function setupTopBar() {
   $('btnRun').onclick = run;
+  $('gameToggle').onclick = () => setGameHidden(!document.body.classList.contains('game-hidden'));
+  try { if (localStorage.getItem(GAME_KEY) === '1') setGameHidden(true); } catch { /* storage blocked */ }
   $('btnStop').onclick = () => stop();
   $('cartName').oninput = (e) => { cart.name = e.target.value; dirty(); showSaveData(); };
   $('btnNew').onclick = () => {
@@ -2008,7 +2022,7 @@ function setupTopBar() {
       log(`opened ${f.name}`, 'info');
     } catch (err) { log('Could not open that file: ' + err.message, 'error'); }
   };
-  document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+  document.querySelectorAll('.tabs button[data-tab]').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); return; }
