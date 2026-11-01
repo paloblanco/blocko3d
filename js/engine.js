@@ -10,6 +10,7 @@ import {
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
+import { GifWriter } from './gif.js';
 
 export const SCREEN = 256;          // square render target, scaled up with crisp pixels
 const STEP = 1000 / 60;             // _update runs at a fixed 60 per second
@@ -957,7 +958,7 @@ export function createEngine({
   // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
   // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
   // first time that happened the menu stopped showing.
-  const MENU = ['Resume', 'Restart', 'Screenshot'];
+  const MENU = ['Resume', 'Restart', 'Screenshot', 'Capture GIF'];
   if (onCover) MENU.push('Capture cover');
   if (canHires) MENU.push('Resolution');
   let paused = false, menuSel = 0, note = '', noteUntil = 0, menuAge = 0;
@@ -1014,20 +1015,122 @@ export function createEngine({
     o.imageSmoothingEnabled = false;
     o.drawImage(canvas, 0, 0, S, S);
     o.drawImage(overlay, 0, 0, S, S);   // the game's text, untouched while paused; the menu is on its own canvas
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
-    const name = `${slug(cart.name)}_${stamp}.png`;
-    out.toBlob((blob) => {
-      if (!blob) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    }, 'image/png');
+    const name = fileName('png');
+    out.toBlob((blob) => { if (blob) download(blob, name); }, 'image/png');
     note = 'Screenshot saved'; noteUntil = performance.now() + 1500;
     onLog('screenshot saved: ' + name);
+  }
+
+  function fileName(ext) {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+    return `${slug(cart.name)}_${stamp}.${ext}`;
+  }
+
+  function download(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  // ---- Capture GIF: the last 10 seconds of play, always being recorded. Every other update
+  // (30 a second of game time) the screen is copied at 256 square (the 3D view plus the game's
+  // text, never the menu) into a small canvas of its own and stored as palette indices in a ring
+  // of 300 frames (about 20 MB). Only that canvas is read back, never the overlay, and nothing is
+  // recorded while paused or in headless step mode (b3d shot/run).
+  const GIF_SECONDS = 10, GIF_EVERY = 2, GIF_FRAMES = (GIF_SECONDS * 60) / GIF_EVERY;
+  let gifRing = [], gifHead = 0, gifCount = 0, gifLast = -Infinity, gifBusy = false;
+  let gifColors = [], gifIndex = new Map(), gifCtx = null;
+
+  function resetGif() {
+    gifHead = gifCount = 0; gifLast = -Infinity;
+    gifColors = []; gifIndex = new Map();
+  }
+
+  // The palette index for a pixel read back as 0xAABBGGRR (alpha ignored): a new entry while the
+  // table has room (255, keeping one for transparency), else the nearest color already in it.
+  function gifColor(c) {
+    let i = gifIndex.get(c);
+    if (i !== undefined) return i;
+    if (gifColors.length < 255) i = gifColors.push(c) - 1;
+    else {
+      let best = Infinity;
+      for (let k = 0; k < gifColors.length; k++) {
+        const d = gifColors[k];
+        const dr = (c & 255) - (d & 255), dg = ((c >> 8) & 255) - ((d >> 8) & 255), db = ((c >> 16) & 255) - ((d >> 16) & 255);
+        const e = dr * dr + dg * dg + db * db;
+        if (e < best) { best = e; i = k; }
+      }
+    }
+    gifIndex.set(c, i);
+    return i;
+  }
+
+  function recordFrame() {
+    if (manual || gifBusy || frames - gifLast < GIF_EVERY) return;
+    gifLast = frames;
+    if (!gifCtx) {
+      const c = document.createElement('canvas');
+      c.width = c.height = SCREEN;
+      gifCtx = c.getContext('2d', { willReadFrequently: true });
+      gifCtx.imageSmoothingEnabled = false;
+    }
+    const g = gifCtx;
+    g.fillStyle = '#000'; g.fillRect(0, 0, SCREEN, SCREEN);
+    g.drawImage(canvas, 0, 0, SCREEN, SCREEN);
+    g.drawImage(overlay, 0, 0, SCREEN, SCREEN);
+    const rgba = new Uint32Array(g.getImageData(0, 0, SCREEN, SCREEN).data.buffer);
+    let slot = gifRing[gifHead];
+    if (!slot) slot = gifRing[gifHead] = { px: new Uint8Array(SCREEN * SCREEN), f: 0 };
+    const px = slot.px;
+    let last = -1, li = 0;
+    for (let p = 0; p < rgba.length; p++) {
+      const c = rgba[p] & 0xffffff;
+      if (c !== last) { last = c; li = gifColor(c); }
+      px[p] = li;
+    }
+    slot.f = frames;
+    gifHead = (gifHead + 1) % GIF_FRAMES;
+    if (gifCount < GIF_FRAMES) gifCount++;
+  }
+
+  // Encode the recorded frames a few at a time, so the menu keeps showing progress.
+  async function saveGif() {
+    if (gifBusy) return;
+    if (gifCount < 2) { note = 'Nothing recorded yet'; noteUntil = performance.now() + 1500; return; }
+    gifBusy = true;
+    const name = fileName('gif');
+    try {
+      // the last 10 seconds of game time (a slow device draws less often, so 300 frames can span more)
+      let list = [];
+      for (let k = 0; k < gifCount; k++) list.push(gifRing[(gifHead - gifCount + k + GIF_FRAMES) % GIF_FRAMES]);
+      const from = list[list.length - 1].f + GIF_EVERY - GIF_SECONDS * 60;
+      list = list.filter((s) => s.f >= from);
+      const colors = gifColors.map((c) => ((c & 255) << 16) | (c & 0xff00) | ((c >> 16) & 255));
+      const gif = new GifWriter(SCREEN, SCREEN, colors);
+      // delays in hundredths of a second from the game's own frame count, so 2 updates (3.33 cs)
+      // come out as 3, 3, 4... and the GIF runs at the game's speed
+      const cs = (f) => Math.round(((f - list[0].f) * 100) / 60);
+      let t = performance.now();
+      for (let k = 0; k < list.length; k++) {
+        const next = k + 1 < list.length ? list[k + 1].f : list[k].f + GIF_EVERY;
+        gif.add(list[k].px, cs(next) - cs(list[k].f));
+        if (performance.now() - t > 30) {
+          note = `Saving GIF ${Math.floor((k * 100) / list.length)}%`; noteUntil = Infinity;
+          await new Promise((r) => setTimeout(r, 0));
+          t = performance.now();
+        }
+      }
+      download(new Blob([gif.finish()], { type: 'image/gif' }), name);
+      note = 'GIF saved'; noteUntil = performance.now() + 1500;
+      onLog(`gif saved: ${name} (${((list[list.length - 1].f + GIF_EVERY - list[0].f) / 60).toFixed(1)} s)`);
+    } catch (e) {
+      note = 'GIF failed'; noteUntil = performance.now() + 1500;
+      onLog('gif failed: ' + (e && e.message));
+    } finally { gifBusy = false; }
   }
 
   // The game screen as the cart's cover art: 256 square, the 3D view plus the game's text, no menu.
@@ -1064,6 +1167,7 @@ export function createEngine({
     if (choice === 'Resume') setPaused(false);
     else if (choice === 'Restart') { stop(); onRestart(); }
     else if (choice === 'Screenshot') screenshot();
+    else if (choice === 'Capture GIF') saveGif();
     else if (choice === 'Capture cover') captureCover();
     else if (choice === 'Resolution') changeRes(1);
   }
@@ -1097,6 +1201,7 @@ export function createEngine({
     beginDraw();
     if (hooks._draw && !guard(hooks._draw)) return false;
     endDraw();
+    recordFrame();
     return true;
   }
 
@@ -1155,6 +1260,7 @@ export function createEngine({
     bgColor = 0; outlineColor = -1; outlineInner = true; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; clipRect = null; lastViews = [];
+    resetGif();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();
     setMouseMode(0);
