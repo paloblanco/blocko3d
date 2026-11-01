@@ -221,10 +221,33 @@ function setupCode() {
   if (window.CodeMirror) {
     cm = window.CodeMirror.fromTextArea($('code'), {
       mode: 'javascript', lineNumbers: true, tabSize: 2, indentUnit: 2, indentWithTabs: false,
-      matchBrackets: true, viewportMargin: 50,
-      extraKeys: { Tab: (ed) => ed.execCommand(ed.somethingSelected() ? 'indentMore' : 'insertSoftTab') },
+      viewportMargin: 50,
+      // the add-ons in vendor/codemirror/addons.min.js
+      matchBrackets: true,       // the bracket that matches the one at the cursor lights up
+      autoCloseBrackets: true,   // typing ( [ { ' " ` adds the closing one
+      styleActiveLine: true,     // the cursor's line is shaded
+      hintOptions: { hint: codeHint, completeSingle: false },
+      extraKeys: {
+        Tab: (ed) => ed.execCommand(ed.somethingSelected() ? 'indentMore' : 'insertSoftTab'),
+        'Ctrl-/': toggleComment, 'Cmd-/': toggleComment,
+        'Ctrl-H': 'replace',                       // as in most editors (Shift+Ctrl+F also works)
+        'Ctrl-Space': (ed) => ed.showHint(),
+        'Alt-G': 'jumpToLine',
+      },
     });
     cm.on('change', () => { cart.code = cm.getValue(); dirty(); });
+    // suggestions pop up by themselves after two letters of a name (not in strings or comments)
+    cm.on('inputRead', (ed, ch) => {
+      if (ed.state.completionActive || ch.origin !== '+input' || !/^[\w$]$/.test(ch.text[0])) return;
+      const cur = ed.getCursor(), tok = ed.getTokenAt(cur);
+      if (/string|comment/.test(tok.type || '')) return;
+      const word = /[\w$]*$/.exec(ed.getLine(cur.line).slice(0, cur.ch))[0];
+      if (word.length >= 2 && !/^\d/.test(word)) ed.showHint();
+    });
+    $('codeFind').onclick = () => { cm.focus(); cm.execCommand('find'); };
+    $('codeReplace').onclick = () => { cm.focus(); cm.execCommand('replace'); };
+    $('codeComment').onclick = () => { cm.focus(); toggleComment(cm); };
+    $('codeComplete').onclick = () => { cm.focus(); cm.showHint(); };
   } else {
     const ta = $('code');
     ta.addEventListener('input', () => { cart.code = ta.value; dirty(); });
@@ -237,6 +260,56 @@ function setupCode() {
   }
 }
 const getCode = () => (cm ? cm.getValue() : $('code').value);
+// "//" goes at the code's indentation ("  // bg(1)"), as in most editors
+const toggleComment = (ed) => ed.toggleComment({ indent: true });
+
+// ---- autocomplete: BLOCKO3D's functions (from the Info tab's text), JavaScript's keywords, and the
+// names already in the game's code. An API name shows its signature; its description is the tooltip.
+const JS_WORDS = ['function', 'return', 'let', 'const', 'if', 'else', 'for', 'while', 'break', 'continue', 'true', 'false', 'null', 'undefined', 'new', 'typeof', 'of', 'in', 'switch', 'case', 'default', 'Math', 'this'];
+let apiWords = null;
+function apiList() {
+  if (apiWords) return apiWords;
+  apiWords = new Map();
+  for (const s of API_SECTIONS) for (const [sig, desc] of s.items) {
+    for (const piece of sig.split(/\s*\/\s*|(?<=\)),\s*/)) {   // "sfx(-1) / sfx(-1, ch)", "sin(a), cos(a)"
+      const open = piece.indexOf('(');
+      const head = open < 0 ? piece : piece.slice(0, open);   // "flr, ceil, abs, ..., mid" before mid's (
+      const names = head.split(/,\s*/);
+      names.forEach((n, k) => {
+        n = n.trim();
+        if (!/^[a-z_][\w$]*$/.test(n) || apiWords.has(n)) return;   // skips headings like "Players"
+        apiWords.set(n, { sig: k === names.length - 1 && open >= 0 ? piece.slice(open) : '', desc });
+      });
+    }
+  }
+  return apiWords;
+}
+function codeHint(ed) {
+  const cur = ed.getCursor(), line = ed.getLine(cur.line);
+  let start = cur.ch;
+  while (start > 0 && /[\w$]/.test(line[start - 1])) start--;
+  const word = line.slice(start, cur.ch), lw = word.toLowerCase();
+  const api = apiList();
+  const own = new Set(ed.getValue().match(/[A-Za-z_$][\w$]{2,}/g) || []);
+  own.delete(word);
+  const seen = new Set(), list = [];
+  const add = (name, info) => {
+    if (seen.has(name) || name === word || !name.toLowerCase().startsWith(lw)) return;
+    seen.add(name);
+    list.push({ text: name, info, render: (el) => {
+      el.textContent = name;
+      if (info && info.sig) { const s = document.createElement('span'); s.className = 'sig'; s.textContent = info.sig; el.append(s); }
+      if (info) el.title = info.desc;
+    } });
+  };
+  for (const [name, info] of api) add(name, info);
+  for (const name of own) add(name, null);
+  for (const name of JS_WORDS) add(name, null);
+  if (!list.length) return null;
+  // the case the user typed first, then shorter names, then alphabetical
+  list.sort((a, b) => (b.text.startsWith(word) - a.text.startsWith(word)) || (a.text.length - b.text.length) || a.text.localeCompare(b.text));
+  return { list: list.slice(0, 60), from: window.CodeMirror.Pos(cur.line, start), to: window.CodeMirror.Pos(cur.line, cur.ch) };
+}
 function setCode(s) { if (cm) { cm.setValue(s); cm.clearHistory(); } else $('code').value = s; }
 
 function gotoLine(line) {

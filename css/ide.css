@@ -104,6 +104,24 @@ kbd {
 .cm-s-default .cm-operator { color: #c2c3c7; }
 .cm-s-default .cm-atom { color: #ffa300; }
 .CodeMirror .errline { background: rgba(255, 0, 77, 0.18); }
+/* the Code tab's small toolbar */
+.codebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.codebar button { padding: 3px 10px; font-size: 12px; }
+.codebar .hint { margin-left: 4px; }
+/* find / replace bar (CodeMirror's dialog add-on) */
+.CodeMirror-dialog { background: var(--panel); color: var(--text); font: 13px var(--ui); padding: 6px 10px; }
+.CodeMirror-dialog-top { border-bottom: 1px solid var(--line); }
+.CodeMirror-dialog input { color: var(--text); font: 13px var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; width: 16em; }
+.CodeMirror-dialog button { font-size: 12px; padding: 2px 10px; margin-left: 4px; }
+.CodeMirror-search-hint { color: var(--muted); }
+.cm-searching { background: rgba(255, 201, 60, 0.28); }
+/* autocomplete popup (show-hint add-on) */
+.CodeMirror-hints { background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); font: 13px var(--mono); max-height: 16em; z-index: 50; }
+.CodeMirror-hint { color: var(--text); padding: 2px 10px; }
+.CodeMirror-hint .sig { color: var(--muted); margin-left: 10px; }
+li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
+.CodeMirror-matchingbracket { background: rgba(255, 201, 60, 0.18); }
+.CodeMirror-nonmatchingbracket { color: #ff004d !important; }
 .CodeMirror-matchingbracket { color: var(--yellow) !important; }
 
 /* ---------- map editor */

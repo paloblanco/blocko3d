@@ -6,7 +6,7 @@ reaching other websites. Exported games don't use any of this: they carry their 
 | Folder | What | Version | License |
 | --- | --- | --- | --- |
 | `three/` | three.js, `build/three.module.min.js` (the editor previews; must match `three` in `package.json`) | 0.170.0 | MIT |
-| `codemirror/` | CodeMirror 5: `lib/codemirror.js`, `mode/javascript/javascript.js` and `lib/codemirror.css`, minified with esbuild | 5.65.18 | MIT |
+| `codemirror/` | CodeMirror 5: `lib/codemirror.js`, `mode/javascript/javascript.js` and `lib/codemirror.css`, minified with esbuild; `addons.min.js` / `addons.min.css` are the add-ons the Code tab uses (`dialog`, `search/searchcursor`, `search/search`, `search/jump-to-line`, `edit/matchbrackets`, `edit/closebrackets`, `selection/active-line`, `comment/comment`, `hint/show-hint`, and the `dialog` and `show-hint` styles), each minified with esbuild and joined in that order | 5.65.18 | MIT |
 | `fonts/` | IBM Plex Sans 400/500/600 and JetBrains Mono 400/600, latin subset, from `@fontsource` | 5.x | SIL OFL 1.1 |
 
 After replacing anything here, run `npm run build` and commit the result: the IDE's service worker

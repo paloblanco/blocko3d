@@ -15,9 +15,11 @@
 <link rel="apple-touch-icon" href="brand/web/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/fonts/fonts.css">
 <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="vendor/codemirror/addons.min.css">
 <link rel="stylesheet" href="css/ide.css">
 <script src="vendor/codemirror/codemirror.min.js"></script>
 <script src="vendor/codemirror/javascript.min.js"></script>
+<script src="vendor/codemirror/addons.min.js"></script>
 <script type="importmap">
 { "imports": { "three": "./vendor/three/three.module.min.js" } }
 </script>
@@ -67,6 +69,13 @@
     </nav>
 
     <div class="panel on" id="tab-code">
+      <div class="codebar">
+        <button id="codeFind" title="Find (Ctrl+F); then Ctrl+G for the next match, Shift+Ctrl+G for the one before">Find</button>
+        <button id="codeReplace" title="Find and replace (Ctrl+H)">Replace</button>
+        <button id="codeComment" title="Comment or uncomment the selected lines (Ctrl+/)">Comment</button>
+        <button id="codeComplete" title="Suggest names: BLOCKO3D functions and your own (Ctrl+Space)">Complete</button>
+        <span class="hint desktop-only"><kbd>Ctrl</kbd>+<kbd>F</kbd> find · <kbd>Ctrl</kbd>+<kbd>H</kbd> replace · <kbd>Ctrl</kbd>+<kbd>/</kbd> comment · <kbd>Ctrl</kbd>+<kbd>Space</kbd> complete · <kbd>Alt</kbd>+<kbd>G</kbd> go to line</span>
+      </div>
       <textarea id="code" spellcheck="false"></textarea>
     </div>
 
