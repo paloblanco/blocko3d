@@ -74,7 +74,8 @@
         <button id="codeReplace" title="Find and replace (Ctrl+H)">Replace</button>
         <button id="codeComment" title="Comment or uncomment the selected lines (Ctrl+/)">Comment</button>
         <button id="codeComplete" title="Suggest names: BLOCKO3D functions and your own (Ctrl+Space)">Complete</button>
-        <span class="hint desktop-only"><kbd>Ctrl</kbd>+<kbd>F</kbd> find · <kbd>Ctrl</kbd>+<kbd>H</kbd> replace · <kbd>Ctrl</kbd>+<kbd>/</kbd> comment · <kbd>Ctrl</kbd>+<kbd>Space</kbd> complete · <kbd>Alt</kbd>+<kbd>G</kbd> go to line</span>
+        <select id="codeFuncs" title="Jump to a function (Alt+Up / Alt+Down: the previous / next one)" aria-label="Jump to a function"><option value="">Functions…</option></select>
+        <span class="hint desktop-only"><kbd>Ctrl</kbd>+<kbd>F</kbd> find · <kbd>Ctrl</kbd>+<kbd>H</kbd> replace · <kbd>Ctrl</kbd>+<kbd>/</kbd> comment · <kbd>Ctrl</kbd>+<kbd>Space</kbd> complete · <kbd>Alt</kbd>+<kbd>G</kbd> go to line · <kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> functions · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> <kbd>]</kbd> fold</span>
       </div>
       <textarea id="code" spellcheck="false"></textarea>
     </div>

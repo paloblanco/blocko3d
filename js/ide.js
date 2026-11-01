@@ -227,12 +227,18 @@ function setupCode() {
       autoCloseBrackets: true,   // typing ( [ { ' " ` adds the closing one
       styleActiveLine: true,     // the cursor's line is shaded
       hintOptions: { hint: codeHint, completeSingle: false },
+      foldGutter: true,          // arrows in the margin fold a function (or any { } block, or a long comment)
+      gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
       extraKeys: {
         Tab: (ed) => ed.execCommand(ed.somethingSelected() ? 'indentMore' : 'insertSoftTab'),
         'Ctrl-/': toggleComment, 'Cmd-/': toggleComment,
         'Ctrl-H': 'replace',                       // as in most editors (Shift+Ctrl+F also works)
         'Ctrl-Space': (ed) => ed.showHint(),
         'Alt-G': 'jumpToLine',
+        'Alt-Up': (ed) => jumpFunction(ed, -1),    // previous / next function, as in PICO-8
+        'Alt-Down': (ed) => jumpFunction(ed, 1),
+        'Shift-Ctrl-[': 'fold', 'Shift-Cmd-[': 'fold',
+        'Shift-Ctrl-]': 'unfold', 'Shift-Cmd-]': 'unfold',
       },
     });
     cm.on('change', () => { cart.code = cm.getValue(); dirty(); });
@@ -248,6 +254,19 @@ function setupCode() {
     $('codeReplace').onclick = () => { cm.focus(); cm.execCommand('replace'); };
     $('codeComment').onclick = () => { cm.focus(); toggleComment(cm); };
     $('codeComplete').onclick = () => { cm.focus(); cm.showHint(); };
+    // the function list: filled when opened, so it always matches the code
+    const funcs = $('codeFuncs');
+    const fillFuncs = () => {
+      funcs.length = 1;
+      for (const f of findFunctions(cm)) funcs.add(new Option(`${'\u00a0'.repeat(Math.min(f.indent, 8))}${f.name}  (line ${f.line + 1})`, f.line));
+    };
+    funcs.addEventListener('focus', fillFuncs);
+    funcs.addEventListener('pointerdown', fillFuncs);
+    funcs.onchange = () => {
+      const f = findFunctions(cm).find((x) => x.line === +funcs.value);
+      funcs.selectedIndex = 0;
+      if (f) goToFunction(cm, f);
+    };
   } else {
     const ta = $('code');
     ta.addEventListener('input', () => { cart.code = ta.value; dirty(); });
@@ -260,6 +279,34 @@ function setupCode() {
   }
 }
 const getCode = () => (cm ? cm.getValue() : $('code').value);
+// ---- functions in the code, for Alt+Up / Alt+Down and the function list. A definition is a line
+// with "function name(", "name = function", or an arrow function "name = (...) =>" / "name = x =>"
+// (with or without let / const / var, at any indentation). Lines inside comments or strings don't count.
+const FN_DECL = /^(\s*)(?:export\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/;
+const FN_ASSIGN = /^(\s*)(?:(?:let|const|var)\s+)?([A-Za-z_$][\w$.]*)\s*=\s*(?:async\s+)?(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/;
+function findFunctions(ed) {
+  const out = [];
+  for (let line = 0; line < ed.lineCount(); line++) {
+    const text = ed.getLine(line), m = FN_DECL.exec(text) || FN_ASSIGN.exec(text);
+    if (!m) continue;
+    const ch = text.indexOf(m[2], m[1].length);
+    if (/comment|string/.test(ed.getTokenTypeAt(window.CodeMirror.Pos(line, ch + 1)) || '')) continue;
+    out.push({ line, ch, name: m[2], indent: m[1].length });
+  }
+  return out;
+}
+function goToFunction(ed, f) {
+  ed.focus();
+  ed.setCursor(f.line, f.ch);
+  ed.scrollIntoView({ line: f.line, ch: 0 }, ed.getScrollInfo().clientHeight / 3);   // a little room above
+}
+// dir -1: the definition before the cursor's line; +1: the one after. At either end it stays put.
+function jumpFunction(ed, dir) {
+  const here = ed.getCursor().line, all = findFunctions(ed);
+  const f = dir > 0 ? all.find((x) => x.line > here) : all.filter((x) => x.line < here).pop();
+  if (f) goToFunction(ed, f);
+}
+
 // "//" goes at the code's indentation ("  // bg(1)"), as in most editors
 const toggleComment = (ed) => ed.toggleComment({ indent: true });
 

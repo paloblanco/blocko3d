@@ -108,6 +108,12 @@ kbd {
 .codebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .codebar button { padding: 3px 10px; font-size: 12px; }
 .codebar .hint { margin-left: 4px; }
+.codebar select { font: 12px var(--mono); max-width: 16em; }
+/* code folding (foldgutter add-on) */
+.CodeMirror-foldgutter { width: 1.1em; }
+.CodeMirror-foldgutter-open, .CodeMirror-foldgutter-folded { color: #4a557a; cursor: pointer; }
+.CodeMirror-foldgutter-open:hover, .CodeMirror-foldgutter-folded { color: var(--yellow); }
+.CodeMirror-foldmarker { color: var(--yellow); background: #2a3a6a; border-radius: 3px; padding: 0 4px; font-family: var(--mono); text-shadow: none; }
 /* find / replace bar (CodeMirror's dialog add-on) */
 .CodeMirror-dialog { background: var(--panel); color: var(--text); font: 13px var(--ui); padding: 6px 10px; }
 .CodeMirror-dialog-top { border-bottom: 1px solid var(--line); }
