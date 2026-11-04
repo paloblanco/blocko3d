@@ -115,7 +115,7 @@ bottom
 ...8 rows
 ```
 
-There are three 8 x 8 faces, with row 0 at the top. A missing `bottom` copies `side`, and a missing `side` copies `top`. Tiles are numbered 1-63 (0 is always empty).
+There are three 8 x 8 faces, with row 0 at the top. A missing `bottom` copies `side`, and a missing `side` copies `top`. Tiles are numbered 1-255 (0 is always empty).
 
 ### Vox models: `vox/NN-name.txt`
 

@@ -59,7 +59,7 @@ for (let [v, x, y, z, yaw] of s.things) if (v == 0) start = [x, y, z]
   },
   {
     title: 'Vox models',
-    intro: 'Models from the Vox tab, numbered 0-63: 8 × 8 × 8 voxels in palette colors. Unscaled, a model fills one block (8 voxels = 1 block). Each model has a pivot (set in the Vox tab, default bottom center): x, y, z is where the pivot goes, and rotation and scaling happen around it. pal(), palt() and outline() apply.',
+    intro: 'Models from the Vox tab, numbered 0-255: 8 × 8 × 8 voxels in palette colors. Unscaled, a model fills one block (8 voxels = 1 block). Each model has a pivot (set in the Vox tab, default bottom center): x, y, z is where the pivot goes, and rotation and scaling happen around it. pal(), palt() and outline() apply.',
     items: [
       ['vox(n, x, y, z)', 'Draw model n with its pivot at (x, y, z).'],
       ['vox(n, x, y, z, pitch, yaw, roll)', 'Rotated, in turns, in the same order as maps (yaw, then pitch, then roll). The model\'s front is +z.'],
@@ -221,7 +221,7 @@ if (t && btnp(20)) mset(0, xi, yi, zi, 0)`,
       ['Axes', 'y is up. One block is one world unit; block (xi, yi, zi) spans xi to xi+1 and so on.'],
       ['Rotation order', 'Yaw, then pitch, then roll. +z is forward: positive pitch tips +z up, positive yaw turns +z toward +x, positive roll turns +x toward +y.'],
       ['Rendering', 'No shading or lighting: every face is drawn exactly as textured.'],
-      ['Tiles', 'Up to 63 tiles (1-63). Each has three 8 × 8 textures: top, sides and bottom.'],
+      ['Tiles', 'Up to 255 tiles (1-255). Each has three 8 × 8 textures: top, sides and bottom.'],
     ],
   },
   {

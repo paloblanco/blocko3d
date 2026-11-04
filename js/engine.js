@@ -450,7 +450,7 @@ export function createEngine({
       const lo = (a, b) => Math.max(0, Math.floor(Math.min(+a || 0, +b || 0)));
       const hi = (a, b, n) => Math.min(n - 1, Math.floor(Math.max(+a || 0, +b || 0)));
       const ax = lo(x0, x1), bx = hi(x0, x1, map.w), ay = lo(y0, y1), by = hi(y0, y1, map.h), az = lo(z0, z1), bz = hi(z0, z1, map.d);
-      const v = (t | 0) & 63;
+      const v = (t | 0) & 255;
       for (let z = az; z <= bz; z++) for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) map.data[x + map.w * (y + map.h * z)] = v;
       map.dirty = true;
     },

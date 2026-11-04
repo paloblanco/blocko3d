@@ -33,7 +33,7 @@ A cart (\`.b3d.json\`) is one JSON object, what the IDE's Save writes:
 
 \`\`\`
 { version: 1, name, code,
-  tiles: [null, { top, side, bottom, name? }, ...],    // tile 1-63; each face 64 palette indices, row by row
+  tiles: [null, { top, side, bottom, name? }, ...],    // tile 1-255; each face 64 palette indices, row by row
   maps: [{ name, w, h, d, origin: [x, y, z], data }],  // data: base64 of w*h*d tile bytes, index x + w * (y + h * z)
   vox: [{ name, pivot: [x, y, z], data }],             // data: base64 of 512 bytes, x + 8 * (y + 8 * z), 0 = empty, else color + 1
   sfx: [string or null, ...],                          // sounds, 166 hex digits each (below)

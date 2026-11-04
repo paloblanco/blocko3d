@@ -78,7 +78,7 @@ for (let [v, x, y, z, yaw] of s.things) if (v == 0) start = [x, y, z]
 
 ## Vox models
 
-Models from the Vox tab, numbered 0-63: 8 × 8 × 8 voxels in palette colors. Unscaled, a model fills one block (8 voxels = 1 block). Each model has a pivot (set in the Vox tab, default bottom center): x, y, z is where the pivot goes, and rotation and scaling happen around it. pal(), palt() and outline() apply.
+Models from the Vox tab, numbered 0-255: 8 × 8 × 8 voxels in palette colors. Unscaled, a model fills one block (8 voxels = 1 block). Each model has a pivot (set in the Vox tab, default bottom center): x, y, z is where the pivot goes, and rotation and scaling happen around it. pal(), palt() and outline() apply.
 
 - **`vox(n, x, y, z)`**: Draw model n with its pivot at (x, y, z).
 - **`vox(n, x, y, z, pitch, yaw, roll)`**: Rotated, in turns, in the same order as maps (yaw, then pitch, then roll). The model's front is +z.
@@ -242,7 +242,7 @@ Angles are in turns: 1 is a full rotation.
 - **`Axes`**: y is up. One block is one world unit; block (xi, yi, zi) spans xi to xi+1 and so on.
 - **`Rotation order`**: Yaw, then pitch, then roll. +z is forward: positive pitch tips +z up, positive yaw turns +z toward +x, positive roll turns +x toward +y.
 - **`Rendering`**: No shading or lighting: every face is drawn exactly as textured.
-- **`Tiles`**: Up to 63 tiles (1-63). Each has three 8 × 8 textures: top, sides and bottom.
+- **`Tiles`**: Up to 255 tiles (1-255). Each has three 8 × 8 textures: top, sides and bottom.
 
 ## Limits
 
@@ -250,9 +250,9 @@ The same numbers the editors and b3d check use.
 
 - **`Screen`**: 256 × 256, drawn at 1×, 2× or 3× (the player picks in the pause menu); print and rect always use 256 pixels.
 - **`Palette`**: 32 colors, 0-31.
-- **`Tiles`**: 63, numbered 1-63 (0 is empty), each three 8 × 8 faces.
+- **`Tiles`**: 255, numbered 1-255 (0 is empty), each three 8 × 8 faces.
 - **`Maps`**: As many as you like. The Map tab edits up to 128 blocks per side and 524,288 blocks in all.
-- **`Vox models`**: 64, numbered 0-63, each 8 × 8 × 8 voxels.
+- **`Vox models`**: 256, numbered 0-255, each 8 × 8 × 8 voxels.
 - **`Sounds`**: 64, numbered 0-63, each 32 notes: pitch 0-63, wave, volume and effect 0-7.
 - **`Music`**: 64 patterns of 4 channels.
 - **`Save data`**: 64 KB of JSON per game.
@@ -281,7 +281,7 @@ A cart (`.b3d.json`) is one JSON object, what the IDE's Save writes:
 
 ```
 { version: 1, name, code,
-  tiles: [null, { top, side, bottom, name? }, ...],    // tile 1-63; each face 64 palette indices, row by row
+  tiles: [null, { top, side, bottom, name? }, ...],    // tile 1-255; each face 64 palette indices, row by row
   maps: [{ name, w, h, d, origin: [x, y, z], data }],  // data: base64 of w*h*d tile bytes, index x + w * (y + h * z)
   vox: [{ name, pivot: [x, y, z], data }],             // data: base64 of 512 bytes, x + 8 * (y + 8 * z), 0 = empty, else color + 1
   sfx: [string or null, ...],                          // sounds, 166 hex digits each (below)

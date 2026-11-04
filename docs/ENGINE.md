@@ -68,7 +68,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 **Tiles**
 
-- Up to 63 tiles, numbered 1–63.
+- Up to 255 tiles, numbered 1–255 (raised from 63 by the owner: a map block is one byte, so 255 is the most; the atlas is 24×2048, WebGL2's guaranteed minimum texture size).
 - Each tile has three 8×8 textures: **top, sides, bottom**, like Minecraft but simpler.
 - Pixels store **palette indices**, never colors.
 
@@ -105,7 +105,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 **Vox models** (agreed with the owner):
 
-- Up to 64 models, numbered 0-63, edited in the **Vox** tab (the old Spr tab is now **Tile**). Each is 8×8×8 voxels; one byte per voxel, 0 = empty, else palette color + 1, so black (color 0) stays usable. Index `x + 8 * (y + 8 * z)`, y up, the model's **front is +z**.
+- Up to 256 models, numbered 0-255 (raised from 64 by the owner), edited in the **Vox** tab (the old Spr tab is now **Tile**). Each is 8×8×8 voxels; one byte per voxel, 0 = empty, else palette color + 1, so black (color 0) stays usable. Index `x + 8 * (y + 8 * z)`, y up, the model's **front is +z**.
 - **8 voxels = 1 block**: unscaled, a model fills exactly one block.
 - `vox(n, x, y, z, pitch, yaw, roll, sx, sy, sz)`: everything after the position is optional; `sy`/`sz` default to `sx`. Angles are in turns, in the **same order as maps** (yaw, then pitch, then roll). World = pos + R · S · (local − pivot) / 8.
 - Each model has a **pivot** in voxel units (default `[4, 0, 4]`, bottom center), set in the editor. It's the point placed at x, y, z and the center of rotation and scaling, so a leg with its pivot at the hip swings correctly.
@@ -116,7 +116,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 
 **Scenes** (designed with the owner, for placing many copies of a map, e.g. a house five times, and for laying out levels):
 - `map_copy(m)`: a new map (appended, returns its number) with its own copy of m's blocks and m's origin, pos and angle. `map_stamp(src, dst, x, y, z)`: copies src's non-empty blocks into dst with src (0,0,0) at dst (x,y,z), grid-aligned, no rotation; empty src cells leave dst alone, blocks past the edge are dropped.
-- `map_box(m, x0, y0, z0, x1, y1, z1, t)` (the owner agreed, for building levels in code, mostly by AI chatbots): fills the grid cells between two corners, both included and in either order like `rect`, with tile t (`& 63`; 0 carves); coordinates are floored, cells past the edge skipped, the map marked dirty once. Checked: a floor, a box with reversed corners and one cell carved, and a box clipped at the edge with fractional corners give the expected counts.
+- `map_box(m, x0, y0, z0, x1, y1, z1, t)` (the owner agreed, for building levels in code, mostly by AI chatbots): fills the grid cells between two corners, both included and in either order like `rect`, with tile t (`& 255`; 0 carves); coordinates are floored, cells past the edge skipped, the map marked dirty once. Checked: a floor, a box with reversed corners and one cell carved, and a box clipped at the edge with fractional corners give the expected counts.
 - `map_reload(m)` (the owner's request and rules): copies the cart's blocks (`templates`) back into cart map m and marks it dirty. **Only cart maps** (0 to the cart's map count - 1); copies (`map_copy`, scenes) and `map_new` maps are never touched, and passing one throws a plain error. **Blocks only**: pos, angle and origin stay (the owner agreed: snapping a moving map back mid-ride would surprise). No argument (or null) reloads every cart map. Bumper Arena reloads its arena each round instead of rebuilding it with `mset`.
 - A **scene** (Scene tab, cart `scenes`) is `{ name, maps: [{ m, pos, angle, name? }], vox: [{ v, pos, yaw }] }`. Map placements: pos is where the map's origin goes (same as `map_set_pos`), angle `[pitch, yaw, roll]`, an optional name. Vox markers: just number, position and yaw (the owner's choice); the engine never draws them, they're data for the game (start, pickups...). Scenes have no bg or camera (left to code, the owner's choice).
 - `scene_load(n)` (the owner picked the name) returns `{ maps, named, things }`: `maps` = numbers of fresh copies in editor order, `named` = `{ name: map number }` (a repeated name: the later one wins), `things` = `[[v, x, y, z, yaw], ...]`. **Copies always come from the cart's maps as loaded** (`templates` in `js/engine.js`, decoded once), even for a map placed once, so reloading a level is undamaged and templates never need protecting. Each `scene_load` first frees the previous load's copies (`freeSceneMaps`: slots set to `null`, trailing nulls popped, so reloading the same scene gives the same numbers when nothing was made after it); `getMap` on a freed slot throws a plain message. `reset()` (Restart) clears it all.
@@ -222,7 +222,7 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 | File | Role |
 | --- | --- |
 | `js/format.js` | The parts of the cart format that need no three.js (default palette, tile/vox sizes, base64 helpers, `emptyTile`) and **`LIMITS`**, every limit in one place, used by the IDE, the engine and the `b3d` tool. `core.js` re-exports it. `cart.js`, `audio.js`, `export.js`, `png.js`, `font.js`, `zip.js` and `format.js` load in plain Node (the package is `"type": "module"`). |
-| `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×512, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders (GLSL3, two outputs), the scene render target and outline pass, renderer setup, cart base64 helpers. |
+| `js/core.js` | Shared by the runtime and the IDE: palette, atlas (`DataTexture`, R8, 24×2048, one row per tile), voxel meshing (one quad per exposed face), map transform math, palette uniform, voxel and solid shaders (GLSL3, two outputs), the scene render target and outline pass, renderer setup, cart base64 helpers. |
 | `js/engine.js` | `createEngine()`: the runtime plus the global API object, object pools per draw kind, sphere query, fixed-step loop, input. |
 | `js/boot.js` | `install(cart, opts)` creates the engine and puts the API on `window` with `Object.defineProperties` (keeps `palette` as a getter/setter); `start(cart)` takes the cart as a function returning its hooks (or plain hooks, or nothing to look them up globally) and runs the loop; `restart()` resets the engine and runs that function again; `showError` draws errors on screen for exported games. |
 | `runtime/blocko3d.runtime.js` | **Built file, committed.** `tools/runtime-entry.js` bundled by esbuild (`npm run build`): engine + boot + font + three.js as one minified IIFE exposing `window.Blocko3D`. Used by both `player.html` (Run) and exports, so Run matches Export. |

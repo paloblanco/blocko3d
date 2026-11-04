@@ -74,7 +74,7 @@ export function mapGet(m, x, y, z) {
 
 export function mapSet(m, x, y, z, t) {
   if (x < 0 || y < 0 || z < 0 || x >= m.w || y >= m.h || z >= m.d) return;
-  m.data[mapIndex(m, x, y, z)] = t & 63;
+  m.data[mapIndex(m, x, y, z)] = t & 255;
   m.dirty = true;
 }
 

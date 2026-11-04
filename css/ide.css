@@ -144,6 +144,8 @@ li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
 .shiftpick > span { margin-right: 3px; }
 .shiftpick button { padding-left: 6px; padding-right: 6px; }
 .tilebar { display: flex; gap: 4px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+/* many tiles: the bar scrolls after three rows instead of pushing the map grid down */
+.tilebar { max-height: 128px; overflow-y: auto; flex-shrink: 0; }
 .tilebtn {
   position: relative; padding: 0; width: 34px; height: 34px; border-radius: 5px; overflow: hidden;
   border: 2px solid transparent; background: #000;
@@ -168,9 +170,11 @@ li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
 .previewwrap canvas { width: 100%; aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); cursor: grab; touch-action: none; }
 
 /* ---------- sprite editor */
-.sprwork { flex: 1; display: grid; grid-template-columns: 172px minmax(0, 1fr) 220px; min-height: 0; }
+.sprwork { flex: 1; display: grid; grid-template-columns: 186px minmax(0, 1fr) 220px; min-height: 0; }
 .tilelist { border-right: 1px solid var(--line); padding: 10px; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
 .tilegrid { display: grid; grid-template-columns: repeat(4, 34px); gap: 4px; }
+/* a long list scrolls on its own, so the Add / Duplicate buttons under it stay in view */
+.tilelist > .tilegrid { min-height: 0; flex: 0 1 auto; overflow-y: auto; align-content: start; scrollbar-gutter: stable; scrollbar-width: thin; }
 .tilelist .row { display: flex; flex-wrap: wrap; gap: 4px; }
 .spreditor { padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto; min-width: 0; }
 .sprhead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -190,7 +194,7 @@ li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
 .previewwrap.small { border-left: 1px solid var(--line); }
 
 /* ---------- vox editor */
-.voxwork { flex: 1; display: grid; grid-template-columns: 172px minmax(0, 1fr) minmax(240px, 34%); min-height: 0; }
+.voxwork { flex: 1; display: grid; grid-template-columns: 186px minmax(0, 1fr) minmax(240px, 34%); min-height: 0; }
 .voxeditor { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; overflow: auto; min-width: 0; }
 #voxName { width: 8em; }
 .voxgrid { width: 288px; max-width: 100%; aspect-ratio: 1; image-rendering: pixelated; cursor: crosshair; border-radius: 4px; border: 1px solid var(--line); touch-action: none; }
@@ -378,6 +382,7 @@ li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
   .tilelist { border-right: none; border-bottom: 1px solid var(--line); padding: 8px 10px; overflow: visible; }
   .tilegrid { display: flex; overflow-x: auto; gap: 4px; }
   .tilegrid .tilebtn { width: 40px; height: 40px; flex: 0 0 auto; }
+  .tilelist > .tilegrid { overflow-y: hidden; scrollbar-gutter: auto; padding-right: 0; }
   .spreditor { padding: 10px; gap: 12px; overflow: visible; }
   .faces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   .facehead { flex-wrap: wrap; gap: 4px; font-size: 13px; }

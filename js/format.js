@@ -12,18 +12,18 @@ export const DEFAULT_PALETTE = [
 ];
 
 export const NCOLORS = 32;
-export const MAX_TILES = 64;          // tile indices 0..63; 0 is always empty
+export const MAX_TILES = 256;         // tile indices 0..255 (a map block is one byte); 0 is always empty
 export const FACES = ['top', 'side', 'bottom'];
 export const VOX = 8;                 // a vox model is 8 x 8 x 8 voxels
-export const MAX_VOX = 64;
+export const MAX_VOX = 256;
 export const DEFAULT_PIVOT = [4, 0, 4];
 
 // Every limit in one place (sounds and music come from js/audio.js, which is plain JS too).
 export const LIMITS = {
   colors: NCOLORS,          // palette indices 0-31
-  tiles: MAX_TILES - 1,     // tiles 1-63 (0 is empty)
+  tiles: MAX_TILES - 1,     // tiles 1-255 (0 is empty)
   tileSize: 8,              // each face is 8 x 8 pixels
-  vox: MAX_VOX,             // models 0-63
+  vox: MAX_VOX,             // models 0-255
   voxSize: VOX,
   sfx: 64,                  // sounds 0-63
   notes: 32,                // notes per sound

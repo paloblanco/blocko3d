@@ -4,7 +4,7 @@
 //   sfxNames?: [string or null, ...] (optional sound names), music: [pattern string or null, ...],
 //   scale?: {snap, root, type} (Sfx tab snapping),
 //   scenes: [{name, maps: [{m, pos, angle, name?}], vox: [{v, pos, yaw}]}] (see normalizeScene) }
-import { MAX_TILES, bytesToB64, emptyTile } from './format.js';
+import { MAX_TILES, MAX_VOX, bytesToB64, emptyTile } from './format.js';
 import { emptySfx, encodeSfx, encodePattern, emptyPattern } from './audio.js';
 
 export const CART_VERSION = 1;
@@ -60,7 +60,7 @@ export function normalizeCart(c) {
   if (!Array.isArray(cart.sfxNames) || !cart.sfxNames.length) delete cart.sfxNames;
   if (!Array.isArray(cart.music)) cart.music = [];
   cart.music = cart.music.slice(0, 64).map((x) => (typeof x === 'string' ? x : null));
-  cart.vox = cart.vox.slice(0, 64);
+  cart.vox = cart.vox.slice(0, MAX_VOX);
   if (Array.isArray(cart.scenes) && cart.scenes.length) cart.scenes = cart.scenes.map(normalizeScene);
   else delete cart.scenes;   // only carts that have scenes carry the field
   if (cart.palette && (!Array.isArray(cart.palette) || cart.palette.length !== 32)) delete cart.palette;
