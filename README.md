@@ -37,7 +37,7 @@ The IDE is an installable app. Open it in Chrome or Edge and click the install i
 | --- | --- |
 | Code | Your game's JavaScript (`_init`, `_update`, `_draw`). |
 | Map | Paint maps layer by layer, seen from the top, front or side, set size, name and origin, with a 3D orbit preview. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
-| Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette. |
+| Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette: Pencil, Rect, Rect fill, Fill and Pick. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
 | Sfx | Make sound effects, PICO-8 style: draw pitches with a brush (waveform, volume, effect), set speed and loop points, play them, and copy a sound out as a string. Turn on **Snap to scale** (default C minor pentatonic; any root and 9 scales) so every note you draw fits the song. |
 | Music | Arrange songs: 64 patterns of up to 4 sounds playing at once, with loop start, loop back and stop flags. Play follows the song through the patterns. |
 | Scene | Arrange copies of maps and vox markers into a level: add, drag (across the ground or up and down an upright plane), nudge, turn, duplicate and name them in a 3D view, with undo. A game builds it with `scene_load(n)`. |
@@ -190,7 +190,6 @@ A GitHub Action fails if any of these committed files doesn't match a fresh buil
 ## Not in this version
 
 - A built-in way to ride moving or rotating maps: games do it in a few lines with `wtom` and `mtow` (the Third Person demo shows how).
-- Undo in the Tile editor (the Map, Vox and Scene tabs and the code editor have it).
 - Editing the palette in the IDE (change `palette[i]` from code for now).
 - Custom pause menu items (PICO-8's `menuitem`) and analog trigger values.
 - Fullscreen on iPhone Safari, which doesn't allow it. Real iPhones and iPads haven't been tested yet.

@@ -64,7 +64,8 @@ function setupPlanePick(id, onPick) {
 function history(take, put, undoBtn, redoBtn) {
   const h = { past: [], future: [] };
   const show = () => { $(undoBtn).disabled = !h.past.length; $(redoBtn).disabled = !h.future.length; };
-  h.save = (key) => { h.past.push(take(key)); if (h.past.length > 100) h.past.shift(); h.future = []; show(); };
+  h.push = (snap) => { h.past.push(snap); if (h.past.length > 100) h.past.shift(); h.future = []; show(); };
+  h.save = (key) => h.push(take(key));
   const step = (from, to) => {
     if (!from.length) return false;
     const snap = from.pop();
@@ -79,7 +80,7 @@ function history(take, put, undoBtn, redoBtn) {
   h.show = show;
   return h;
 }
-let mapHist, voxHist, sceneHist;   // made in the editors' setup functions
+let mapHist, voxHist, sceneHist, tileHist;   // made in the editors' setup functions
 let mapTool = 'pencil';   // the Map tab's tool: pencil, rect, rectfill, fill, volfill
 let mapRect = null;       // a rectangle being dragged: { u0, v0, u1, v1, val, fill }, in grid cells
 
@@ -141,7 +142,7 @@ function loadCart(c, name) {
   setCode(cart.code);
   if ($('saveData')) showSaveData();
   if ($('coverImg')) showCover();
-  if (mapHist) { mapHist.clear(); voxHist.clear(); sceneHist.clear(); }
+  if (mapHist) { mapHist.clear(); voxHist.clear(); sceneHist.clear(); tileHist.clear(); }
   refreshMapUI();
   refreshSprUI();
   refreshVoxUI();
@@ -781,9 +782,9 @@ function buildFaces() {
     box.append(cv);
     wrap.append(box);
     box.querySelector('button').onclick = () => {
-      const tile = cart.tiles[curTile];
+      const tile = cart.tiles[curTile], was = tileSnap(curTile);
       for (const g of FACES) if (g !== f) tile[g] = [...tile[f]];
-      tileEdited();
+      tileEdited(); tileCommit(was);
     };
     let drawing = false, drag = null;   // drag: a Rect drag { start, base: the face before it }
     const at = (e) => {
@@ -792,6 +793,7 @@ function buildFaces() {
       return c >= 0 && c < 8 && row >= 0 && row < 8 ? row * 8 + c : -1;
     };
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
+    let before = null;   // the tile before this stroke or box, for Undo
     cv.addEventListener('pointerdown', (e) => {
       const i = at(e);
       if (i < 0) return;
@@ -801,7 +803,8 @@ function buildFaces() {
         if (tool === 'pick') setTool('pencil');   // back to drawing after a pick
         return;
       }
-      if (tool === 'fill') { floodFill(px, i, color); tileEdited(); return; }
+      before = tileSnap(curTile);
+      if (tool === 'fill') { floodFill(px, i, color); tileEdited(); tileCommit(before); before = null; return; }
       cv.setPointerCapture(e.pointerId);
       if (tool === 'rect' || tool === 'rectfill') {
         // the box is drawn onto a copy of the face as it was, so dragging back shrinks it
@@ -825,7 +828,7 @@ function buildFaces() {
       const i = at(e);
       if (i >= 0 && px[i] !== color) { px[i] = color; tileEdited(); }
     });
-    const end = () => { drawing = false; drag = null; };
+    const end = () => { drawing = false; drag = null; if (before) tileCommit(before); before = null; };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
   }
@@ -924,7 +927,22 @@ function setTool(t) {
   document.querySelectorAll('#tileTools button').forEach((o) => o.classList.toggle('on', o.dataset.tool === t));
 }
 
+// Undo in the Tile tab: a snapshot of one tile's three faces, taken before a stroke, box, fill,
+// Copy to all or Clear, and kept only when the action changed something.
+const tileSnap = (t) => ({ key: t, faces: FACES.map((f) => [...cart.tiles[t][f]]) });
+function tileCommit(snap) {
+  const t = cart.tiles[snap.key];
+  if (t && FACES.some((f, k) => t[f].some((v, i) => v !== snap.faces[k][i]))) tileHist.push(snap);
+}
+
 function setupSprEditor() {
+  tileHist = history(tileSnap, (s) => {
+    const t = cart.tiles[s.key]; if (!t) return;
+    FACES.forEach((f, k) => { t[f] = [...s.faces[k]]; });
+    curTile = s.key; invalidateTile(s.key); refreshSprUI();
+  }, 'tileUndo', 'tileRedo');
+  $('tileUndo').onclick = () => tileHist.undo();
+  $('tileRedo').onclick = () => tileHist.redo();
   buildFaces();
   document.querySelectorAll('#tileTools button').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
   $('tileName').oninput = (e) => {
@@ -947,6 +965,7 @@ function setupSprEditor() {
   };
   $('tileClear').onclick = () => {
     if (!confirm(`Clear tile ${curTile} to black?`)) return;
+    tileHist.save(curTile);
     const name = cart.tiles[curTile].name;
     cart.tiles[curTile] = emptyTile(0);
     if (name) cart.tiles[curTile].name = name;
@@ -2176,8 +2195,8 @@ function setupTopBar() {
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); return; }
     const typing = e.target.closest('input, textarea, select, .CodeMirror');
-    // undo / redo in the Map, Vox and Scene tabs (inside a text field, the field's own undo works)
-    const hist = { map: mapHist, vox: voxHist, scene: sceneHist }[activeTab];
+    // undo / redo in the Map, Tile, Vox and Scene tabs (inside a text field, the field's own undo works)
+    const hist = { map: mapHist, tile: tileHist, vox: voxHist, scene: sceneHist }[activeTab];
     if (hist && !typing && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === 'z' || k === 'y') {

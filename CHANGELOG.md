@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Undo and Redo in the Tile tab** (buttons, Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), like the Map, Vox and Scene tabs: each stroke, box, fill, Copy to all and Clear is one step.
 - **Fixed: the tops and bottoms of tiles were reversed front to back in the 3D view** compared with the Tile tab and the Map tab's grid. Now the image's top row is at a block's -z edge, as the Map tab's Top view shows it. Art drawn with a direction on a top or bottom face (an arrow, a line along one edge) will appear flipped compared with before; noise-like textures look the same.
 - **Rect** and **Rect fill** in the Tile tab: drag from corner to corner to draw a box outline or a filled box.
 - **More tiles and models:** up to **255 tiles** (1-255, was 63) and **256 vox models** (0-255, was 64). Older carts are unchanged. The tile and model lists in the editors scroll on their own when they get long, so the buttons under them stay in view.
