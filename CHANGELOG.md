@@ -4,6 +4,8 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Fixed: the tops and bottoms of tiles were reversed front to back in the 3D view** compared with the Tile tab and the Map tab's grid. Now the image's top row is at a block's -z edge, as the Map tab's Top view shows it. Art drawn with a direction on a top or bottom face (an arrow, a line along one edge) will appear flipped compared with before; noise-like textures look the same.
+- **Rect** and **Rect fill** in the Tile tab: drag from corner to corner to draw a box outline or a filled box.
 - **More tiles and models:** up to **255 tiles** (1-255, was 63) and **256 vox models** (0-255, was 64). Older carts are unchanged. The tile and model lists in the editors scroll on their own when they get long, so the buttons under them stay in view.
 - **Capture GIF** in the pause menu saves the last 10 seconds of play as an animated GIF: 256 × 256, 30 frames a second, looping, with the game's text and without the menu. Games are always recording in the background (a few milliseconds a second); nothing is recorded while paused. Works in the IDE and in exported games.
 - **Getting around the code:** **Alt+Up / Alt+Down** jump to the previous / next function definition, as in PICO-8 (`function name(`, `name = function`, and arrow functions like `let name = (a) => ...`; it stops at the first and last). A **Functions…** list in the Code bar jumps to any function by name. **Code folding:** arrows in the margin (or Ctrl+Shift+[ and Ctrl+Shift+]) fold a function or any `{ }` block down to one line.

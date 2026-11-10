@@ -785,7 +785,7 @@ function buildFaces() {
       for (const g of FACES) if (g !== f) tile[g] = [...tile[f]];
       tileEdited();
     };
-    let drawing = false;
+    let drawing = false, drag = null;   // drag: a Rect drag { start, base: the face before it }
     const at = (e) => {
       const r = cv.getBoundingClientRect();
       const c = Math.floor((e.clientX - r.left) / r.width * 8), row = Math.floor((e.clientY - r.top) / r.height * 8);
@@ -802,16 +802,45 @@ function buildFaces() {
         return;
       }
       if (tool === 'fill') { floodFill(px, i, color); tileEdited(); return; }
-      drawing = true;
       cv.setPointerCapture(e.pointerId);
+      if (tool === 'rect' || tool === 'rectfill') {
+        // the box is drawn onto a copy of the face as it was, so dragging back shrinks it
+        drag = { start: i, base: [...px] };
+        drawBox(px, drag, i, tool === 'rectfill', color); tileEdited();
+        return;
+      }
+      drawing = true;
       if (px[i] !== color) { px[i] = color; tileEdited(); }
     });
+    // a pointer outside the face clamps to its edge, so a box can reach the border easily
+    const atClamped = (e) => {
+      const r = cv.getBoundingClientRect();
+      const c = clamp(Math.floor((e.clientX - r.left) / r.width * 8), 0, 7), row = clamp(Math.floor((e.clientY - r.top) / r.height * 8), 0, 7);
+      return row * 8 + c;
+    };
     cv.addEventListener('pointermove', (e) => {
+      const px = cart.tiles[curTile][f];
+      if (drag) { drawBox(px, drag, atClamped(e), tool === 'rectfill', color); tileEdited(); return; }
       if (!drawing) return;
-      const i = at(e), px = cart.tiles[curTile][f];
+      const i = at(e);
       if (i >= 0 && px[i] !== color) { px[i] = color; tileEdited(); }
     });
-    cv.addEventListener('pointerup', () => { drawing = false; });
+    const end = () => { drawing = false; drag = null; };
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+  }
+}
+
+// A box from the drag's first pixel to pixel i (corners included), outline or filled, drawn on
+// the face as it was when the drag began.
+function drawBox(px, box, i, filled, c) {
+  const x0 = Math.min(box.start % 8, i % 8), x1 = Math.max(box.start % 8, i % 8);
+  const y0 = Math.min(box.start >> 3, i >> 3), y1 = Math.max(box.start >> 3, i >> 3);
+  for (let k = 0; k < 64; k++) {
+    const x = k % 8, y = k >> 3;
+    const inside = x >= x0 && x <= x1 && y >= y0 && y <= y1;
+    const edge = x === x0 || x === x1 || y === y0 || y === y1;
+    px[k] = inside && (filled || edge) ? c : box.base[k];
   }
 }
 

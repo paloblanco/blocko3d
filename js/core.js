@@ -99,10 +99,12 @@ export function updateTransform(m) {
 }
 
 // Face definitions: 4 corners (unit cube), CCW from outside, uv per corner, face type.
-// Side faces have v pointing up so textures are never upside down.
+// Side faces have v pointing up so textures are never upside down. Top and bottom faces are laid
+// out like the Map tab's Top view: image columns along +x, the image's top row at the -z edge
+// (v = 1 - z), so a tile looks in the 3D view as it does in the editors.
 const FACE_DEFS = [
-  { n: [0, 1, 0], f: 0, v: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], uv: [[0, 0], [0, 1], [1, 1], [1, 0]] },
-  { n: [0, -1, 0], f: 2, v: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
+  { n: [0, 1, 0], f: 0, v: [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]], uv: [[0, 1], [0, 0], [1, 0], [1, 1]] },
+  { n: [0, -1, 0], f: 2, v: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], uv: [[0, 1], [1, 1], [1, 0], [0, 0]] },
   { n: [1, 0, 0], f: 1, v: [[1, 0, 1], [1, 0, 0], [1, 1, 0], [1, 1, 1]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
   { n: [-1, 0, 0], f: 1, v: [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
   { n: [0, 0, 1], f: 1, v: [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
