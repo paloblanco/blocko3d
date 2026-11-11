@@ -4,7 +4,7 @@
 //    the cart the IDE's Save would write for it (older demo files gain new default fields);
 // 3. `b3d new` makes a game that passes `b3d check`;
 // 4. every demo (and the new game) runs headless for 300 frames with some buttons pressed,
-//    without throwing.
+//    without throwing; and b3d.d.ts (editor autocomplete) names exactly the engine's globals.
 // Part 4 needs Playwright's Chromium (npx playwright install chromium), or set B3D_CHROMIUM to a
 // Chrome or Chromium already on this computer. `npm test -- --quick` skips it.
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
@@ -70,16 +70,66 @@ try {
   test('b3d new makes a game that passes check', freshRes.errors.length === 0, freshRes.errors.map((e) => `${e.at}: ${e.msg}`).join('; '));
   games.push({ label: 'b3d new game', game: freshGame });
 
+  // ---------------------------------------------------------------- 3b. text maps
+  {
+    const { writeFileSync, readdirSync, readFileSync: read } = await import('node:fs');
+    const { bytesToB64, b64ToBytes } = await import('../js/format.js');
+    const base = freshGame.cart;   // has tile 1, named grass
+    const tryMap = async (label, text, size = [4, 2, 3]) => {
+      const dir = join(tmp, 'tm-' + label.replace(/\W+/g, '-'));
+      writeFolder(base, dir);
+      for (const f of readdirSync(join(dir, 'maps'))) rmSync(join(dir, 'maps', f));
+      writeFileSync(join(dir, 'cart.json'), JSON.stringify({ name: 'tm', maps: [{ name: 'm', size, origin: [0, 0, 0] }] }));
+      writeFileSync(join(dir, 'maps', '0-m.txt'), text);
+      return loadGame(dir);
+    };
+    // y1 left out (empty); z rows back to front; legend characters are free to choose
+    const good = await tryMap('good', 'legend\nG 1 grass\n% 7\ny0\nGG..\n....\n...%\n');
+    const bytes = good.errors.length ? null : b64ToBytes(good.cart.maps[0].data);
+    test('text map: reads blocks at the right x, y, z', bytes && bytes[0] === 1 && bytes[1] === 1 && bytes[3 + 4 * (0 + 2 * 2)] === 7 && bytes.filter(Boolean).length === 3,
+      good.errors.map((e) => e.msg).join('; '));
+    const bad = await tryMap('bad', 'legend\ng 1\ny0\ngg..\n.q..\n....\n');
+    test('text map: an unknown character names the file and line', bad.errors.length === 1 && /0-m\.txt:5$/.test(bad.errors[0].at) && /"q"/.test(bad.errors[0].msg), JSON.stringify(bad.errors));
+    const short = await tryMap('short', 'legend\ng 1\ny0\ngg..\n....\n');
+    test('text map: a layer with too few rows is an error', short.errors.length === 1 && /needs 3/.test(short.errors[0].msg), JSON.stringify(short.errors));
+    // unpack: names give the characters (g for grass); more tiles than characters falls back to .bin
+    const many = new Uint8Array(200);
+    for (let i = 0; i < 200; i++) many[i] = (i % 120) + 1;
+    const cart = { ...base, maps: [
+      { name: 'named', w: 2, h: 1, d: 1, origin: [0, 0, 0], data: bytesToB64(new Uint8Array([1, 0])) },
+      { name: 'many', w: 10, h: 2, d: 10, origin: [0, 0, 0], data: bytesToB64(many) },
+    ] };
+    const dir = join(tmp, 'tm-unpack');
+    writeFolder(cart, dir);
+    const files = readdirSync(join(dir, 'maps')).sort().join(' ');
+    test('unpack writes .txt maps, and .bin for a map with too many tiles', files === '0-named.txt 1-many.bin', files);
+    test('unpack picks a tile\'s first letter for its character', /^g 1 grass$/m.test(read(join(dir, 'maps', '0-named.txt'), 'utf8')));
+    const back = await loadGame(dir, { strict: true });
+    test('both maps pack back the same', back.cart.maps.every((m, i) => m.data === cart.maps[i].data));
+  }
+
   // ---------------------------------------------------------------- 4. headless runs
   if (quick) console.log('skip headless runs (--quick)');
   else {
     const { runCart, parseInput } = await import('../cli/headless.mjs');
     // walk, turn, jump and press both buttons; click once, for the mouse demos
     const input = parseInput('up:10-120, right:60-150, left:160-220, down:200-260, o@40, x@90, o:130-140, x@200, 19@100');
+    let apiChecked = false;
     for (const { label, game } of games) {
       const r = await runCart(game.cart, game.where, { frames: 300, input, seed: 1, res: 1, drawAll: true });
-      try { test(`run ${label} for 300 frames`, r.ok && r.frames === 300, r.error || `stopped at frame ${r.frames}`); }
-      finally { await r.close(); }
+      try {
+        test(`run ${label} for 300 frames`, r.ok && r.frames === 300, r.error || `stopped at frame ${r.frames}`);
+        if (!apiChecked) {
+          // b3d.d.ts (editor autocomplete, from the API docs) must name exactly the engine's globals
+          apiChecked = true;
+          const { dtsText } = await import('../cli/editor.mjs');
+          const real = new Set(await r.page.evaluate(() => Object.keys(B3D.engine.api)));
+          const { names } = dtsText();
+          const missing = [...real].filter((n) => !names.has(n)), extra = [...names].filter((n) => !real.has(n));
+          test('b3d.d.ts and the API docs cover every engine global, and only those', !missing.length && !extra.length,
+            (missing.length ? 'not documented: ' + missing.join(', ') : '') + (extra.length ? ' documented but not in the engine: ' + extra.join(', ') : ''));
+        }
+      } finally { await r.close(); }
     }
   }
 } catch (e) {

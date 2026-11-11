@@ -16,6 +16,7 @@ const HELP = `b3d ${VERSION}: BLOCKO3D from the command line
 
   b3d new     <folder> [--name "my game"]  start a small working game
   b3d info    <game>                       every asset by number and name, on one screen
+  b3d serve   <game> [--port n] [--open]   play it in your browser; it reloads each time you save a file
   b3d check   <game>                       check every limit and format; errors name the file and line
   b3d export  <game> [--out dir] [--zip]   write the standalone game, as the IDE's Export does
   b3d unpack  <cart.b3d.json> <folder>     a cart to a project folder of small text files (and a
@@ -54,6 +55,7 @@ const COMMANDS = {
   render: () => import('../cli/cmd-render.mjs'),
   sfx: () => import('../cli/cmd-sfx.mjs'),
   map: () => import('../cli/cmd-map.mjs'),
+  serve: () => import('../cli/cmd-serve.mjs'),
   info: () => import('../cli/cmd-info.mjs'),
   docs: () => import('../cli/cmd-docs.mjs'),
   api: () => import('../cli/cmd-docs.mjs'),

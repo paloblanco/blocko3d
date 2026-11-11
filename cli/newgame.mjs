@@ -11,7 +11,8 @@ This folder is a BLOCKO3D game (a PICO-8-style 3D fantasy console) in the \`b3d\
 It was written by \`b3d\`; edit it freely.
 
 - Code: \`main.js\`. The API is global (\`map(0)\`, \`btn(4)\`, \`vox(n, x, y, z)\`), angles are in turns, y is up.
-- Assets: \`tiles/\`, \`vox/\`, \`sfx/\` (one text file each), \`maps/\`, \`music.txt\`, \`scenes.json\`, \`cart.json\`.
+- Assets: \`tiles/\`, \`vox/\`, \`sfx/\` (one text file each), \`maps/\` (text: a legend, then layers y0 up, rows z0 back to front), \`music.txt\`, \`scenes.json\`, \`cart.json\`.
+- \`b3d.d.ts\` lists the whole API with descriptions (generated; don't edit).
 - Docs: \`b3d docs\` (the folder format, commands and testing), \`b3d api <name>\` (one function), \`b3d api\` (everything).
 
 Work loop:

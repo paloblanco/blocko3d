@@ -93,6 +93,7 @@ The Starter cart has 16 named tiles (grass, brick, lava, a bounce pad…), 9 vox
 ```
 npm install -g github:paloblanco/blocko3d     # Node 18 or later
 b3d unpack game.b3d.json game/                # a cart saved by the IDE -> a folder of small text files
+b3d serve game/                               # play it in your browser; it reloads each time you save a file
 b3d check game/                               # every limit and format; problems name the file and line
 b3d shot game/ --frames 300 --input "o@30, up:60-200" --out walk.png   # run headless, save the screen
 b3d run game/ --frames 600                    # the same, printing printh output
@@ -104,7 +105,7 @@ b3d export game/ --zip                        # the same zip as the Export butto
 
 A game can live as a **project folder**: `main.js` for the code, one text file per tile, model and sound (pictures drawn with one character per pixel), `music.txt`, raw map files or scripts that build maps, and `cart.json` for the rest. `pack` and `unpack` turn it into a cart and back without losing anything, so the IDE and a text editor can take turns on one game. Headless runs step the game exactly one update at a time with a fixed seed, so they repeat. `shot`, `run` and the map and model renders need Playwright (`npm install -g playwright`, then `npx playwright install chromium`).
 
-[MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command (`b3d docs` prints it). There's also `b3d info` (every asset on one screen), `b3d map --at x,z` (what's in a column and where you can stand), `b3d api <name>`, `b3d new`, and test hooks for headless runs: `--eval`, `--at 50:"code"` and `--watch "expr"`.
+[MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command (`b3d docs` prints it). Folders get editor autocomplete (`b3d.d.ts` and `jsconfig.json`, for VS Code) and maps as text files you can read and diff. There's also `b3d info` (every asset on one screen), `b3d map --at x,z` (what's in a column and where you can stand), `b3d api <name>`, `b3d new`, and test hooks for headless runs: `--eval`, `--at 50:"code"` and `--watch "expr"`.
 
 ## A tiny cart
 

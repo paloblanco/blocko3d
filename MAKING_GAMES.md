@@ -36,6 +36,19 @@ b3d info game/                     # every asset by number and name, on one scre
 
 `new` and `unpack` also write a short `CLAUDE.md` into the folder, with notes for AI agents working on the game: the commands and the work loop. They only write it when the folder has none, so they never overwrite yours. Pass `--no-notes` to `unpack` to skip it.
 
+**Editor autocomplete.** `new` and `unpack` also write `b3d.d.ts` and `jsconfig.json`. Open the folder in VS Code (or another editor that reads `jsconfig.json`) and `main.js` gets autocomplete for every BLOCKO3D function, the arguments as you type, and each function's description on hover. `b3d.d.ts` is made from the API reference and rewritten each time (`b3d serve` refreshes it too), so don't edit it; `jsconfig.json` is only written when the folder has none.
+
+## Playing while you edit: `b3d serve`
+
+```
+b3d serve game/                    # then open http://localhost:8030/
+b3d serve game/ --open             # opens it in your browser too
+```
+
+`serve` runs the game in your browser and checks it every time you save any file in the folder: code, tiles, maps, sounds. When the check passes, the page reloads and the game starts again from `_init` with your changes. When it fails, the page and the terminal show the errors (file and line) until a save fixes them. `printh` output, `save` calls and game errors appear in the terminal, errors with their file and line.
+
+It's the IDE's Run button for a text editor. The game runs exactly as an export does, minus the cover screen. The server only answers this computer (`localhost`), on port 8030 or the next free one (`--port n` picks one). Ctrl+C stops it. A cart works too: `b3d serve game.b3d.json` reloads each time the IDE saves it.
+
 ## A game is a cart or a folder
 
 Every command takes either a **cart** (`game.b3d.json`, the file the IDE saves and opens) or a **project folder**. A cart is one JSON file, which is hard to edit by hand. A folder holds the same game as small text files, so you can edit it and git can show what changed.
@@ -65,7 +78,7 @@ game/
   vox/00-hero.txt      one file per vox model
   sfx/00-jump.txt      one file per sound
   music.txt            the song's patterns
-  maps/0-island.bin    each map's blocks
+  maps/0-island.txt    each map's blocks, layer by layer
   maps/0-island.gen.js optional: a script that builds the map instead
   scenes.json          the Scene tab's scenes (optional)
   cover.png            the cover art, 256 x 256 (optional)
@@ -73,7 +86,7 @@ game/
 
 The smallest game is `cart.json` with `{ "name": "my game", "maps": [] }`, plus `main.js`.
 
-**Numbers and names.** The number at the front of a file name is the asset's number: `tiles/07-brick.txt` is tile 7, and `map(0)` draws `maps/0-*.bin`. The rest of the file name is only for people. An asset's real name is the `name` line inside its file, or `name` in `cart.json` for maps, and `unpack` uses it for the file name. Gaps in the numbers are fine.
+**Numbers and names.** The number at the front of a file name is the asset's number: `tiles/07-brick.txt` is tile 7, and `map(0)` draws `maps/0-*.txt`. The rest of the file name is only for people. An asset's real name is the `name` line inside its file, or `name` in `cart.json` for maps, and `unpack` uses it for the file name. Gaps in the numbers are fine.
 
 **Colors** in tiles and models are one character each: `0`-`9` for colors 0-9, then `a`-`v` for colors 10-31. A model also uses `.` for an empty voxel. Each row then lines up, so the files look like pictures.
 
@@ -169,9 +182,33 @@ speed 3 loop 0 0
 - **Flags:** `start` (loop start), `back` (go back to the last loop start after this pattern), `stop` (end the song here).
 - **The song** plays patterns in order from the one `music(n)` starts at.
 
-### Maps: `maps/N-name.bin` or `maps/N-name.gen.js`
+### Maps: `maps/N-name.txt`, `.bin` or `.gen.js`
 
-**A `.bin` file** is the map's blocks as raw bytes, one tile number per block, in the order `x + w * (y + h * z)`. Its size must match `cart.json`.
+**A `.txt` file** holds the map's blocks as text, like a stack of floor plans. A legend gives each tile one character; then come the layers from the bottom (`y0`) up. Each layer is one row per z, from the back (`z0`) to the front, and one character per x, left to right: the Map tab's Top view.
+
+```
+# maps/0-island.txt, 6 x 2 x 4 (the size is in cart.json)
+legend
+g 1 grass
+s 3 stone
+y0
+gggggg
+gggggg
+ggssgg
+gggggg
+y1
+......
+..s...
+......
+......
+```
+
+- `.` is an empty block. A layer that isn't in the file is empty, so a tall map with a lot of sky stays short.
+- A legend line is a character, a tile number and, if you like, the tile's name: `g 1 grass`. Any character but `.`, `#`, `y` and a space can stand for a tile, and each map has its own legend.
+- Each layer needs one row per z, each the map's width. `check` names the line of a row that's too short or uses a character the legend doesn't have.
+- `unpack` writes this form and picks each tile's first letter when it can (`g` for grass), so name your tiles. A map with more different tiles than there are characters (more than 91) is unpacked as `.bin` instead.
+
+**A `.bin` file** is the map's blocks as raw bytes, one tile number per block, in the order `x + w * (y + h * z)`. Its size must match `cart.json`. `pack` reads either form; a map can't have both.
 
 **A `.gen.js` file** builds the map in code instead, each time you pack:
 
@@ -187,10 +224,10 @@ export default (map) => {
 
 The script gets `map.w`, `map.h`, `map.d`, `map.get(x, y, z)`, `map.set(x, y, z, t)` and `map.data` (the bytes). It may import other files.
 
-**Scripts and the IDE.** `unpack` always writes the `.bin` file and never touches a `.gen.js`. If a map has both, `pack` builds it from the script and compares the result with the `.bin`:
+**Scripts and the IDE.** `unpack` always writes the blocks (`.txt`, or `.bin`) and never touches a `.gen.js`. If a map has a script and blocks, `pack` builds it from the script and compares the result with the blocks:
 
 - **They match:** the map packs as usual.
-- **They differ** (usually because the map was edited in the IDE): pack stops and tells you which file to delete. Delete the `.bin` to keep building from the script and lose the IDE edits, or delete the `.gen.js` to keep the edited blocks.
+- **They differ** (usually because the map was edited in the IDE): pack stops and tells you which file to delete. Delete the `.txt` (or `.bin`) to keep building from the script and lose the IDE edits, or delete the `.gen.js` to keep the edited blocks.
 
 ### Scenes and cover
 
@@ -207,7 +244,7 @@ The script gets `map.w`, `map.h`, `map.d`, `map.get(x, y, z)`, `map.set(x, y, z,
 ```
 game/tiles/02.txt:4: error: "z" isn't a color; colors are 0-9 then a-v (0-31)
 game/main.js:5: error: syntax error: Unexpected token ';'
-game/maps/0-island.bin: warning [empty-tile]: 800 blocks use tile 2, which is empty (drawn as nothing)
+game/maps/0-island.txt: warning [empty-tile]: 800 blocks use tile 2, which is empty (drawn as nothing)
 game/scenes.json (scenes[0].vox[6]): warning [marker-floating]: marker 6 (vox 3) at 7, 8, 13 floats 5 blocks above the floor (y 3); b3d map --at 7,13 --scene 0 shows the column
 ```
 
@@ -337,7 +374,7 @@ The result is exactly what the IDE's Export makes. It runs from disk or any web 
 
 - **The API is global**, PICO-8 style: `map(0)`, `btn(4)`, `vox(1, x, y, z)`. Angles are in turns (1 = a full turn). y is up, and one block is one world unit. Drawing is immediate-mode, so `_draw` draws everything, every frame.
 - **Collision** is a sphere against maps: `mpush(maps, x, y, z, r)` in one call. Use `mray` for line of sight and clicking.
-- **Debug output:** `printh` lines appear in the IDE's console and in `b3d run`.
+- **Debug output:** `printh` lines appear in the IDE's console, in `b3d run`, and in the terminal running `b3d serve`.
 - **Levels in code:** `map_new(w, h, d)` then a `map_box(0, x0, y0, z0, x1, y1, z1, tile)` for each floor, wall and platform. The **Starter** cart (Demos menu) has named tiles, models and sounds to build with.
 - **Repeatable random levels:** `srand(n)` in `_init` makes the game's own randomness repeat too.
 - **Before you finish:** `b3d check`, a few `b3d shot`s of the important moments, then `b3d pack` and open the cart in the IDE once.

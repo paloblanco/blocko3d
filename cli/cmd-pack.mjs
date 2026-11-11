@@ -10,6 +10,7 @@ import { checkGame } from './check.mjs';
 import { report } from './cmd-check.mjs';
 import { writeFolder } from './folder.mjs';
 import { writeGameNotes, writeStarter } from './newgame.mjs';
+import { writeEditorFiles } from './editor.mjs';
 
 export default async function (cmd, { pos, opt }) {
   if (cmd === 'new') {
@@ -18,7 +19,9 @@ export default async function (cmd, { pos, opt }) {
     if (existsSync(dir) && readdirSync(dir).length) throw new UserError(`${dir} isn't empty; b3d new starts a game in a new or empty folder`);
     const name = typeof opt.name === 'string' ? opt.name : basename(resolve(dir));
     writeStarter(dir, name);
-    console.log(`wrote ${dir}/: a small working game "${name}" (cart.json, main.js, a tile, a sound, a map script, CLAUDE.md). Try: b3d shot ${dir} --input "up:1-40"`);
+    writeEditorFiles(dir);
+    console.log(`wrote ${dir}/: a small working game "${name}" (cart.json, main.js, a tile, a sound, a map script, CLAUDE.md, and b3d.d.ts + jsconfig.json for editor autocomplete).`
+      + `\nPlay it with live reload: b3d serve ${dir}`);
     return 0;
   }
   if (cmd === 'unpack') {
@@ -29,8 +32,10 @@ export default async function (cmd, { pos, opt }) {
     try { cart = JSON.parse(readFileSync(src, 'utf8')); } catch (e) { throw new UserError(`${src}: not a JSON cart (${e.message})`); }
     const c = writeFolder(cart, dir);
     const notes = opt['no-notes'] ? false : writeGameNotes(dir, c.name);
+    const editor = writeEditorFiles(dir);
     console.log(`wrote ${dir}/: cart.json, main.js, ${c.tiles.length - 1} tiles, ${c.vox.length} vox, ${c.sfx.filter(Boolean).length} sounds, ${c.maps.length} maps`
       + `${c.music.length ? ', music.txt' : ''}${c.scenes ? ', scenes.json' : ''}${c.cover ? ', cover.png' : ''}`
+      + `, ${editor.join(' and ')} (editor autocomplete)`
       + `${notes ? ', and CLAUDE.md (notes for AI agents; delete it if unwanted, it is never overwritten)' : ''}`);
     return 0;
   }

@@ -11,7 +11,10 @@
 //   vox/00-hero.txt    one file per vox model: name, pivot, eight 8 x 8 layers from the bottom
 //   sfx/00-jump.txt    one file per sound: name, speed and loop, one note per line (notes left
 //                      out at the end are the Sfx tab's blank note, 24 0 0 0)
-//   maps/0-land.bin    each map's blocks, raw bytes in the cart's order (x + w * (y + h * z))
+//   maps/0-land.txt    each map's blocks as text: a legend (one character per tile), then layers
+//                      from the bottom (y0) up, each d rows from back (z0) to front, x left to right
+//   maps/0-land.bin    or the blocks as raw bytes in the cart's order (x + w * (y + h * z)); unpack
+//                      writes this only for a map with more different tiles than the text has characters
 //   maps/0-land.gen.js optional: a script that builds the map when packing (unpack never touches it)
 //
 // The number at the front of a file name is the asset's number; the rest of the name is only for
@@ -52,6 +55,91 @@ export function prettyJson(v, ind = '') {
     return '{\n' + keys.map((k) => i2 + JSON.stringify(k) + ': ' + prettyJson(v[k], i2)).join(',\n') + '\n' + ind + '}';
   }
   return JSON.stringify(v);
+}
+
+// ---------------------------------------------------------------- map text
+// One character per tile, from the map's own legend. "." is empty, "#" starts a comment and "y"
+// would read as a layer heading (y0, y1...), so those three are never legend characters.
+// unpack takes a tile's first letter when it's free (g for grass), otherwise the next from POOL.
+const MAP_POOL = 'abcdefghijklmnopqrstuvwxzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!$%&*+-/:;<=>?@^_~|()[]{},\'"`\\';
+const MAP_NOT = '.#y \t';
+
+function mapText(m, tiles, i) {
+  const { w, h, d } = m, data = b64ToBytes(m.data);
+  const used = [...new Set(data)].filter((t) => t).sort((a, b) => a - b);
+  if (used.length > MAP_POOL.length) return null;   // too many tiles for one character each: .bin
+  const ch = new Map(), taken = new Set();
+  for (const t of used) {
+    const name = (tiles[t] && tiles[t].name) || '';
+    const first = name.trim()[0] || '';
+    let c = [first.toLowerCase(), first.toUpperCase()].find((x) => x && MAP_POOL.includes(x) && !taken.has(x));
+    if (!c) c = [...MAP_POOL].find((x) => !taken.has(x));
+    ch.set(t, c); taken.add(c);
+  }
+  const out = [
+    `# map ${i}${m.name ? ' "' + m.name + '"' : ''}: ${w} x ${h} x ${d} blocks (the size is in cart.json)`,
+    `# layers from the bottom (y0) up, each ${d} rows from back (z0) to front, x0 left to right`,
+    '# "." is empty; a layer that isn\'t here is empty. The legend gives each character\'s tile.',
+    'legend',
+    ...used.map((t) => `${ch.get(t)} ${t}${tiles[t] && tiles[t].name ? ' ' + tiles[t].name : ''}`),
+  ];
+  for (let y = 0; y < h; y++) {
+    const rows = [];
+    let any = false;
+    for (let z = 0; z < d; z++) {
+      let row = '';
+      for (let x = 0; x < w; x++) { const t = data[x + w * (y + h * z)]; row += t ? ch.get(t) : '.'; if (t) any = true; }
+      rows.push(row);
+    }
+    if (any) out.push('y' + y, ...rows);
+  }
+  return out.join('\n') + '\n';
+}
+
+// A map's .txt back to bytes (null after an error). Size from cart.json.
+function readMapText(text, file, w, h, d, errors) {
+  const data = new Uint8Array(w * h * d), legend = new Map(), done = new Set();
+  const err = (n, msg) => errors.push({ at: `${file}:${n}`, msg });
+  let mode = null, y = -1, z = 0, layerLine = 0;
+  const layerDone = () => {
+    if (y >= 0 && z !== d) { err(layerLine, `layer y${y} has ${z} rows; the map is ${d} deep (z0-z${d - 1}), so it needs ${d}`); return false; }
+    return true;
+  };
+  for (const l of lines(text)) {
+    if (l.s === 'legend') { if (!layerDone()) return null; mode = 'legend'; y = -1; continue; }
+    const ly = /^y(\d+)$/.exec(l.s);
+    if (ly) {
+      if (!layerDone()) return null;
+      y = +ly[1]; z = 0; layerLine = l.n; mode = 'rows';
+      if (y >= h) { err(l.n, `layer y${y}: the map is ${h} high, so layers are y0-y${h - 1}`); return null; }
+      if (done.has(y)) { err(l.n, `layer y${y} is here twice`); return null; }
+      done.add(y);
+      continue;
+    }
+    if (mode === 'legend') {
+      const m = /^(\S)\s+(\d+)(?:\s.*)?$/.exec(l.s);
+      if (!m) { err(l.n, 'a legend line is a character and a tile number, like "g 1 grass"'); return null; }
+      const [, c, t] = m;
+      if (MAP_NOT.includes(c)) { err(l.n, `"${c}" can't be a legend character ("." is empty, "#" starts a comment, "y" starts a layer)`); return null; }
+      if (+t < 1 || +t > LIMITS.tiles) { err(l.n, `tile ${t}: tiles are 1-${LIMITS.tiles}`); return null; }
+      if (legend.has(c)) { err(l.n, `"${c}" is already tile ${legend.get(c)} in the legend`); return null; }
+      legend.set(c, +t);
+      continue;
+    }
+    if (mode !== 'rows') { err(l.n, 'expected "legend" or a layer heading (y0, y1, ...) first'); return null; }
+    if (z >= d) { err(l.n, `layer y${y} already has ${d} rows (z0-z${d - 1}); the map is ${d} deep`); return null; }
+    if (l.s.length !== w) { err(l.n, `a row is ${w} blocks (the map's width), this one has ${l.s.length}`); return null; }
+    for (let x = 0; x < w; x++) {
+      const c = l.s[x];
+      if (c === '.') continue;
+      const t = legend.get(c);
+      if (t === undefined) { err(l.n, `"${c}" (x${x}) isn't in the legend`); return null; }
+      data[x + w * (y + h * z)] = t;
+    }
+    z++;
+  }
+  if (!layerDone()) return null;
+  return data;
 }
 
 // ---------------------------------------------------------------- writing (unpack)
@@ -116,7 +204,7 @@ function musicText(music) {
 export function writeFolder(input, dir) {
   const cart = ideCart(input, input && input.name);
   mkdirSync(dir, { recursive: true });
-  for (const [sub, ext] of [['tiles', '.txt'], ['vox', '.txt'], ['sfx', '.txt'], ['maps', '.bin']]) {
+  for (const [sub, ext] of [['tiles', '.txt'], ['vox', '.txt'], ['sfx', '.txt'], ['maps', '.bin'], ['maps', '.txt']]) {
     const d = join(dir, sub);
     if (existsSync(d)) for (const f of readdirSync(d)) if (ASSET.test(f) && f.endsWith(ext) && !f.endsWith('.gen.js')) rmSync(join(d, f));
     mkdirSync(d, { recursive: true });
@@ -134,7 +222,11 @@ export function writeFolder(input, dir) {
   const names = cart.sfxNames || [];
   for (let i = 0; i < Math.max(cart.sfx.length, names.length); i++)
     if (cart.sfx[i] != null || names[i]) writeFileSync(join(dir, 'sfx', assetFile(i, 2, names[i], '.txt')), sfxText(cart.sfx[i], names[i]));
-  cart.maps.forEach((m, i) => writeFileSync(join(dir, 'maps', assetFile(i, 1, m.name, '.bin')), b64ToBytes(m.data)));
+  cart.maps.forEach((m, i) => {
+    const text = mapText(m, cart.tiles, i);
+    if (text !== null) writeFileSync(join(dir, 'maps', assetFile(i, 1, m.name, '.txt')), text);
+    else writeFileSync(join(dir, 'maps', assetFile(i, 1, m.name, '.bin')), b64ToBytes(m.data));
+  });
   if (cart.music.length) writeFileSync(join(dir, 'music.txt'), musicText(cart.music));
   if (cart.scenes) writeFileSync(join(dir, 'scenes.json'), prettyJson(cart.scenes) + '\n');
   if (cart.cover) writeFileSync(join(dir, 'cover.png'), b64ToBytes(cart.cover.slice('data:image/png;base64,'.length)));
@@ -348,34 +440,44 @@ export async function readFolder(dir) {
     raw.music = r.music; musicLines = r.lineOf;
   }
 
-  // maps: cart.json lists them (name, size, origin); the blocks come from maps/<n>-*.bin or .gen.js
+  // maps: cart.json lists them (name, size, origin); the blocks come from maps/<n>-*.txt, .bin or .gen.js
   const bins = numbered(dir, 'maps', '.bin', errors), gens = numbered(dir, 'maps', '.gen.js', errors);
+  const txts = numbered(dir, 'maps', '.txt', errors);
+  for (const [n, f] of txts) if (bins.has(n)) errors.push({ at: rel('maps', f), msg: `maps/${bins.get(n)} is also map ${n}; keep one` });
   const list = Array.isArray(meta.maps) ? meta.maps : [];
   if (meta.maps !== undefined && !Array.isArray(meta.maps)) errors.push({ at: 'cart.json', msg: 'maps is a list of { name, size: [w, h, d], origin: [x, y, z] }' });
-  for (const n of new Set([...bins.keys(), ...gens.keys()])) if (n >= list.length) errors.push({ at: rel('maps', bins.get(n) || gens.get(n)), msg: `map ${n} isn't in cart.json's maps list` });
+  for (const n of new Set([...bins.keys(), ...txts.keys(), ...gens.keys()])) if (n >= list.length) errors.push({ at: rel('maps', bins.get(n) || txts.get(n) || gens.get(n)), msg: `map ${n} isn't in cart.json's maps list` });
   for (let i = 0; i < list.length; i++) {
     const m = list[i] || {}, size = m.size || [m.w, m.h, m.d];
     const [w, h, d] = Array.isArray(size) ? size : [];
     const map = { name: typeof m.name === 'string' ? m.name : '', w, h, d, origin: m.origin || [0, 0, 0], data: '' };
     raw.maps.push(map);
     if (![w, h, d].every((v) => Number.isInteger(v) && v >= 1)) { errors.push({ at: 'cart.json', msg: `maps[${i}]: size is [w, h, d], whole numbers of at least 1` }); continue; }
-    const bin = bins.get(i), gen = gens.get(i);
+    const bin = bins.get(i), txt = txts.get(i), gen = gens.get(i);
+    if (bin && txt) continue;   // reported above
+    // the stored blocks (.txt or .bin), if any
+    let stored = null, storedFile = null;
+    if (txt) {
+      storedFile = txt;
+      stored = readMapText(readFileSync(join(dir, 'maps', txt), 'utf8'), rel('maps', txt), w, h, d, errors);
+      if (!stored) continue;
+    } else if (bin) {
+      storedFile = bin;
+      stored = readFileSync(join(dir, 'maps', bin));
+      if (stored.length !== w * h * d) { errors.push({ at: rel('maps', bin), msg: `${stored.length} bytes, but the size in cart.json (${w} x ${h} x ${d}) needs ${w * h * d}` }); continue; }
+    }
     let bytes = null;
     if (gen) {
       try { bytes = await genMap(dir, gen, w, h, d); lineInfo.files.maps[i] = rel('maps', gen); }
       catch (e) { errors.push({ at: rel('maps', gen), msg: 'the script failed: ' + (e && e.message) }); continue; }
-      if (bin) {
-        const b = readFileSync(join(dir, 'maps', bin));
-        if (b.length !== bytes.length || !b.equals(Buffer.from(bytes))) {
-          errors.push({ at: rel('maps', gen), msg: `maps/${gen} and maps/${bin} disagree (the map was probably edited in the IDE and unpacked). `
-            + `Delete maps/${bin} to build the map from the script, or delete maps/${gen} to keep the edited blocks.` });
-          continue;
-        }
+      if (stored && !Buffer.from(stored).equals(Buffer.from(bytes))) {
+        errors.push({ at: rel('maps', gen), msg: `maps/${gen} and maps/${storedFile} disagree (the map was probably edited in the IDE and unpacked). `
+          + `Delete maps/${storedFile} to build the map from the script, or delete maps/${gen} to keep the edited blocks.` });
+        continue;
       }
-    } else if (bin) {
-      bytes = readFileSync(join(dir, 'maps', bin)); lineInfo.files.maps[i] = rel('maps', bin);
-      if (bytes.length !== w * h * d) { errors.push({ at: rel('maps', bin), msg: `${bytes.length} bytes, but the size in cart.json (${w} x ${h} x ${d}) needs ${w * h * d}` }); continue; }
-    } else { errors.push({ at: 'cart.json', msg: `map ${i} ("${map.name}") has no maps/${i}-*.bin or maps/${i}-*.gen.js` }); continue; }
+    } else if (stored) {
+      bytes = stored; lineInfo.files.maps[i] = rel('maps', storedFile);
+    } else { errors.push({ at: 'cart.json', msg: `map ${i} ("${map.name}") has no maps/${i}-*.txt, .bin or .gen.js` }); continue; }
     map.data = bytesToB64(new Uint8Array(bytes));
   }
 
