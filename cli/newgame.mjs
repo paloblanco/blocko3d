@@ -24,6 +24,8 @@ Work loop:
 4. Placing things: \`b3d map . --at x,z [--scene n]\` shows a column and where a character can stand.
 5. \`b3d pack .\` writes the \`.b3d.json\` cart the IDE opens; \`b3d export . --zip\` publishes.
 
+A person can play the game while you work: \`b3d serve .\` runs it in their browser and reloads on every save.
+
 The \`.b3d.json\` cart is made by \`b3d pack\`: don't edit it by hand. After someone edits the game in the IDE
 and saves, \`b3d unpack <cart> .\` brings their changes back into this folder.
 `;

@@ -111,8 +111,10 @@ The GitHub Action in `.github/workflows/runtime-bundle.yml` builds with Node 20,
 
 1. the map mesher's face counts on small maps whose answer is known, including the switch to 32-bit indices;
 2. every demo in `demos/index.json` passes `b3d check`, and the cart the IDE's Save would write for it unpacks to a project folder and packs back byte for byte;
-3. `b3d new` makes a game that passes `b3d check`;
-4. every demo, and the `b3d new` game, runs headless for 300 frames with buttons held and tapped (and a click) without throwing. A failure names the demo and the line (`code:79: x is not defined`).
+3. `b3d new` makes a game that passes `b3d check`; text maps read blocks at the right place, name the line of a bad character or a short layer, take tiles' first letters, and fall back to `.bin` past 91 tiles;
+4. every demo, and the `b3d new` game, runs headless for 300 frames with buttons held and tapped (and a click) without throwing. A failure names the demo and the line (`code:79: x is not defined`). And `b3d.d.ts` (made from `js/apidocs.js`) names exactly the engine's globals, so an API change without its docs fails.
+
+`b3d serve` isn't in `npm test` (it runs until stopped); check it by hand after changing it, as **`docs/TESTING.md`** describes.
 
 Part 4 needs Playwright's Chromium (`npx playwright install chromium`, once). Where that download isn't possible, set `B3D_CHROMIUM` to a Chrome or Chromium already installed (`B3D_CHROMIUM=/usr/bin/google-chrome npm test`); the `b3d` command's headless runs honor it too. `npm test -- --quick` skips part 4. The script is `tools/test.mjs`: when you add a demo it's tested automatically; when you add an engine feature, add a demo that uses it or a check to the script.
 
@@ -128,7 +130,7 @@ Part 4 needs Playwright's Chromium (`npx playwright install chromium`, once). Wh
 
 ## Working with the owner
 
-- Run `npm run build` before every commit and commit what it rewrites (see **Build workflow**). It's needed after IDE-only changes too, for the installed, offline IDE.
+- Run `npm run build` and `npm test` before every commit and commit what the build rewrites (see **Build workflow** and **Testing**). The build is needed after IDE-only changes too, for the installed, offline IDE.
 - Keep explanations plain and practical.
 - Discuss API design before changing it. API decisions were made deliberately, one at a time.
-- Keep the README, the Info tab (`js/apidocs.js`, which also makes `docs/API.md`), `CHANGELOG.md`, `MAKING_GAMES.md`, this file and the short `CLAUDE.md` (when it's affected) in sync with API changes. A cart format change also needs `cli/check.mjs`, `cli/folder.mjs` and `cli/idesave.mjs`.
+- Keep the README, the Info tab (`js/apidocs.js`, which also makes `docs/API.md` and `b3d.d.ts`), `CHANGELOG.md`, `MAKING_GAMES.md`, `tools/llms.md`, `docs/DECISIONS.md` (record the decision), this file and the short `CLAUDE.md` (when it's affected) in sync with API changes. A cart format change also needs `cli/check.mjs`, `cli/folder.mjs` and `cli/idesave.mjs`; a `b3d` command change, `MAKING_GAMES.md`, the help in `bin/b3d.mjs`, the Command line section of `js/apidocs.js`, the README and the game folder's notes (`cli/newgame.mjs`).

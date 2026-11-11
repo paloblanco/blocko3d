@@ -1,6 +1,6 @@
 # Making BLOCKO3D games outside the IDE
 
-The IDE (https://paloblanco.github.io/blocko3d/) is the main way to make a BLOCKO3D game. This page is for working without it, or alongside it: with a text editor, git, scripts or an AI agent. The `b3d` command does the IDE's jobs from a terminal. It checks a game, runs it headless and saves screenshots, draws pictures of single assets, renders sounds, exports, and turns a cart into a folder of small text files and back.
+The IDE (https://paloblanco.github.io/blocko3d/) is the main way to make a BLOCKO3D game. This page is for working without it, or alongside it: with a text editor, git, scripts or an AI agent. The `b3d` command does the IDE's jobs from a terminal. It plays a game in your browser while you edit it, checks it, runs it headless and saves screenshots, draws pictures of single assets, renders sounds, exports, and turns a cart into a folder of small text files and back.
 
 The API itself is in [docs/API.md](docs/API.md) (the same text as the IDE's Info tab).
 
@@ -20,7 +20,7 @@ npm install -g playwright
 npx playwright install chromium
 ```
 
-Every other command works without it.
+Every other command works without it, `serve` included.
 
 The tool carries its own docs, so you never need the engine's source: `b3d docs` prints this guide, `b3d api mpush` prints one function, `b3d api maps` a section, `b3d api` lists everything, and `b3d docs api` prints the whole reference.
 
@@ -377,4 +377,5 @@ The result is exactly what the IDE's Export makes. It runs from disk or any web 
 - **Debug output:** `printh` lines appear in the IDE's console, in `b3d run`, and in the terminal running `b3d serve`.
 - **Levels in code:** `map_new(w, h, d)` then a `map_box(0, x0, y0, z0, x1, y1, z1, tile)` for each floor, wall and platform. The **Starter** cart (Demos menu) has named tiles, models and sounds to build with.
 - **Repeatable random levels:** `srand(n)` in `_init` makes the game's own randomness repeat too.
+- **Working by hand:** keep `b3d serve game/` running in a terminal next to your editor; every save shows up in the browser a moment later.
 - **Before you finish:** `b3d check`, a few `b3d shot`s of the important moments, then `b3d pack` and open the cart in the IDE once.

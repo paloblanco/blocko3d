@@ -103,7 +103,7 @@ b3d pack game/                                # back to game.b3d.json, exactly a
 b3d export game/ --zip                        # the same zip as the Export button
 ```
 
-A game can live as a **project folder**: `main.js` for the code, one text file per tile, model and sound (pictures drawn with one character per pixel), `music.txt`, raw map files or scripts that build maps, and `cart.json` for the rest. `pack` and `unpack` turn it into a cart and back without losing anything, so the IDE and a text editor can take turns on one game. Headless runs step the game exactly one update at a time with a fixed seed, so they repeat. `shot`, `run` and the map and model renders need Playwright (`npm install -g playwright`, then `npx playwright install chromium`).
+A game can live as a **project folder**: `main.js` for the code, one text file per tile, model and sound (pictures drawn with one character per pixel), `music.txt`, maps as layer-by-layer text (or scripts that build them), and `cart.json` for the rest. `pack` and `unpack` turn it into a cart and back without losing anything, so the IDE and a text editor can take turns on one game. Headless runs step the game exactly one update at a time with a fixed seed, so they repeat. `shot`, `run` and the map and model renders need Playwright (`npm install -g playwright`, then `npx playwright install chromium`); `serve` and the rest don't.
 
 [MAKING_GAMES.md](MAKING_GAMES.md) describes the folder and every command (`b3d docs` prints it). Folders get editor autocomplete (`b3d.d.ts` and `jsconfig.json`, for VS Code) and maps as text files you can read and diff. There's also `b3d info` (every asset on one screen), `b3d map --at x,z` (what's in a column and where you can stand), `b3d api <name>`, `b3d new`, and test hooks for headless runs: `--eval`, `--at 50:"code"` and `--watch "expr"`.
 
@@ -172,21 +172,23 @@ That's enough for the IDE's menu online. Then run `npm run build` (see **Buildin
 
 Working on the engine itself? [docs/ENGINE.md](docs/ENGINE.md) has the architecture, the build and the tests; [docs/DECISIONS.md](docs/DECISIONS.md) the design decisions and why; [docs/TESTING.md](docs/TESTING.md) what's been checked by hand.
 
-**Run `npm run build` before every commit, whatever you changed**, and commit what it rewrites along with your change:
+**Run `npm run build` and `npm test` before every commit, whatever you changed**, and commit what the build rewrites along with your change:
 
 ```
-npm install      # once
-npm run build    # rewrites runtime/, standalone_demo/ (not committed), demos/castle.b3d.json, docs/API.md and the IDE's offline files
+npm install                       # once
+npx playwright install chromium   # once, for the tests
+npm run build    # rewrites runtime/, standalone_demo/ (not committed), demos/castle.b3d.json, docs/API.md, llms.txt and the IDE's offline files
+npm test         # about a minute: checks every demo, the b3d tool's formats, and runs every demo headless
 ```
 
-The IDE itself runs as plain files with no build step, but the build keeps four things in step with your change:
+The IDE itself runs as plain files with no build step, but the build first checks that the two copies of three.js match, then keeps four things in step with your change:
 
 - **The runtime bundle**, `runtime/blocko3d.runtime.js`, made from the engine (`js/core.js`, `js/engine.js`, `js/font.js`, `js/audio.js`, `js/shell.js`, `js/boot.js`, `js/version.js`). Run and Export use it, so engine changes don't show up until you rebuild.
-- **The demos.** The castle (generated in `js/cart.js`) is written to `demos/castle.b3d.json`, and every demo in `demos/index.json` is exported to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` on the site to try an exported game).
-- **The API reference**, `docs/API.md`, made from the Info tab's text in `js/apidocs.js` by `tools/build-docs.mjs`. Edit `js/apidocs.js`, not the Markdown.
+- **The demos.** The castle (generated in `js/cart.js`) is written to `demos/castle.b3d.json`, and every demo in `demos/index.json` is exported to `standalone_demo/`, with a page listing them (open `standalone_demo/index.html` to try an exported game). `standalone_demo/` isn't committed: the site's deploy builds it.
+- **The API reference**, `docs/API.md`, and the chatbot guide, `llms.txt`, made from the Info tab's text in `js/apidocs.js` (and `tools/llms.md`) by `tools/build-docs.mjs`. Edit those, not the outputs. The `b3d` tool's `b3d.d.ts` (editor autocomplete) comes from `js/apidocs.js` too, and `npm test` fails if it and the engine disagree.
 - **The installed, offline IDE.** `ide-sw.js` (the service worker) and `ide.webmanifest`. `ide-sw.js` lists every file the IDE uses with a fingerprint of their contents, so it changes whenever any of them does (`index.html`, `player.html`, `css/`, `js/`, `demos/`, `vendor/`, `runtime/`). That's how installed IDEs know to download the new files. **This is why a change that only touches the IDE, like a CSS tweak, a new demo or an Info tab edit, still needs the build**: without it, installed IDEs won't keep the new files for offline use. If you add a new top-level folder the IDE loads files from, also add it to `SOURCES` in `tools/build-ide.mjs`.
 
-A GitHub Action fails if any of these committed files doesn't match a fresh build.
+A GitHub Action fails if any of these committed files doesn't match a fresh build, or if `npm test` fails. Another builds the site (with `standalone_demo/`) and publishes it to GitHub Pages on every push to `main`.
 
 ## Not in this version
 
