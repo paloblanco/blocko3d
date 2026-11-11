@@ -4,6 +4,7 @@
 // 2. exports every demo listed in demos/index.json to standalone_demo/<slug>/, exactly as the IDE's
 //    Export button would (index.html + <slug>.js, plus the installable-app files);
 // 3. writes standalone_demo/index.html, one page linking to all of them.
+// standalone_demo/ is not committed: .github/workflows/pages.yml runs this build to publish it.
 // So a demo added to demos/ and demos/index.json gets its standalone page on the next build.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { demoCart, normalizeCart } from '../js/cart.js';

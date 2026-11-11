@@ -1,0 +1,35 @@
+# Publishes the site (the IDE and the exported demos) to GitHub Pages on every push to main.
+# standalone_demo/ isn't committed: it's built here by `npm run build`. Needs the repo's
+# Settings > Pages > Source set to "GitHub Actions".
+name: Deploy site
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      - name: Leave out what the site doesn't need
+        run: rm -rf node_modules
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4

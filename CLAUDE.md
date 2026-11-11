@@ -10,7 +10,7 @@ BLOCKO3D is a small, deliberately limited 3D game engine for JavaScript with a P
 
 ## Rules for changing this repo
 
-- **Run `npm run build` before every commit, for any change** (IDE-only changes too), and commit what it rewrites: `runtime/`, `standalone_demo/`, `demos/castle.b3d.json`, `docs/API.md`, `llms.txt`, `ide-sw.js`, `ide.webmanifest`. CI fails if they're stale.
+- **Run `npm run build` before every commit, for any change** (IDE-only changes too), and commit what it rewrites: `runtime/`, `demos/castle.b3d.json`, `docs/API.md`, `llms.txt`, `ide-sw.js`, `ide.webmanifest`. CI fails if they're stale. (`standalone_demo/` is built too but not committed: the Pages workflow builds it for the site.)
 - **Run `npm test` before every commit** and keep it passing (CI runs it too). It needs Playwright's Chromium once (`npx playwright install chromium`), or `B3D_CHROMIUM` set to an installed Chrome.
 - **Discuss API design with the owner before changing it.** API decisions were made deliberately, one at a time.
 - **Keep the docs in sync:** an API change touches `js/apidocs.js` (the Info tab, which also makes `docs/API.md`), `README.md`, `CHANGELOG.md`, `MAKING_GAMES.md`, `tools/llms.md` (the build checks its function names) and `docs/ENGINE.md`; a cart-format change also touches `cli/check.mjs`, `cli/folder.mjs` and `cli/idesave.mjs`.

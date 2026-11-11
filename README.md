@@ -15,7 +15,7 @@ BLOCKO3D was called blocky3D until October 2026. The logo, icons, favicon, share
 
 It's a static site with no build step. ES modules need a web server, so either:
 
-- **Online:** the IDE is live at https://paloblanco.github.io/blocko3d/ (GitHub Pages, deployed from `main`), and the exported demos at https://paloblanco.github.io/blocko3d/standalone_demo/ (a page linking to each one).
+- **Online:** the IDE is live at https://paloblanco.github.io/blocko3d/ (GitHub Pages, built and deployed from `main` by a GitHub Action), and the exported demos at https://paloblanco.github.io/blocko3d/standalone_demo/ (a page linking to each one).
 - **Locally:** `python -m http.server` in this folder, then open http://localhost:8000.
 
 Everything the IDE uses is in this repo (CodeMirror 5, Three.js 0.170 for the editor previews and the two fonts are in `vendor/`), so it never reaches another website. Games themselves run on the bundled runtime in `runtime/` (see below).
@@ -165,7 +165,7 @@ The Info tab has the full reference, and [docs/API.md](docs/API.md) has the same
 2. Put the file in `demos/`.
 3. Add a line for it to `demos/index.json`: the file name, the name shown in the menu, and a sentence about what it shows (shown as a tooltip and in the console when it loads).
 
-That's enough for the IDE's menu online. Then run `npm run build` (see **Building** below) and commit what it writes: it exports every demo in the list to its own page in `standalone_demo/<name>/` and rebuilds the list page `standalone_demo/index.html`, so the demo can be played on its own, on a phone too, and adds the new cart to the installed IDE's offline files. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
+That's enough for the IDE's menu online. Then run `npm run build` (see **Building** below) and commit what it writes. The build also exports every demo in the list to its own page in `standalone_demo/<name>/` with the list page `standalone_demo/index.html` (not committed; the site's deploy builds it), so the demo can be played on its own, on a phone too, and adds the new cart to the installed IDE's offline files. The castle is generated in code (`js/cart.js`), and the build also writes it to `demos/castle.b3d.json`, with its cover art from `demos/castle-cover.png`. The list page shows each demo's cover.
 
 ## Building (after any change)
 
@@ -175,7 +175,7 @@ Working on the engine itself? [docs/ENGINE.md](docs/ENGINE.md) has the architect
 
 ```
 npm install      # once
-npm run build    # rewrites runtime/, standalone_demo/, demos/castle.b3d.json, docs/API.md and the IDE's offline files
+npm run build    # rewrites runtime/, standalone_demo/ (not committed), demos/castle.b3d.json, docs/API.md and the IDE's offline files
 ```
 
 The IDE itself runs as plain files with no build step, but the build keeps four things in step with your change:
