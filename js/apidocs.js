@@ -109,6 +109,18 @@ sphere(px, py, pz, 0.4, 10)
 outline()`,
   },
   {
+    title: 'Fog',
+    intro: 'Distant things dither away into one color: no lighting to set up, and it hides the edge of a big map. Like pal() and outline(), it applies to the 3D draws that follow and stays set until changed. Off by default. Text and rectangles never get fog.',
+    items: [
+      ['fog(c, near?, far?)', 'Draws after this fade into color c (a palette index; pal() remaps apply, as with bg) with their distance from the camera: untouched up to near blocks away (default 8), solid c from far (default 24), and dithered in between, more and more pixels taking color c. Fogged pixels get no outline. Set bg to the same color so the sky and the fog meet.'],
+      ['fog()', 'No fog for draws after this.'],
+    ],
+    code: `bg(6)            // a pale sky...
+fog(6, 6, 22)    // ...and mist of the same color, from 6 to 22 blocks away
+map(0)
+fog()            // anything drawn after this is clear`,
+  },
+  {
     title: 'Sound',
     intro: 'Sounds come from the Sfx tab, numbered 0-63: 32 notes each, with a pitch, waveform, volume and effect per note. There are 4 channels. Browsers only allow sound after the player presses a key or clicks, so the very first sound may be silent.',
     items: [

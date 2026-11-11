@@ -13,6 +13,7 @@ Making games outside the IDE (the `b3d` command and the project folder): see [MA
 - [Primitives](#primitives)
 - [Palette](#palette)
 - [Outlines](#outlines)
+- [Fog](#fog)
 - [Sound](#sound)
 - [Music](#music)
 - [Save data](#save-data)
@@ -130,6 +131,20 @@ outline(0, false)
 vox(3, bx, by, bz) // a round model: just its outer outline
 sphere(px, py, pz, 0.4, 10)
 outline()
+```
+
+## Fog
+
+Distant things dither away into one color: no lighting to set up, and it hides the edge of a big map. Like pal() and outline(), it applies to the 3D draws that follow and stays set until changed. Off by default. Text and rectangles never get fog.
+
+- **`fog(c, near?, far?)`**: Draws after this fade into color c (a palette index; pal() remaps apply, as with bg) with their distance from the camera: untouched up to near blocks away (default 8), solid c from far (default 24), and dithered in between, more and more pixels taking color c. Fogged pixels get no outline. Set bg to the same color so the sky and the fog meet.
+- **`fog()`**: No fog for draws after this.
+
+```js
+bg(6)            // a pale sky...
+fog(6, 6, 22)    // ...and mist of the same color, from 6 to 22 blocks away
+map(0)
+fog()            // anything drawn after this is clear
 ```
 
 ## Sound

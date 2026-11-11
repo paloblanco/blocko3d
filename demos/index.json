@@ -53,5 +53,10 @@
     "file": "village.b3d.json",
     "name": "Village",
     "about": "Open the houses, collect every coin and reach the flag, over two levels. Shows scenes: scene_load() builds each level made in the Scene tab, one house map placed many times (each copy's door opens on its own), s.named to find the cage, and vox markers for the start, coins and flag."
+  },
+  {
+    "file": "fog.b3d.json",
+    "name": "Fog Valley",
+    "about": "Find 8 coins hidden in the fog. Shows fog(c, near, far): 3D draws dither into a color with distance, with bg() of the same color for the sky; X switches between mist, dusk, swamp, night and no fog."
   }
 ]

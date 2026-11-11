@@ -266,6 +266,9 @@ const PAL_GLSL = /* glsl */`
   uniform float uOutline;   // outline palette index for this draw, or -1 for none
   uniform float uId;        // draw id, unique within a frame (1..65535)
   uniform float uInner;     // 1: outline inner edges too (creases, overlaps); 0: outer outline only
+  uniform vec4 uFog;        // fog(): palette index, near, far, on (1) / off (0)
+  uniform float uPix;       // render pixels per screen pixel (1, 2 or 3), so the dither stays 256-chunky
+  varying vec3 vFogPos;     // this pixel's position from the camera, for its distance
   layout(location = 0) out highp vec4 outColor;
   layout(location = 1) out highp vec4 outInfo;   // read by the outline pass
   vec3 palColor(int idx) {
@@ -274,10 +277,23 @@ const PAL_GLSL = /* glsl */`
   }
   // dir: which way a map face points (1-6), or 0 for primitives. A draw with outline(c, false)
   // writes 7 instead: the outline pass then draws no lines inside it, only around it.
+  // 4x4 ordered dither threshold for a screen pixel, 0..1
+  float bayer4(vec2 p) {
+    const float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+    ivec2 q = ivec2(mod(p, 4.0));
+    return (m[q.x + 4 * q.y] + 0.5) / 16.0;
+  }
   void writePixel(vec3 c, float dir) {
-    outColor = vec4(c, 1.0);
+    float oc = uOutline;
     float d = uInner > 0.5 ? dir : 7.0;
-    outInfo = vec4((uOutline + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, d / 255.0);
+    // fog: from near to far, more and more of the pixels (in a fixed dither pattern) take the fog
+    // color. A fogged pixel casts no outline and makes no crease, so far shapes fade out whole.
+    if (uFog.w > 0.5) {
+      float t = (length(vFogPos) - uFog.y) / max(uFog.z - uFog.y, 0.0001);
+      if (t > bayer4(floor(gl_FragCoord.xy / uPix))) { c = uPalette[int(uFog.x + 0.5)]; oc = -1.0; d = 0.0; }
+    }
+    outColor = vec4(c, 1.0);
+    outInfo = vec4((oc + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, d / 255.0);
   }
 `;
 
@@ -288,6 +304,8 @@ const drawUniforms = (paletteUniform) => ({
   uOutline: { value: -1 },
   uId: { value: 1 },
   uInner: { value: 1 },
+  uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uPix: { value: 1 },
 });
 
 export function createVoxelMaterial(atlas, paletteUniform) {
@@ -299,8 +317,10 @@ export function createVoxelMaterial(atlas, paletteUniform) {
       attribute vec3 aTF;
       varying vec2 vUV;
       varying vec3 vTF;
+      varying vec3 vFogPos;
       void main() {
         vUV = aUV; vTF = aTF;
+        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: /* glsl */`
@@ -325,7 +345,11 @@ export function createSolidMaterial(paletteUniform) {
     glslVersion: THREE.GLSL3,
     uniforms: { uColor: { value: 7 }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
-      void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      varying vec3 vFogPos;
+      void main() {
+        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);   // as before fog, so games without it render the same
+      }`,
     fragmentShader: /* glsl */`
       uniform float uColor;
       ${PAL_GLSL}
@@ -340,8 +364,10 @@ export function createVoxMaterial(paletteUniform) {
     vertexShader: /* glsl */`
       attribute vec2 aCD;
       varying vec2 vCD;
+      varying vec3 vFogPos;
       void main() {
         vCD = aCD;
+        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: /* glsl */`

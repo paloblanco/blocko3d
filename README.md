@@ -56,6 +56,7 @@ The game runs on the right in a square 256×256 view. Errors show in the console
 | Builder | Build on a plot, block by block. `mray()` and the face it hits to place or dig, a hotbar drawn with `rectfill` and clicked through `mouse_pos()`, the mouse wheel, and the whole build kept with `save()`. |
 | Bumper Arena | Bump the other cars off a crumbling platform. Up to 4 players on gamepads (`btn`/`btnp`/`stick` with a player number), the computer driving empty seats, one car model recolored per player with `pal()`, the arena crumbling with `mset()` and coming back each round with `map_reload()`, and hit-stun with a camera shake on hard bumps using `freeze()`. |
 | Split Screen Racing | Two cars, three laps. `clip()` splits the screen into two views with their own chase cameras, a minimap view sits on top, text is clipped to each half, and a second gamepad can take over the computer's car. |
+| Fog Valley | Find 8 coins hidden in the fog. `fog(c, near, far)` dithers distant hills and trees into the sky color (`bg` of the same color), and X switches between mist, dusk, swamp, night and no fog. Built from the Starter cart's art, with the valley made in code.
 | Third Person | Collect stars across floating islands. An orbit camera kept out of walls with `mray()`, movement relative to the camera, and riding a sliding platform, a turning bridge and an elevator with `wtom()`/`mtow()`. |
 | Village | Open the houses, collect the coins, reach the flag, over two levels. Each level is a scene from the Scene tab built with `scene_load()`: one house map placed many times (each copy's door opens on its own), `s.named` to find the cage, and vox markers for the start, coins and flag. |
 
@@ -132,6 +133,7 @@ function _draw() {
 - **Primitives:** `cube`, `sphere`, `line3`.
 - **Palette:** `palette[i]` (global, 32 colors), `pal(a, b)` and `pal()` (per-draw remap), `palt(i, on)`, `bg(c)`.
 - **Outlines:** `outline(c)` / `outline()`, per draw like `pal`; 1-pixel outlines that follow what's on screen; on maps and vox models, every visible edge is outlined. `outline(c, false)` draws only the outer outline, for round shapes. Off by default.
+- **Fog:** `fog(c, near, far)` makes the following 3D draws dither into color c with distance, from near to far blocks away (`fog()` turns it off). With `bg(c)` in the same color it's mist, dusk or night with no lighting to set up.
 - **Camera:** `cam_set_pos`, `cam_set_lookat`, `cam_set_fov` (in turns, across the longer side of the view, default 0.25).
 - **Clipping and split screen:** `clip(x0, y0, x1, y1)` limits drawing (3D, text and rectangles) to a rectangle, and `clip()` lifts it. Each `clip()` starts a new 3D view with its own camera, centered in its rectangle, so two halves of the screen can follow two players, and a small view drawn last makes a minimap or mirror.
 - **Text and UI:** `print(str, x, y, c, oc, sx, sy)`, a 7×10 pixel font with upper and lower case; `oc` adds an outline, `sx`/`sy` scale it by whole numbers for titles. `rect` and `rectfill(x0, y0, x1, y1, c)` draw outlined or filled boxes on the same layer, PICO-8 style.
