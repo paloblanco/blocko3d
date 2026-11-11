@@ -143,9 +143,12 @@ export async function openBrowser() {
   const { chromium } = loadPlaywright();
   let browser;
   try {
-    browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+    // B3D_CHROMIUM: a Chrome or Chromium already on this computer, for when Playwright's own
+    // download isn't possible (B3D_CHROMIUM=/usr/bin/google-chrome b3d shot mygame)
+    const executablePath = process.env.B3D_CHROMIUM || undefined;
+    browser = await chromium.launch({ executablePath, args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   } catch (e) {
-    throw new UserError('Chromium would not start: ' + String(e.message).split('\n')[0] + '\n(run: npx playwright install chromium)');
+    throw new UserError('Chromium would not start: ' + String(e.message).split('\n')[0] + '\n(run: npx playwright install chromium, or set B3D_CHROMIUM to a Chrome or Chromium on this computer)');
   }
   const ctx = await browser.newContext({ viewport: { width: 800, height: 800 } });
   const runtime = runtimeText();

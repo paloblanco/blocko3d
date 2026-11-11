@@ -169,7 +169,7 @@ That's enough for the IDE's menu online. Then run `npm run build` (see **Buildin
 
 ## Building (after any change)
 
-Working on the engine itself? [docs/ENGINE.md](docs/ENGINE.md) has the design decisions, the architecture and what's been tested.
+Working on the engine itself? [docs/ENGINE.md](docs/ENGINE.md) has the architecture, the build and the tests; [docs/DECISIONS.md](docs/DECISIONS.md) the design decisions and why; [docs/TESTING.md](docs/TESTING.md) what's been checked by hand.
 
 **Run `npm run build` before every commit, whatever you changed**, and commit what it rewrites along with your change:
 

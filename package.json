@@ -20,10 +20,12 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "esbuild tools/runtime-entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=inline --outfile=runtime/blocko3d.runtime.js && node --no-warnings tools/build-demo.mjs && node --no-warnings tools/build-docs.mjs && node --no-warnings tools/build-ide.mjs"
+    "build": "node --no-warnings tools/check-vendor.mjs && esbuild tools/runtime-entry.js --bundle --minify --format=iife --target=es2020 --legal-comments=inline --outfile=runtime/blocko3d.runtime.js && node --no-warnings tools/build-demo.mjs && node --no-warnings tools/build-docs.mjs && node --no-warnings tools/build-ide.mjs",
+    "test": "node --no-warnings tools/test.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.10",
-    "three": "0.170.0"
+    "three": "0.170.0",
+    "playwright": "1.65.0"
   }
 }

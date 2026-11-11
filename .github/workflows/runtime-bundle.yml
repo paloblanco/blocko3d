@@ -1,4 +1,4 @@
-name: Runtime bundle is up to date
+name: Build is up to date and tests pass
 on: [push, pull_request]
 jobs:
   check:
@@ -16,3 +16,5 @@ jobs:
             echo "::error::runtime/blocko3d.runtime.js, standalone_demo/ the IDE's offline files (ide-sw.js, ide.webmanifest) docs/API.md or llms.txt are out of date. Run 'npm run build' and commit the result."
             exit 1
           }
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

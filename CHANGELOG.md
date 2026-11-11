@@ -4,6 +4,8 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **For contributors:** `npm test` checks the map mesher, runs `b3d check` and an unpack/pack round trip on every demo, checks the `b3d new` game, and runs every demo headless for 300 frames; CI runs it on every push. The build now stops if `vendor/three/` doesn't match the three.js version in `package.json`. The engine notes are split: `docs/ENGINE.md` (architecture, build, tests; read in full), `docs/DECISIONS.md` (every design decision) and `docs/TESTING.md` (what was checked by hand).
+- **`B3D_CHROMIUM`:** `b3d shot`, `run` and `render` can use a Chrome or Chromium already on the computer (`B3D_CHROMIUM=/usr/bin/google-chrome b3d shot mygame`) when Playwright's own browser download isn't possible.
 - **Faster map rebuilds:** after `mset` (or any change to a map's blocks), the map's mesh is rebuilt about 7 times faster, e.g. about 14 ms instead of 100 ms for a 128 × 32 × 128 map of hills. Maps look exactly the same. Many `mset` calls in one frame still cost only one rebuild, at the map's next draw.
 - **Undo and Redo in the Tile tab** (buttons, Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), like the Map, Vox and Scene tabs: each stroke, box, fill, Copy to all and Clear is one step.
 - **Fixed: the tops and bottoms of tiles were reversed front to back in the 3D view** compared with the Tile tab and the Map tab's grid. Now the image's top row is at a block's -z edge, as the Map tab's Top view shows it. Art drawn with a direction on a top or bottom face (an arrow, a line along one edge) will appear flipped compared with before; noise-like textures look the same.
