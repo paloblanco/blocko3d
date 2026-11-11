@@ -259,6 +259,15 @@ export function syncPaletteUniform(u, palette) {
 export const identityRemap = () => Array.from({ length: NCOLORS }, (_, i) => i);
 export const noTransparency = () => new Array(NCOLORS).fill(0);
 
+// 4x4 ordered dither threshold for a screen pixel, 0..1 (fog and the two-color sky)
+const BAYER_GLSL = /* glsl */`
+  float bayer4(vec2 p) {
+    const float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+    ivec2 q = ivec2(mod(p, 4.0));
+    return (m[q.x + 4 * q.y] + 0.5) / 16.0;
+  }
+`;
+
 const PAL_GLSL = /* glsl */`
   uniform vec3 uPalette[32];
   uniform float uRemap[32];
@@ -277,12 +286,7 @@ const PAL_GLSL = /* glsl */`
   }
   // dir: which way a map face points (1-6), or 0 for primitives. A draw with outline(c, false)
   // writes 7 instead: the outline pass then draws no lines inside it, only around it.
-  // 4x4 ordered dither threshold for a screen pixel, 0..1
-  float bayer4(vec2 p) {
-    const float m[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
-    ivec2 q = ivec2(mod(p, 4.0));
-    return (m[q.x + 4 * q.y] + 0.5) / 16.0;
-  }
+  ${BAYER_GLSL}
   void writePixel(vec3 c, float dir) {
     float oc = uOutline;
     float d = uInner > 0.5 ? dir : 7.0;
@@ -375,6 +379,48 @@ export function createVoxMaterial(paletteUniform) {
       varying vec2 vCD;
       void main() { writePixel(palColor(int(vCD.x + 0.5)), floor(vCD.y + 0.5)); }`,
   });
+}
+
+// ---------------------------------------------------------------- two-color sky
+// bg(sky, horizon): a full-screen quad drawn behind everything (first, no depth test or write, so
+// the outline pass still sees background there). Each pixel's view ray gives its height above the
+// horizon: at or below the horizon it's the horizon color, 45 degrees up and higher the sky color,
+// dithered in between. It follows the camera, so the sky stays put when the view tilts.
+export function createSkyMesh(paletteUniform) {
+  const mat = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    depthTest: false,
+    depthWrite: false,
+    uniforms: { uPalette: paletteUniform, uSky: { value: new THREE.Vector2(0, 0) }, uPix: { value: 1 } },
+    vertexShader: /* glsl */`
+      varying vec3 vRay;
+      varying vec3 vUp;
+      void main() {
+        vRay = vec3(position.x / projectionMatrix[0][0], position.y / projectionMatrix[1][1], -1.0);   // view space
+        vUp = (viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz;                                         // world up, in view space
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uPalette[32];
+      uniform vec2 uSky;    // sky, horizon (palette indices)
+      uniform float uPix;   // render pixels per screen pixel
+      varying vec3 vRay;
+      varying vec3 vUp;
+      layout(location = 0) out highp vec4 outColor;
+      layout(location = 1) out highp vec4 outInfo;
+      ${BAYER_GLSL}
+      void main() {
+        float t = clamp(dot(normalize(vRay), normalize(vUp)) / 0.7071, 0.0, 1.0);
+        int c = t > bayer4(floor(gl_FragCoord.xy / uPix)) ? int(uSky.x + 0.5) : int(uSky.y + 0.5);
+        outColor = vec4(uPalette[c], 1.0);
+        outInfo = vec4(0.0);   // no outline, no draw
+      }`,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = -1e9;   // before every draw
+  mesh.visible = false;
+  return mesh;
 }
 
 // ---------------------------------------------------------------- outlines

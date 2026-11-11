@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Two-color skies:** `bg(sky, horizon)` dithers the background from color `sky` overhead down to `horizon` at the horizon and below. It follows the camera, so it stays put when the view tilts, and with `fog` in the horizon color the land fades into the sky. Fog Valley's weather uses it. `bg(c)` is unchanged.
 - **Fog:** `fog(c, near, far)` makes the 3D draws after it fade into color c with their distance from the camera, in a dither that gets denser from near to far blocks away; `fog()` turns it off. Fogged pixels lose their outlines, so far shapes fade out whole, and the dither stays at the 256-pixel scale at 2× and 3×. A new demo, **Fog Valley**, shows it.
 - **`b3d serve <game>`:** plays the game in your browser and reloads it every time you save a file, so you can work in any text editor. Problems show on the page and in the terminal with their file and line; `printh` output shows in the terminal. `--open` opens the browser, `--port n` picks the port (default 8030).
 - **Editor autocomplete:** `b3d new` and `b3d unpack` write `b3d.d.ts` and `jsconfig.json`, so VS Code autocompletes every BLOCKO3D function in `main.js`, shows its arguments as you type, and its description on hover.

@@ -60,7 +60,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `bg(c)`: the background color.
 - `outline(c)` / `outline()`: black outlines look good, `outline(0)`; they apply to draws after the call.
 - `pal(a, b)` / `pal()`: recolor color a as b for the following draws (a red guard into a blue one); `pal()` resets.
-- `fog(c, near, far)` / `fog()`: the following 3D draws dither into color c from near to far blocks away; use the same color for `bg(c)`. Good for mist, night and hiding the edge of a big level.
+- `fog(c, near, far)` / `fog()`: the following 3D draws dither into color c from near to far blocks away; use the same color for `bg(c)`, or `bg(sky, c)` for a sky that dithers from color sky overhead down to c at the horizon. Good for mist, night and hiding the edge of a big level.
 - `clip(x0, y0, x1, y1)` / `clip()`: draw only in part of the screen (split screen: each `clip` gets its own camera).
 - `print(str, x, y, c, oc, sx)`: text at a pixel position, with an optional outline color oc and whole-number scale sx; it returns the x after the text.
 - `printc(str, y, c, oc, sx)`: centered text.

@@ -88,6 +88,7 @@ vox(f, px, py, pz, 0, yaw_to(dx, dz))`,
       ['pal()', 'Reset all remaps and transparency.'],
       ['palt(i, on?)', 'Make color i transparent for following draws (on defaults to true).'],
       ['bg(c)', 'Set the background color.'],
+      ['bg(sky, horizon)', 'A two-color sky: color sky overhead, dithering down to color horizon at the horizon (and below it). It follows the camera, so it stays put when the view tilts. With fog in the horizon color, the land fades into the sky: bg(12, 6) fog(6, 6, 22). bg(c) goes back to one color.'],
     ],
     code: `pal(8, 12)        // red becomes blue
 map(enemy_ship)
@@ -112,11 +113,11 @@ outline()`,
     title: 'Fog',
     intro: 'Distant things dither away into one color: no lighting to set up, and it hides the edge of a big map. Like pal() and outline(), it applies to the 3D draws that follow and stays set until changed. Off by default. Text and rectangles never get fog.',
     items: [
-      ['fog(c, near?, far?)', 'Draws after this fade into color c (a palette index; pal() remaps apply, as with bg) with their distance from the camera: untouched up to near blocks away (default 8), solid c from far (default 24), and dithered in between, more and more pixels taking color c. Fogged pixels get no outline. Set bg to the same color so the sky and the fog meet.'],
+      ['fog(c, near?, far?)', 'Draws after this fade into color c (a palette index; pal() remaps apply, as with bg) with their distance from the camera: untouched up to near blocks away (default 8), solid c from far (default 24), and dithered in between, more and more pixels taking color c. Fogged pixels get no outline. Set bg to the same color, or use bg(sky, c), so the sky and the fog meet.'],
       ['fog()', 'No fog for draws after this.'],
     ],
-    code: `bg(6)            // a pale sky...
-fog(6, 6, 22)    // ...and mist of the same color, from 6 to 22 blocks away
+    code: `bg(12, 6)        // a blue sky, pale at the horizon...
+fog(6, 6, 22)    // ...and mist in the horizon's color, from 6 to 22 blocks away
 map(0)
 fog()            // anything drawn after this is clear`,
   },

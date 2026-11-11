@@ -6,7 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX,
+  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
@@ -70,6 +70,8 @@ export function createEngine({
     u.tColor.value = target.textures[0]; u.tInfo.value = target.textures[1]; u.tDepth.value = target.depthTexture;
   }
   setScale(scale);
+  const sky = createSkyMesh(palU);
+  scene.add(sky);
   const atlas = createAtlas();
   writeAtlas(atlas, tilesFromCart(cart));
   const maps = mapsFromCart(cart);
@@ -85,6 +87,7 @@ export function createEngine({
   let remap = identityRemap();
   let trans = noTransparency();
   let bgColor = 0;
+  let bgHorizon = -1;   // bg(sky, horizon): the horizon color, or -1 for a plain background
   let outlineColor = -1;   // -1 = no outline (the default)
   let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
   let fogState = null;     // fog(c, near, far): [palette index, near, far], or null for none (the default)
@@ -382,7 +385,12 @@ export function createEngine({
       if (i === undefined) { trans = noTransparency(); return; }
       trans[i & 31] = on ? 1 : 0;
     },
-    bg(c) { bgColor = remap[(c | 0) & 31]; },
+    // bg(c): a plain background; bg(sky, horizon): sky overhead, dithering down to horizon at the
+    // horizon and below (see createSkyMesh)
+    bg(c, h) {
+      bgColor = remap[(c | 0) & 31];
+      bgHorizon = h === undefined || h === null || h === false ? -1 : remap[(h | 0) & 31];
+    },
     // outline(c): outlines in color c, inner edges included; outline(c, false): only around the
     // outside of each draw; outline(): none
     outline(c, inner = true) {
@@ -860,7 +868,7 @@ export function createEngine({
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
   function endView() {
     if (!curView) return;
-    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor;
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon;
   }
   // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
   let clipped2d = false;
@@ -900,7 +908,7 @@ export function createEngine({
     syncPaletteUniform(palU, palette);
     // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
     let list = views.filter((v) => v.n > 0);
-    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor }];
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon }];
     const S = SCREEN * scale;
     if (list.length > 1 || list[0].rect !== FULL) {
       // parts of the screen outside every view show the background
@@ -922,6 +930,8 @@ export function createEngine({
     const x = x0 * scale, y = (SCREEN - 1 - y1) * scale, w = (x1 - x0 + 1) * scale, h = (y1 - y0 + 1) * scale;
     if (several) for (const k in pools) for (let i = 0; i < used[k]; i++) pools[k][i].visible = pools[k][i].userData.view === v.i;
     aimCamera(camera, v);
+    sky.visible = v.bg2 >= 0;
+    if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
     // 1) scene -> color + draw info + depth, inside this view only
     setArea(target, x, y, w, h);
     renderer.setRenderTarget(target);
@@ -1267,7 +1277,7 @@ export function createEngine({
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency();
-    bgColor = 0; outlineColor = -1; outlineInner = true; fogState = null; cursorY = 0;
+    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; clipRect = null; lastViews = [];
     resetGif();
