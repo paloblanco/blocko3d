@@ -90,6 +90,7 @@ export function createEngine({
   let bgHorizon = -1;   // bg(sky, horizon): the horizon color, or -1 for a plain background
   let outlineColor = -1;   // -1 = no outline (the default)
   let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
+  let fillN = 0, fillC = 0;  // fillp(n, c): fraction of pixels (0-1) and palette index
   let fogState = null;     // fog(c, near, far): [palette index, near, far], or null for none (the default)
   let cursorY = 0;
   let drawId = 0, anyOutline = false;
@@ -137,6 +138,7 @@ export function createEngine({
     u.uInner.value = outlineInner ? 1 : 0;
     if (fogState) u.uFog.value.set(fogState[0], fogState[1], fogState[2], 1); else u.uFog.value.w = 0;
     u.uPix.value = scale;
+    u.uFill.value.set(fillN, fillC);
     u.uId.value = ++drawId;
     if (outlineColor >= 0) anyOutline = true;
     o.userData.view = curView ? curView.i : 0;
@@ -396,6 +398,12 @@ export function createEngine({
     outline(c, inner = true) {
       outlineColor = c === undefined || c === null || c === false ? -1 : (c | 0) & 31;
       outlineInner = outlineColor < 0 || inner !== false;
+    },
+    // fillp(n, c): the 3D draws after this have the fraction n (0 none, 1 all) of their pixels, in a
+    // dither pattern, drawn in color c (through pal). fillp() turns it off. Draw state, like pal.
+    fillp(n, c = 0) {
+      fillN = n === undefined || n === null || n === false ? 0 : Math.max(0, Math.min(1, +n || 0));
+      fillC = remap[(c | 0) & 31];
     },
     // fog(c, near, far): from near to far blocks away from the camera, 3D draws dither into color c
     // (through pal, like bg). Draw state, like pal and outline: it applies to the draws after it.
@@ -1277,7 +1285,7 @@ export function createEngine({
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency();
-    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; cursorY = 0;
+    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; clipRect = null; lastViews = [];
     resetGif();

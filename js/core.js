@@ -276,6 +276,7 @@ const PAL_GLSL = /* glsl */`
   uniform float uId;        // draw id, unique within a frame (1..65535)
   uniform float uInner;     // 1: outline inner edges too (creases, overlaps); 0: outer outline only
   uniform vec4 uFog;        // fog(): palette index, near, far, on (1) / off (0)
+  uniform vec2 uFill;       // fillp(n, c): how much (0 none .. 1 all), palette index
   uniform float uPix;       // render pixels per screen pixel (1, 2 or 3), so the dither stays 256-chunky
   varying vec3 vFogPos;     // this pixel's position from the camera, for its distance
   layout(location = 0) out highp vec4 outColor;
@@ -290,11 +291,14 @@ const PAL_GLSL = /* glsl */`
   void writePixel(vec3 c, float dir) {
     float oc = uOutline;
     float d = uInner > 0.5 ? dir : 7.0;
+    float th = bayer4(floor(gl_FragCoord.xy / uPix));
+    // fillp: the fraction n of the pixels (in the dither pattern) take color c; outlines stay
+    if (uFill.x > th) c = uPalette[int(uFill.y + 0.5)];
     // fog: from near to far, more and more of the pixels (in a fixed dither pattern) take the fog
     // color. A fogged pixel casts no outline and makes no crease, so far shapes fade out whole.
     if (uFog.w > 0.5) {
       float t = (length(vFogPos) - uFog.y) / max(uFog.z - uFog.y, 0.0001);
-      if (t > bayer4(floor(gl_FragCoord.xy / uPix))) { c = uPalette[int(uFog.x + 0.5)]; oc = -1.0; d = 0.0; }
+      if (t > th) { c = uPalette[int(uFog.x + 0.5)]; oc = -1.0; d = 0.0; }
     }
     outColor = vec4(c, 1.0);
     outInfo = vec4((oc + 1.0) / 255.0, mod(uId, 256.0) / 255.0, floor(uId / 256.0) / 255.0, d / 255.0);
@@ -309,6 +313,7 @@ const drawUniforms = (paletteUniform) => ({
   uId: { value: 1 },
   uInner: { value: 1 },
   uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uFill: { value: new THREE.Vector2(0, 0) },
   uPix: { value: 1 },
 });
 

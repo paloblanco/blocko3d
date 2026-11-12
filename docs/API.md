@@ -109,6 +109,7 @@ Every color is a palette index from 0 to 31. Tile textures store indices too, so
 - **`pal()`**: Reset all remaps and transparency.
 - **`palt(i, on?)`**: Make color i transparent for following draws (on defaults to true).
 - **`bg(c)`**: Set the background color.
+- **`fillp(n, c)`**: Dither: the 3D draws after this have the fraction n of their pixels (0 none, 0.5 every other one, 1 all) drawn in color c instead, in a fixed checker-like pattern. pal() remaps apply to c. Outlines stay. For flashes (fillp(0.5, 7) on a hit), fading things in or out, or a shadow: draw a map again with fillp(0.5, 0) and it comes out half darkened. fillp() turns it off.
 - **`bg(sky, horizon)`**: A two-color sky: color sky overhead, dithering down to color horizon at the horizon (and below it). It follows the camera, so it stays put when the view tilts. With fog in the horizon color, the land fades into the sky: bg(12, 6) fog(6, 6, 22). bg(c) goes back to one color.
 
 ```js
