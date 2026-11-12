@@ -565,8 +565,12 @@ export function createEngine({
       const map = getMap(m);
       ensureGeometry(map);
       updateTransform(map);
+      let id0 = 0;
       for (const off of repeatOffsets()) {
         const o = take('map');
+        // repeat copies of a map share the first one's draw id, so the outline pass treats them as one
+        // surface: no outline along the seams where copies meet
+        if (!id0) id0 = o.material.uniforms.uId.value; else o.material.uniforms.uId.value = id0;
         o.geometry = map.geometry;
         o.matrix.copy(map._m);
         if (off !== NO_REPEAT[0]) shiftMatrix(o.matrix, off);

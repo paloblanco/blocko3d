@@ -115,7 +115,7 @@ outline()`,
     title: 'Repeat',
     intro: 'Draw the world again on every side, for a level you can walk all the way around (a small planet, a tower, a racetrack that never ends). Like pal(), it applies to the 3D draws that follow (maps, vox models, cube, sphere, line3) and stays set until changed. Only the picture repeats: collision, mget, mray and positions don\'t, so the game wraps the player\'s position and collides across the edges itself (the code below). Off by default.',
     items: [
-      ['repeat(x, y, z, n?)', 'The draws after this are also drawn x, y and z blocks away, n times each way (default 1, at most 3). An axis of -1 or 0 doesn\'t repeat. repeat(32, -1, 32) draws each thing 9 times (3 × 3); every repeating axis multiplies the draws by 2n + 1, so keep n small with many draws. Copies are the same map or model drawn again, so mset changes show on all of them.'],
+      ['repeat(x, y, z, n?)', 'The draws after this are also drawn x, y and z blocks away, n times each way (default 1, at most 3). An axis of -1 or 0 doesn\'t repeat. repeat(32, -1, 32) draws each thing 9 times (3 × 3); every repeating axis multiplies the draws by 2n + 1, so keep n small with many draws. Copies are the same map or model drawn again, so mset changes show on all of them, and a map\'s copies are outlined as one surface: no lines where they meet.'],
       ['repeat()', 'No repeating for draws after this.'],
     ],
     code: `// a 32 x 32 map that repeats in x and z
