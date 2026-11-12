@@ -58,6 +58,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `cam_orbit(target, yaw, pitch, dist)`: the camera dist away from `[x, y, z]`, looking at it. Negative pitch looks down.
 - `cam_set_fov(f)`: field of view in turns (default 0.25).
 - `cam_set_curve(k, along, push)`: the picture bends away from the camera's target; collision stays flat. `cam_set_curve(0.01)` rolls away ahead, `cam_set_curve(0.05, 'xz')` is a small planet, `cam_set_curve(0.1, 'x', '+z')` wraps a wall map into a round tower; `cam_set_curve(0)` is flat.
+- `repeat(x, y, z, n)` / `repeat()`: the following 3D draws are drawn again x, y and z blocks away, n times each way (default 1; -1 skips an axis), for a level you can walk all the way around. Only the picture repeats: wrap the player's position yourself, and collide across the edges.
 - `bg(c)`: the background color.
 - `outline(c)` / `outline()`: black outlines look good, `outline(0)`; they apply to draws after the call.
 - `pal(a, b)` / `pal()`: recolor color a as b for the following draws (a red guard into a blue one); `pal()` resets.

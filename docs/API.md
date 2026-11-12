@@ -13,6 +13,7 @@ Making games outside the IDE (the `b3d` command and the project folder): see [MA
 - [Primitives](#primitives)
 - [Palette](#palette)
 - [Outlines](#outlines)
+- [Repeat](#repeat)
 - [Fog](#fog)
 - [Sound](#sound)
 - [Music](#music)
@@ -136,6 +137,35 @@ sphere(px, py, pz, 0.4, 10)
 outline()
 ```
 
+## Repeat
+
+Draw the world again on every side, for a level you can walk all the way around (a small planet, a tower, a racetrack that never ends). Like pal(), it applies to the 3D draws that follow (maps, vox models, cube, sphere, line3) and stays set until changed. Only the picture repeats: collision, mget, mray and positions don't, so the game wraps the player's position and collides across the edges itself (the code below). Off by default.
+
+- **`repeat(x, y, z, n?)`**: The draws after this are also drawn x, y and z blocks away, n times each way (default 1, at most 3). An axis of -1 or 0 doesn't repeat. repeat(32, -1, 32) draws each thing 9 times (3 × 3); every repeating axis multiplies the draws by 2n + 1, so keep n small with many draws. Copies are the same map or model drawn again, so mset changes show on all of them.
+- **`repeat()`**: No repeating for draws after this.
+
+```js
+// a 32 x 32 map that repeats in x and z
+repeat(32, -1, 32)
+map(0)                   // drawn 9 times
+for (let c of coins) vox(6, c.x, c.y, c.z)
+repeat()
+vox(0, px, py, pz)       // the player: once
+
+// in _update: keep the player inside the map, and collide across its edges
+px = (px % 32 + 32) % 32; pz = (pz % 32 + 32) % 32
+function wrap_push(x, y, z, r) {   // mpush on map 0 as if it repeated every 32
+  let ox = x < 1 ? 32 : x > 31 ? -32 : 0, oz = z < 1 ? 32 : z > 31 ? -32 : 0
+  let res = mpush(0, x, y, z, r)
+  for (let [sx, sz] of [[ox, 0], [0, oz], [ox, oz]]) {
+    if (!sx && !sz) continue
+    let q = mpush(0, res[0] + sx, res[1], res[2] + sz, r)
+    res = [q[0] - sx, q[1], q[2] - sz, q[3] || res[3], q[4] || res[4], q[5] || res[5], max(q[6], res[6])]
+  }
+  return res
+}
+```
+
 ## Fog
 
 Distant things dither away into one color: no lighting to set up, and it hides the edge of a big map. Like pal() and outline(), it applies to the 3D draws that follow and stays set until changed. Off by default. Text and rectangles never get fog.
@@ -195,7 +225,7 @@ One camera. The screen is square, 256 × 256 pixels.
 - **`cam_orbit(target, yaw, pitch, dist)`**: Put the camera dist away from target, looking at it. yaw and pitch are the way the camera looks (as in dir3), so a negative pitch looks down from above: cam_orbit(player, yaw, -0.1, 8) is a chase or orbit camera in one line. target is [x, y, z] or an object with x, y, z.
 - **`cam_set_fov(f)`**: Field of view in turns, across the longer side of the view (on the full square screen, both ways). Default 0.25 (90°).
 - **`cam_set_curve(k, along?, push?)`**: Bend the picture: each point moves along push by k × d², d its distance from the camera's target measured along along. Only the picture bends: collision, mget, mray and positions stay flat, so game code doesn't change (mouse_ray clicks are only right near the target). along: 'view' (the default: the camera's forward direction across the ground) or 'side' (its sideways direction), a world axis 'x', 'y' or 'z', or two axes like 'xz'. One direction bends like a cylinder, two like a sphere. push: 'down' (the default), 'away' (from the camera, across the ground), or '+x', '-x', '+y', '-y', '+z', '-z'. A negative k bends the other way. cam_set_curve(0): flat again (the default).
-- **`Curve recipes`**: Rolling log ahead: cam_set_curve(0.03). Bending up ahead instead: cam_set_curve(-0.03). A roll that stays along the world's x however the camera turns: cam_set_curve(0.03, 'x'). A small planet of radius r: cam_set_curve(1 / (2 * r), 'xz'). A round tower, from a wall map in x and y with the camera looking along +z: cam_set_curve(0.1, 'x', '+z') (or 'side', 'away' for a camera that circles it). A dome: cam_set_curve(0.04, 'xy', '+z'). To walk all the way around, repeat the map in game code (copies around it, mpush on all of them, the player's position wrapped): the Tiny Planet and Tower demos show how.
+- **`Curve recipes`**: Rolling log ahead: cam_set_curve(0.03). Bending up ahead instead: cam_set_curve(-0.03). A roll that stays along the world's x however the camera turns: cam_set_curve(0.03, 'x'). A small planet of radius r: cam_set_curve(1 / (2 * r), 'xz'). A round tower, from a wall map in x and y with the camera looking along +z: cam_set_curve(0.1, 'x', '+z') (or 'side', 'away' for a camera that circles it). A dome: cam_set_curve(0.04, 'xy', '+z'). To walk all the way around, draw with repeat() and wrap the player in game code: see Repeat.
 - **`clip(x0, y0, x1, y1)`**: Only draw inside this rectangle of the screen, corners included: 3D, text and rectangles. clip() draws everywhere again. Each clip() starts a new 3D view, centered in its rectangle, with its own camera: the camera, fov and bg as set by the time the next clip() or the end of _draw comes. So clip(0, 0, 127, 255), set a camera, draw; clip(128, 0, 255, 255), set another, draw again: split screen. A view drawn later sits on top of earlier ones (a minimap, a mirror). mouse_ray() uses the view under the cursor.
 
 ## Text, rectangles, input and time

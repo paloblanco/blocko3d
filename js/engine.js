@@ -90,6 +90,7 @@ export function createEngine({
   let bgHorizon = -1;   // bg(sky, horizon): the horizon color, or -1 for a plain background
   let outlineColor = -1;   // -1 = no outline (the default)
   let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
+  let repeatState = null;    // repeat(x, y, z, n): [period x, y, z (0 = not that axis), n], or null
   let fillN = 0, fillC = 0;  // fillp(n, c): fraction of pixels (0-1) and palette index
   let fogState = null;     // fog(c, near, far): [palette index, near, far], or null for none (the default)
   let cursorY = 0;
@@ -148,6 +149,20 @@ export function createEngine({
     if (curView) curView.n++;
     return o;
   }
+
+  // repeat(): the offsets each 3D draw is made at. [0, 0, 0] comes first and is drawn exactly as
+  // without repeat; the others are whole periods away in each repeating axis, up to n each way.
+  const NO_REPEAT = [[0, 0, 0]];
+  function repeatOffsets() {
+    if (!repeatState) return NO_REPEAT;
+    const [px, py, pz, n] = repeatState;
+    const steps = (p) => (p > 0 ? Array.from({ length: 2 * n + 1 }, (_, i) => (i - n) * p) : [0]);
+    const out = [[0, 0, 0]];
+    for (const dx of steps(px)) for (const dy of steps(py)) for (const dz of steps(pz)) if (dx || dy || dz) out.push([dx, dy, dz]);
+    return out;
+  }
+  // move a draw's world matrix by an offset (its translation is the last column)
+  function shiftMatrix(m, [dx, dy, dz]) { const e = m.elements; e[12] += dx; e[13] += dy; e[14] += dz; }
 
   // 2D overlay helpers: palette index -> CSS color (through pal), and sorted whole-pixel corners
   const uiColor = (i) => hexColor(palette[remap[(i | 0) & 31]] ?? 0);
@@ -402,6 +417,15 @@ export function createEngine({
       outlineColor = c === undefined || c === null || c === false ? -1 : (c | 0) & 31;
       outlineInner = outlineColor < 0 || inner !== false;
     },
+    // repeat(x, y, z, n): the 3D draws after this are also drawn at whole periods away, n each way
+    // (default 1, at most 3), in each axis with a period above 0 (-1 or 0: not that axis). Only the
+    // picture repeats: collision and positions don't. repeat() turns it off. Draw state, like pal.
+    repeat(x, y, z, n = 1) {
+      const per = (v) => (+v > 0 ? +v : 0);
+      const p = [per(x), per(y), per(z)];
+      const k = Math.max(0, Math.min(3, Math.floor(+n) || 0));
+      repeatState = p.some((v) => v > 0) && k > 0 ? [...p, k] : null;
+    },
     // fillp(n, c): the 3D draws after this have the fraction n (0 none, 1 all) of their pixels, in a
     // dither pattern, drawn in color c (through pal), or not drawn at all for c = -1 (see-through).
     // fillp() turns it off. Draw state, like pal.
@@ -541,10 +565,13 @@ export function createEngine({
       const map = getMap(m);
       ensureGeometry(map);
       updateTransform(map);
-      const o = take('map');
-      o.geometry = map.geometry;
-      o.matrix.copy(map._m);
-      o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
+      for (const off of repeatOffsets()) {
+        const o = take('map');
+        o.geometry = map.geometry;
+        o.matrix.copy(map._m);
+        if (off !== NO_REPEAT[0]) shiftMatrix(o.matrix, off);
+        o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
+      }
     },
     mget(m, x, y, z) { return mapGet(getMap(m), Math.floor(x), Math.floor(y), Math.floor(z)); },
     mset(m, x, y, z, t) { mapSet(getMap(m), Math.floor(x), Math.floor(y), Math.floor(z), t | 0); },
@@ -584,27 +611,38 @@ export function createEngine({
       if (i < 0 || i >= MAX_VOX) throw new Error(`vox ${n} does not exist (models are 0-${MAX_VOX - 1})`);
       const v = voxels[i];
       if (!v) return;                     // an unused slot draws nothing
-      const o = take('vox');
-      o.geometry = ensureVoxGeometry(v);
-      voxMatrix(v, [+x || 0, +y || 0, +z || 0], [+pitch || 0, +yaw || 0, +roll || 0], [+sx, +sy, +sz], o.matrix);
+      const geometry = ensureVoxGeometry(v);
+      let first = null;
+      for (const off of repeatOffsets()) {
+        const o = take('vox');
+        o.geometry = geometry;
+        if (!first) { voxMatrix(v, [+x || 0, +y || 0, +z || 0], [+pitch || 0, +yaw || 0, +roll || 0], [+sx, +sy, +sz], o.matrix); first = o.matrix; }
+        else { o.matrix.copy(first); shiftMatrix(o.matrix, off); }
+      }
     },
 
     // --- primitives (color is a palette index)
     cube(x, y, z, s = 1, c = 7) {
-      const o = take('cube');
-      o.position.set(x, y, z); o.scale.setScalar(s);
-      o.material.uniforms.uColor.value = c & 31;
+      for (const [dx, dy, dz] of repeatOffsets()) {
+        const o = take('cube');
+        o.position.set(x + dx, y + dy, z + dz); o.scale.setScalar(s);
+        o.material.uniforms.uColor.value = c & 31;
+      }
     },
     sphere(x, y, z, r = 0.5, c = 7) {
-      const o = take('sphere');
-      o.position.set(x, y, z); o.scale.setScalar(r);
-      o.material.uniforms.uColor.value = c & 31;
+      for (const [dx, dy, dz] of repeatOffsets()) {
+        const o = take('sphere');
+        o.position.set(x + dx, y + dy, z + dz); o.scale.setScalar(r);
+        o.material.uniforms.uColor.value = c & 31;
+      }
     },
     line3(x1, y1, z1, x2, y2, z2, c = 7) {
-      const o = take('line');
-      const a = o.geometry.attributes.position;
-      a.array.set([x1, y1, z1, x2, y2, z2]); a.needsUpdate = true;
-      o.material.uniforms.uColor.value = c & 31;
+      for (const [dx, dy, dz] of repeatOffsets()) {
+        const o = take('line');
+        const a = o.geometry.attributes.position;
+        a.array.set([x1 + dx, y1 + dy, z1 + dz, x2 + dx, y2 + dy, z2 + dz]); a.needsUpdate = true;
+        o.material.uniforms.uColor.value = c & 31;
+      }
     },
 
     // --- 2D overlay text (screen is 256 x 256; 7 x 10 pixel character cells)
@@ -1324,7 +1362,7 @@ export function createEngine({
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency();
-    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; cursorY = 0;
+    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];
     resetGif();

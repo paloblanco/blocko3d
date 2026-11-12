@@ -62,11 +62,11 @@
   {
     "file": "planet.b3d.json",
     "name": "Tiny Planet",
-    "about": "Walk all the way around a small planet and collect 8 gems. Shows cam_set_curve(k, 'xz') bending a flat map into a planet (X: a rolling log, a roll fixed along x, an inverse roll, flat), and a map that repeats, done in game code with map_copy and mpush on all the copies."
+    "about": "Walk all the way around a small planet and collect 8 gems. Shows cam_set_curve(k, 'xz') bending a flat map into a planet (X: a rolling log, a roll fixed along x, an inverse roll, flat), and repeat(32, -1, 32) drawing the map on every side, with the player wrapped and colliding across the edges in game code."
   },
   {
     "file": "tower.b3d.json",
     "name": "Tower",
-    "about": "Climb the ledges spiralling up a round tower to the flag, Nebulus style. Shows cam_set_curve(0.1, 'x', '+z') wrapping a flat wall map into a tower; X: inside a drum, a dome and flat."
+    "about": "Climb the ledges spiralling up a round tower to the flag, Nebulus style. Shows cam_set_curve(0.1, 'x', '+z') wrapping a flat wall map into a tower, drawn all the way round with repeat(48, -1, -1); X: inside a drum, a dome and flat."
   }
 ]
