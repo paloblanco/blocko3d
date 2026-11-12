@@ -99,7 +99,7 @@ export function createEngine({
   // in its rectangle with the camera, fov and bg as they are when the view ends (the next clip()
   // or the end of _draw). A game that never calls clip() has one full-screen view, as before.
   let clipRect = null, fovDeg = 90;
-  let curveK = 0, curveRound = false;     // cam_set_curve(k, round)
+  let curve = [0, 'view', 'down'];      // cam_set_curve(k, along, push)
   const curveU = createCurveUniforms();   // shared by every draw's material, set per view
   let views = [], curView = null, lastViews = [], inDraw = false;
   const FULL = [0, 0, SCREEN - 1, SCREEN - 1];
@@ -422,10 +422,21 @@ export function createEngine({
     cam_set_lookat(x, y, z) { camLook.splice(0, 3, ...vec(x, y, z)); },
     // fov in turns, across the longer side of the view (on the square screen: both ways)
     cam_set_fov(f) { fovDeg = Math.max(0.01, Math.min(0.49, +f || 0.25)) * 360; },
-    // cam_set_curve(k): bend the world away from the camera's target, down by k * d^2 at d blocks
-    // ahead (the rolling log); round = true: in every direction (a small planet; k = 1 / (2 * radius)).
-    // Only the picture bends: maps, collision and positions stay flat. cam_set_curve(0): flat again.
-    cam_set_curve(k, round = false) { curveK = +k || 0; curveRound = !!round; },
+    // cam_set_curve(k, along, push): bend the picture (not collision): a point moves along push by
+    // k * d^2, d its distance from the camera's target measured along `along`. along: 'view' or
+    // 'side' (the camera's forward or sideways direction across the ground), 'x', 'y', 'z', or two of
+    // them ('xz': a planet). push: 'down' (default), 'away' (from the camera across the ground) or
+    // '+x', '-x', '+y', '-y', '+z', '-z'. Negative k pushes the other way. cam_set_curve(0): flat.
+    cam_set_curve(k, along = 'view', push = 'down') {
+      if (along === true) along = 'xz';        // the first version's cam_set_curve(k, true)
+      if (along === false || along === undefined || along === null) along = 'view';
+      along = String(along); push = String(push);
+      if (!['view', 'side'].includes(along) && !/^(?!(.)\1)[xyz]{1,2}$/.test(along))
+        throw new Error(`cam_set_curve: along is 'view', 'side', 'x', 'y', 'z' or two of x, y, z like 'xz'; got '${along}'`);
+      if (!['down', 'away'].includes(push) && !/^[+-][xyz]$/.test(push))
+        throw new Error(`cam_set_curve: push is 'down', 'away' or a direction like '+z' or '-x'; got '${push}'`);
+      curve = [+k || 0, along, push];
+    },
     // clip(x0, y0, x1, y1): only draw inside this rectangle (corners included, screen pixels), 3D
     // and 2D alike; clip() draws everywhere again. Each clip() starts a new 3D view, centered in
     // its rectangle, drawn with the camera as set by the time the view ends.
@@ -884,7 +895,7 @@ export function createEngine({
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
   function endView() {
     if (!curView) return;
-    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = [curveK, curveRound];
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = curve;
   }
   // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
   let clipped2d = false;
@@ -924,7 +935,7 @@ export function createEngine({
     syncPaletteUniform(palU, palette);
     // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
     let list = views.filter((v) => v.n > 0);
-    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon, curve: [curveK, curveRound] }];
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon, curve }];
     const S = SCREEN * scale;
     if (list.length > 1 || list[0].rect !== FULL) {
       // parts of the screen outside every view show the background
@@ -944,11 +955,20 @@ export function createEngine({
   // the view's curve into the shared uniforms; a bent world can bend into view from outside it, so
   // nothing is skipped as off-screen while it's on
   function setCurve(v) {
-    const [k, round] = v.curve || [0, false];
-    const dx = v.look[0] - v.pos[0], dz = v.look[2] - v.pos[2], len = Math.hypot(dx, dz) || 1;
-    curveU.uCurve.value.set(k, round ? 1 : 0, v.look[0], v.look[2]);
-    curveU.uCurveDir.value.set(dx / len, dz / len);
-    for (const k2 of ['map', 'vox', 'cube', 'sphere']) for (const o of pools[k2]) o.frustumCulled = k === 0;
+    const [k, along, push] = v.curve || [0, 'view', 'down'];
+    // the camera's forward direction across the ground (straight down: +z)
+    let fx = v.look[0] - v.pos[0], fz = v.look[2] - v.pos[2];
+    const len = Math.hypot(fx, fz);
+    if (len < 1e-6) { fx = 0; fz = 1; } else { fx /= len; fz /= len; }
+    const AXIS = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+    const dirs = along === 'view' ? [[fx, 0, fz]] : along === 'side' ? [[fz, 0, -fx]] : [...along].map((c) => AXIS[c]);
+    const p = push === 'down' ? [0, -1, 0] : push === 'away' ? [fx, 0, fz] : AXIS[push[1]].map((c) => (push[0] === '-' ? -c : c));
+    const U = curveU;
+    U.uCurve.value.set(k, v.look[0], v.look[1], v.look[2]);
+    U.uCurveA.value.set(...dirs[0]);
+    U.uCurveB.value.set(...(dirs[1] || [0, 0, 0]));
+    U.uCurveP.value.set(...p);
+    for (const kind of ['map', 'vox', 'cube', 'sphere']) for (const o of pools[kind]) o.frustumCulled = k === 0;
   }
 
   function drawView(v, several) {
@@ -1306,7 +1326,7 @@ export function createEngine({
     remap = identityRemap(); trans = noTransparency();
     bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
-    fovDeg = 90; clipRect = null; lastViews = []; curveK = 0; curveRound = false;
+    fovDeg = 90; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];
     resetGif();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();

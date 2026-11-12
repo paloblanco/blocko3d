@@ -269,13 +269,15 @@ const BAYER_GLSL = /* glsl */`
 `;
 
 // Every draw's vertex shader places its points through place(): exactly as before when the curve
-// is off (so games without it render the same), else bent by cam_set_curve. The bend is in the
-// world: a point drops by k * d^2, d its distance from the camera's target, along the view
-// (the rolling log) or in every direction (round: a small planet). uCurve = k, round, target x, z;
-// uCurveDir = the view's direction across the ground. Only the picture bends: collision doesn't.
+// is off (so games without it render the same), else bent by cam_set_curve, in world space: with r
+// the point's offset from the camera's target, it moves by k * (dot(r, A)^2 + dot(r, B)^2) along P.
+// A and B are the directions distance is measured along (B = 0 for one: a cylinder; two: a sphere),
+// P the push. uCurve = k, target x, y, z. Only the picture bends: collision doesn't.
 const PLACE_GLSL = /* glsl */`
   uniform vec4 uCurve;
-  uniform vec2 uCurveDir;
+  uniform vec3 uCurveA;
+  uniform vec3 uCurveB;
+  uniform vec3 uCurveP;
   varying vec3 vFogPos;
   void place(vec3 p) {
     if (uCurve.x == 0.0) {
@@ -284,9 +286,9 @@ const PLACE_GLSL = /* glsl */`
       return;
     }
     vec4 w = modelMatrix * vec4(p, 1.0);
-    vec2 r = w.xz - uCurve.zw;
-    float d = uCurve.y > 0.5 ? length(r) : dot(r, uCurveDir);
-    w.y -= uCurve.x * d * d;
+    vec3 r = w.xyz - uCurve.yzw;
+    float a = dot(r, uCurveA), b = dot(r, uCurveB);
+    w.xyz += uCurveP * (uCurve.x * (a * a + b * b));
     vec4 mv = viewMatrix * w;
     vFogPos = mv.xyz;
     gl_Position = projectionMatrix * mv;
@@ -294,7 +296,12 @@ const PLACE_GLSL = /* glsl */`
 `;
 
 // The curve uniforms are shared by every draw (set once per view), so draws hold these objects.
-export const createCurveUniforms = () => ({ uCurve: { value: new THREE.Vector4(0, 0, 0, 0) }, uCurveDir: { value: new THREE.Vector2(0, 1) } });
+export const createCurveUniforms = () => ({
+  uCurve: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uCurveA: { value: new THREE.Vector3(0, 0, 0) },
+  uCurveB: { value: new THREE.Vector3(0, 0, 0) },
+  uCurveP: { value: new THREE.Vector3(0, -1, 0) },
+});
 
 const PAL_GLSL = /* glsl */`
   uniform vec3 uPalette[32];
