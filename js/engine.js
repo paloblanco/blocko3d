@@ -6,7 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh,
+  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh, createCurveUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
@@ -99,6 +99,8 @@ export function createEngine({
   // in its rectangle with the camera, fov and bg as they are when the view ends (the next clip()
   // or the end of _draw). A game that never calls clip() has one full-screen view, as before.
   let clipRect = null, fovDeg = 90;
+  let curveK = 0, curveRound = false;     // cam_set_curve(k, round)
+  const curveU = createCurveUniforms();   // shared by every draw's material, set per view
   let views = [], curView = null, lastViews = [], inDraw = false;
   const FULL = [0, 0, SCREEN - 1, SCREEN - 1];
 
@@ -126,6 +128,7 @@ export function createEngine({
       } else {
         o = new THREE.Mesh(kind === 'cube' ? cubeGeo : sphereGeo, createSolidMaterial(palU));
       }
+      Object.assign(o.material.uniforms, curveU);   // the one shared curve, not a copy per draw
       pool.push(o);
       scene.add(o);
     }
@@ -419,6 +422,10 @@ export function createEngine({
     cam_set_lookat(x, y, z) { camLook.splice(0, 3, ...vec(x, y, z)); },
     // fov in turns, across the longer side of the view (on the square screen: both ways)
     cam_set_fov(f) { fovDeg = Math.max(0.01, Math.min(0.49, +f || 0.25)) * 360; },
+    // cam_set_curve(k): bend the world away from the camera's target, down by k * d^2 at d blocks
+    // ahead (the rolling log); round = true: in every direction (a small planet; k = 1 / (2 * radius)).
+    // Only the picture bends: maps, collision and positions stay flat. cam_set_curve(0): flat again.
+    cam_set_curve(k, round = false) { curveK = +k || 0; curveRound = !!round; },
     // clip(x0, y0, x1, y1): only draw inside this rectangle (corners included, screen pixels), 3D
     // and 2D alike; clip() draws everywhere again. Each clip() starts a new 3D view, centered in
     // its rectangle, drawn with the camera as set by the time the view ends.
@@ -877,7 +884,7 @@ export function createEngine({
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
   function endView() {
     if (!curView) return;
-    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon;
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = [curveK, curveRound];
   }
   // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
   let clipped2d = false;
@@ -917,7 +924,7 @@ export function createEngine({
     syncPaletteUniform(palU, palette);
     // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
     let list = views.filter((v) => v.n > 0);
-    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon }];
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon, curve: [curveK, curveRound] }];
     const S = SCREEN * scale;
     if (list.length > 1 || list[0].rect !== FULL) {
       // parts of the screen outside every view show the background
@@ -934,11 +941,22 @@ export function createEngine({
     lastViews = list.map((v) => ({ rect: v.rect, pos: v.pos, look: v.look, fov: v.fov }));
   }
 
+  // the view's curve into the shared uniforms; a bent world can bend into view from outside it, so
+  // nothing is skipped as off-screen while it's on
+  function setCurve(v) {
+    const [k, round] = v.curve || [0, false];
+    const dx = v.look[0] - v.pos[0], dz = v.look[2] - v.pos[2], len = Math.hypot(dx, dz) || 1;
+    curveU.uCurve.value.set(k, round ? 1 : 0, v.look[0], v.look[2]);
+    curveU.uCurveDir.value.set(dx / len, dz / len);
+    for (const k2 of ['map', 'vox', 'cube', 'sphere']) for (const o of pools[k2]) o.frustumCulled = k === 0;
+  }
+
   function drawView(v, several) {
     const [x0, y0, x1, y1] = v.rect;
     const x = x0 * scale, y = (SCREEN - 1 - y1) * scale, w = (x1 - x0 + 1) * scale, h = (y1 - y0 + 1) * scale;
     if (several) for (const k in pools) for (let i = 0; i < used[k]; i++) pools[k][i].visible = pools[k][i].userData.view === v.i;
     aimCamera(camera, v);
+    setCurve(v);
     sky.visible = v.bg2 >= 0;
     if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
     // 1) scene -> color + draw info + depth, inside this view only
@@ -1288,7 +1306,7 @@ export function createEngine({
     remap = identityRemap(); trans = noTransparency();
     bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
-    fovDeg = 90; clipRect = null; lastViews = [];
+    fovDeg = 90; clipRect = null; lastViews = []; curveK = 0; curveRound = false;
     resetGif();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();

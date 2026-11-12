@@ -58,5 +58,10 @@
     "file": "fog.b3d.json",
     "name": "Fog Valley",
     "about": "Find 8 coins hidden in the fog. Shows fog(c, near, far): 3D draws dither into a color with distance, with bg() of the same color for the sky; X switches between mist, dusk, swamp, night and no fog."
+  },
+  {
+    "file": "planet.b3d.json",
+    "name": "Tiny Planet",
+    "about": "Walk all the way around a small planet and collect 8 gems. Shows cam_set_curve(k, true) bending a flat map into a planet (X: the rolling-log curve and flat), and a map that repeats, done in game code with map_copy and mpush on all the copies."
   }
 ]

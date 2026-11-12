@@ -268,6 +268,34 @@ const BAYER_GLSL = /* glsl */`
   }
 `;
 
+// Every draw's vertex shader places its points through place(): exactly as before when the curve
+// is off (so games without it render the same), else bent by cam_set_curve. The bend is in the
+// world: a point drops by k * d^2, d its distance from the camera's target, along the view
+// (the rolling log) or in every direction (round: a small planet). uCurve = k, round, target x, z;
+// uCurveDir = the view's direction across the ground. Only the picture bends: collision doesn't.
+const PLACE_GLSL = /* glsl */`
+  uniform vec4 uCurve;
+  uniform vec2 uCurveDir;
+  varying vec3 vFogPos;
+  void place(vec3 p) {
+    if (uCurve.x == 0.0) {
+      vFogPos = (modelViewMatrix * vec4(p, 1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      return;
+    }
+    vec4 w = modelMatrix * vec4(p, 1.0);
+    vec2 r = w.xz - uCurve.zw;
+    float d = uCurve.y > 0.5 ? length(r) : dot(r, uCurveDir);
+    w.y -= uCurve.x * d * d;
+    vec4 mv = viewMatrix * w;
+    vFogPos = mv.xyz;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+// The curve uniforms are shared by every draw (set once per view), so draws hold these objects.
+export const createCurveUniforms = () => ({ uCurve: { value: new THREE.Vector4(0, 0, 0, 0) }, uCurveDir: { value: new THREE.Vector2(0, 1) } });
+
 const PAL_GLSL = /* glsl */`
   uniform vec3 uPalette[32];
   uniform float uRemap[32];
@@ -317,6 +345,7 @@ const drawUniforms = (paletteUniform) => ({
   uInner: { value: 1 },
   uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
   uFill: { value: new THREE.Vector2(0, 0) },
+  ...createCurveUniforms(),
   uPix: { value: 1 },
 });
 
@@ -329,11 +358,10 @@ export function createVoxelMaterial(atlas, paletteUniform) {
       attribute vec3 aTF;
       varying vec2 vUV;
       varying vec3 vTF;
-      varying vec3 vFogPos;
+      ${PLACE_GLSL}
       void main() {
         vUV = aUV; vTF = aTF;
-        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        place(position);
       }`,
     fragmentShader: /* glsl */`
       uniform sampler2D uAtlas;
@@ -357,11 +385,8 @@ export function createSolidMaterial(paletteUniform) {
     glslVersion: THREE.GLSL3,
     uniforms: { uColor: { value: 7 }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
-      varying vec3 vFogPos;
-      void main() {
-        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);   // as before fog, so games without it render the same
-      }`,
+      ${PLACE_GLSL}
+      void main() { place(position); }`,
     fragmentShader: /* glsl */`
       uniform float uColor;
       ${PAL_GLSL}
@@ -376,11 +401,10 @@ export function createVoxMaterial(paletteUniform) {
     vertexShader: /* glsl */`
       attribute vec2 aCD;
       varying vec2 vCD;
-      varying vec3 vFogPos;
+      ${PLACE_GLSL}
       void main() {
         vCD = aCD;
-        vFogPos = (modelViewMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        place(position);
       }`,
     fragmentShader: /* glsl */`
       ${PAL_GLSL}

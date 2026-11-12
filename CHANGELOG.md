@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Curved worlds:** `cam_set_curve(k)` bends the picture away from the camera's target like a rolling log (Animal Crossing), and `cam_set_curve(k, true)` bends it in every direction like a small planet. Only the picture bends: collision, `mget`, `mray` and positions stay flat. `cam_set_curve(0)` is flat again. A new demo, **Tiny Planet**, walks around a 32×32 map that repeats.
 - **See-through `fillp`:** `fillp(n, -1)` leaves out the fraction n of the next draws' pixels, so what's behind shows through: ghosts, water, fading something away. A see-through draw gets no outline (it would fill every hole).
 - **`fillp(n, c)`:** the 3D draws after it have the fraction n (0 to 1) of their pixels drawn in color c (through `pal`), in the same dither pattern as fog; outlines stay. Good for hit flashes, fades and see-through shadows. `fillp()` turns it off. Fog Valley's coins fade to white with it as you pick them up.
 - **Two-color skies:** `bg(sky, horizon)` dithers the background from color `sky` overhead down to `horizon` at the horizon and below. It follows the camera, so it stays put when the view tilts, and with `fog` in the horizon color the land fades into the sky. Fog Valley's weather uses it. `bg(c)` is unchanged.

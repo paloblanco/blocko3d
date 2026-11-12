@@ -57,6 +57,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `cam_set_pos([x, y, z])` and `cam_set_lookat([x, y, z])`: place the camera each frame.
 - `cam_orbit(target, yaw, pitch, dist)`: the camera dist away from `[x, y, z]`, looking at it. Negative pitch looks down.
 - `cam_set_fov(f)`: field of view in turns (default 0.25).
+- `cam_set_curve(k)` / `cam_set_curve(k, true)`: the picture bends away from the camera's target, rolling away ahead (k about 0.01) or round like a small planet; collision stays flat. `cam_set_curve(0)` is flat.
 - `bg(c)`: the background color.
 - `outline(c)` / `outline()`: black outlines look good, `outline(0)`; they apply to draws after the call.
 - `pal(a, b)` / `pal()`: recolor color a as b for the following draws (a red guard into a blue one); `pal()` resets.
