@@ -292,8 +292,11 @@ const PAL_GLSL = /* glsl */`
     float oc = uOutline;
     float d = uInner > 0.5 ? dir : 7.0;
     float th = bayer4(floor(gl_FragCoord.xy / uPix));
-    // fillp: the fraction n of the pixels (in the dither pattern) take color c; outlines stay
-    if (uFill.x > th) c = uPalette[int(uFill.y + 0.5)];
+    // fillp: the fraction n of the pixels (in the dither pattern) take color c; outlines stay.
+    // c = -1: those pixels are skipped (see-through), and the draw gets no outline, which would
+    // otherwise fill every hole
+    if (uFill.y < -0.5) { if (uFill.x > 0.0) { if (uFill.x > th) discard; oc = -1.0; } }
+    else if (uFill.x > th) c = uPalette[int(uFill.y + 0.5)];
     // fog: from near to far, more and more of the pixels (in a fixed dither pattern) take the fog
     // color. A fogged pixel casts no outline and makes no crease, so far shapes fade out whole.
     if (uFog.w > 0.5) {

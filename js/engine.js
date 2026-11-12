@@ -400,10 +400,11 @@ export function createEngine({
       outlineInner = outlineColor < 0 || inner !== false;
     },
     // fillp(n, c): the 3D draws after this have the fraction n (0 none, 1 all) of their pixels, in a
-    // dither pattern, drawn in color c (through pal). fillp() turns it off. Draw state, like pal.
+    // dither pattern, drawn in color c (through pal), or not drawn at all for c = -1 (see-through).
+    // fillp() turns it off. Draw state, like pal.
     fillp(n, c = 0) {
       fillN = n === undefined || n === null || n === false ? 0 : Math.max(0, Math.min(1, +n || 0));
-      fillC = remap[(c | 0) & 31];
+      fillC = c === -1 ? -1 : remap[(c | 0) & 31];   // -1: see-through
     },
     // fog(c, near, far): from near to far blocks away from the camera, 3D draws dither into color c
     // (through pal, like bg). Draw state, like pal and outline: it applies to the draws after it.
