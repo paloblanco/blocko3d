@@ -68,5 +68,10 @@
     "file": "tower.b3d.json",
     "name": "Tower",
     "about": "Climb the ledges spiralling up a round tower to the flag, Nebulus style. Shows cam_set_curve(0.1, 'x', '+z') wrapping a flat wall map into a tower, drawn all the way round with repeat(48, -1, -1); X: inside a drum, a dome and flat."
+  },
+  {
+    "file": "diorama.b3d.json",
+    "name": "Diorama",
+    "about": "Find 8 coins on a little island, half of them inside a house. Shows cam_set_ortho(w) for an isometric view; hold O and the camera moves in close so the near walls aren't drawn; click to dig with mouse_ray. X: top-down, side-on and perspective."
   }
 ]

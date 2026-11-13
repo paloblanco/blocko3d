@@ -41,7 +41,9 @@ export function createEngine({
   let scale = 1;
   try { scale = canHires ? Math.min(3, Math.max(1, parseInt(localStorage.getItem(RES_KEY), 10) || 1)) : 1; } catch { /* storage blocked */ }
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
+  const perspCam = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
+  const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 2000);   // cam_set_ortho
+  let camera = perspCam;
   let target = createSceneTarget(SCREEN * scale);
   let masks = null;   // two float targets for growing outlines at 2x / 3x
   const camPos = [0, 6, -10], camLook = [0, 0, 0];
@@ -99,7 +101,7 @@ export function createEngine({
   // Each clip() starts a new view; a view keeps the 3D draws made while it's current and is drawn
   // in its rectangle with the camera, fov and bg as they are when the view ends (the next clip()
   // or the end of _draw). A game that never calls clip() has one full-screen view, as before.
-  let clipRect = null, fovDeg = 90;
+  let clipRect = null, fovDeg = 90, orthoW = 0;   // orthoW: cam_set_ortho's width, 0 = perspective
   let curve = [0, 'view', 'down'];      // cam_set_curve(k, along, push)
   const curveU = createCurveUniforms();   // shared by every draw's material, set per view
   let views = [], curView = null, lastViews = [], inDraw = false;
@@ -446,6 +448,11 @@ export function createEngine({
     cam_set_lookat(x, y, z) { camLook.splice(0, 3, ...vec(x, y, z)); },
     // fov in turns, across the longer side of the view (on the square screen: both ways)
     cam_set_fov(f) { fovDeg = Math.max(0.01, Math.min(0.49, +f || 0.25)) * 360; },
+    // cam_set_ortho(w): orthographic: w blocks across the longer side of the view at any distance, so
+    // nothing shrinks with distance (256 / w pixels per block on the full screen). The camera's
+    // position and target still place it: things behind it aren't drawn. cam_set_ortho(0) or
+    // cam_set_ortho(): back to perspective, with the fov as set.
+    cam_set_ortho(w) { orthoW = Math.max(0, +w || 0); },
     // cam_set_curve(k, along, push): bend the picture (not collision): a point moves along push by
     // k * d^2, d its distance from the camera's target measured along `along`. along: 'view' or
     // 'side' (the camera's forward or sideways direction across the ground), 'x', 'y', 'z', or two of
@@ -875,7 +882,8 @@ export function createEngine({
 
   // The ray from the camera through a screen point (in screen pixels), using the camera as last set.
   const rayCam = new THREE.PerspectiveCamera(90, 1, 0.05, 2000);
-  const _rp = new THREE.Vector3();
+  const _rp = new THREE.Vector3(), _rOrigin = new THREE.Vector3();
+  const rayOrtho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 2000);
   function screenRay(sx, sy) {
     // the topmost view drawn last frame that contains the point; before any frame, the camera as set
     let v = null;
@@ -883,21 +891,37 @@ export function createEngine({
       const r = lastViews[i].rect;
       if (sx >= r[0] && sx < r[2] + 1 && sy >= r[1] && sy < r[3] + 1) v = lastViews[i];
     }
-    if (!v) v = { rect: clipRect || FULL, pos: camPos, look: camLook, fov: fovDeg };
+    if (!v) v = { rect: clipRect || FULL, pos: camPos, look: camLook, fov: fovDeg, ortho: orthoW };
     const [x0, y0, x1, y1] = v.rect;
+    const nx = ((sx - x0) / (x1 - x0 + 1)) * 2 - 1, ny = 1 - ((sy - y0) / (y1 - y0 + 1)) * 2;
+    if (v.ortho > 0) {
+      // orthographic: every ray points the same way; it starts where the point is on the camera's plane
+      aimCamera(rayOrtho, v);
+      rayOrtho.updateMatrixWorld();
+      const o = _rOrigin.set(nx, ny, -1).unproject(rayOrtho);
+      _rp.set(nx, ny, 1).unproject(rayOrtho).sub(o).normalize();
+      o.addScaledVector(_rp, -rayOrtho.near);   // from the camera's plane, not the near clip plane
+      return [o.x, o.y, o.z, _rp.x, _rp.y, _rp.z];
+    }
     aimCamera(rayCam, v);
     rayCam.updateMatrixWorld();
-    _rp.set(((sx - x0) / (x1 - x0 + 1)) * 2 - 1, 1 - ((sy - y0) / (y1 - y0 + 1)) * 2, 0.5).unproject(rayCam).sub(rayCam.position).normalize();
+    _rp.set(nx, ny, 0.5).unproject(rayCam).sub(rayCam.position).normalize();
     return [v.pos[0], v.pos[1], v.pos[2], _rp.x, _rp.y, _rp.z];
   }
 
   // Point a camera for a view: position, target, and the fov across the longer side of its rectangle.
+  // An orthographic camera gets the width instead: v.ortho blocks across the longer side.
   function aimCamera(cam, v) {
     const w = v.rect[2] - v.rect[0] + 1, h = v.rect[3] - v.rect[1] + 1;
     cam.position.set(...v.pos);
     cam.lookAt(...v.look);
-    cam.aspect = w / h;
-    cam.fov = w > h ? 2 * Math.atan(Math.tan(v.fov * Math.PI / 360) * h / w) * 180 / Math.PI : v.fov;
+    if (cam.isOrthographicCamera) {
+      const hw = (w >= h ? v.ortho : v.ortho * w / h) / 2, hh = (h >= w ? v.ortho : v.ortho * h / w) / 2;
+      cam.left = -hw; cam.right = hw; cam.top = hh; cam.bottom = -hh;
+    } else {
+      cam.aspect = w / h;
+      cam.fov = w > h ? 2 * Math.atan(Math.tan(v.fov * Math.PI / 360) * h / w) * 180 / Math.PI : v.fov;
+    }
     cam.updateProjectionMatrix();
   }
 
@@ -937,7 +961,7 @@ export function createEngine({
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
   function endView() {
     if (!curView) return;
-    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = curve;
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.ortho = orthoW; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = curve;
   }
   // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
   let clipped2d = false;
@@ -977,7 +1001,7 @@ export function createEngine({
     syncPaletteUniform(palU, palette);
     // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
     let list = views.filter((v) => v.n > 0);
-    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, bg: bgColor, bg2: bgHorizon, curve }];
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, ortho: orthoW, bg: bgColor, bg2: bgHorizon, curve }];
     const S = SCREEN * scale;
     if (list.length > 1 || list[0].rect !== FULL) {
       // parts of the screen outside every view show the background
@@ -991,7 +1015,7 @@ export function createEngine({
     for (const rt of [target, ...(masks || [])]) { rt.viewport.set(0, 0, S, S); rt.scissor.set(0, 0, S, S); rt.scissorTest = false; }
     renderer.setRenderTarget(null);
     renderer.setViewport(0, 0, S, S); renderer.setScissorTest(false);
-    lastViews = list.map((v) => ({ rect: v.rect, pos: v.pos, look: v.look, fov: v.fov }));
+    lastViews = list.map((v) => ({ rect: v.rect, pos: v.pos, look: v.look, fov: v.fov, ortho: v.ortho }));
   }
 
   // the view's curve into the shared uniforms; a bent world can bend into view from outside it, so
@@ -1017,7 +1041,9 @@ export function createEngine({
     const [x0, y0, x1, y1] = v.rect;
     const x = x0 * scale, y = (SCREEN - 1 - y1) * scale, w = (x1 - x0 + 1) * scale, h = (y1 - y0 + 1) * scale;
     if (several) for (const k in pools) for (let i = 0; i < used[k]; i++) pools[k][i].visible = pools[k][i].userData.view === v.i;
+    camera = v.ortho > 0 ? orthoCam : perspCam;
     aimCamera(camera, v);
+    outlinePass.uniforms.uOrtho.value = growPasses.paint.uOrtho.value = v.ortho > 0 ? 1 : 0;
     setCurve(v);
     sky.visible = v.bg2 >= 0;
     if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
@@ -1368,7 +1394,7 @@ export function createEngine({
     remap = identityRemap(); trans = noTransparency();
     bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
-    fovDeg = 90; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];
+    fovDeg = 90; orthoW = 0; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];
     resetGif();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = 0; touchStick[0] = touchStick[1] = 0; showTouchMode();

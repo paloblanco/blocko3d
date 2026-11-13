@@ -436,6 +436,7 @@ export function createSkyMesh(paletteUniform) {
       varying vec3 vUp;
       void main() {
         vRay = vec3(position.x / projectionMatrix[0][0], position.y / projectionMatrix[1][1], -1.0);   // view space
+        if (projectionMatrix[3][3] > 0.5) vRay = vec3(0.0, 0.0, -1.0);   // orthographic: every pixel looks straight ahead
         vUp = (viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz;                                         // world up, in view space
         gl_Position = vec4(position.xy, 0.0, 1.0);
       }`,
@@ -492,6 +493,7 @@ export function createOutlinePass(target, paletteUniform) {
       uPalette: paletteUniform,
       uNear: { value: 0.05 },
       uFar: { value: 2000 },
+      uOrtho: { value: 0 },
       uAny: { value: 0 },
       uMode: { value: 0 },
       uRect: { value: new THREE.Vector4(0, 0, 1e5, 1e5) },   // the view being drawn (clip), in render pixels
@@ -506,13 +508,14 @@ export function createOutlinePass(target, paletteUniform) {
       uniform vec3 uPalette[32];
       uniform float uNear;
       uniform float uFar;
+      uniform float uOrtho;   // 1: cam_set_ortho (depth is linear), 0: perspective
       uniform int uAny;
       uniform int uMode;   // 0: paint outlines directly (1x); 1: write the edge mask for growing (2x, 3x)
       uniform vec4 uRect;  // x0, y0, x1, y1 of the view (clip), so lookups never cross into another view
       layout(location = 0) out highp vec4 outColor;
 
       // depth-buffer value to distance from the camera
-      float linZ(float d) { return uNear * uFar / (uFar - d * (uFar - uNear)); }
+      float linZ(float d) { return uOrtho > 0.5 ? uNear + d * (uFar - uNear) : uNear * uFar / (uFar - d * (uFar - uNear)); }
       float faceDir(vec4 i) { return floor(i.a * 255.0 + 0.5); }
       float drawId(vec4 i) { return floor(i.g * 255.0 + 0.5) + 256.0 * floor(i.b * 255.0 + 0.5); }
 
@@ -553,8 +556,13 @@ export function createOutlinePass(target, paletteUniform) {
           ivec2 q2 = clampQ(q + dir);
           float d2 = texelFetch(tDepth, q2, 0).r;
           if (q2 != q && d2 < 1.0 && drawId(texelFetch(tInfo, q2, 0)) == idP) {
-            float pred = 2.0 / zN - 1.0 / linZ(d2);
-            edge = pred > 0.0 && zP - 1.0 / pred > 0.25 + 0.03 * zP;
+            if (uOrtho > 0.5) {
+              // orthographic: z itself is linear across a flat face
+              edge = zP - (2.0 * zN - linZ(d2)) > 0.25 + 0.03 * zP;
+            } else {
+              float pred = 2.0 / zN - 1.0 / linZ(d2);
+              edge = pred > 0.0 && zP - 1.0 / pred > 0.25 + 0.03 * zP;
+            }
           } else {
             edge = zP - zN > 0.5 + 0.05 * zP;
           }
@@ -647,7 +655,7 @@ export function createGrowPasses(paletteUniform) {
     glslVersion: THREE.GLSL3, depthTest: false, depthWrite: false,
     uniforms: {
       tColor: { value: null }, tInfo: { value: null }, tDepth: { value: null }, tMask: { value: null },
-      uPalette: paletteUniform, uNear: { value: 0.05 }, uFar: { value: 2000 },
+      uPalette: paletteUniform, uNear: { value: 0.05 }, uFar: { value: 2000 }, uOrtho: { value: 0 },
     },
     vertexShader: FS_VERT,
     fragmentShader: /* glsl */`
@@ -659,8 +667,9 @@ export function createGrowPasses(paletteUniform) {
       uniform vec3 uPalette[32];
       uniform float uNear;
       uniform float uFar;
+      uniform float uOrtho;
       layout(location = 0) out highp vec4 outColor;
-      float linZ(float d) { return uNear * uFar / (uFar - d * (uFar - uNear)); }
+      float linZ(float d) { return uOrtho > 0.5 ? uNear + d * (uFar - uNear) : uNear * uFar / (uFar - d * (uFar - uNear)); }
       float drawId(vec4 i) { return floor(i.g * 255.0 + 0.5) + 256.0 * floor(i.b * 255.0 + 0.5); }
       void main() {
         ivec2 p = ivec2(gl_FragCoord.xy);
