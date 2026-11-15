@@ -116,9 +116,10 @@
             <label class="check" title="Show the layer before this one faintly"><input type="checkbox" id="ghost" checked> ghost</label>
             <button id="layerFill">Fill layer</button>
             <button id="layerClear">Clear layer</button>
+            <button id="mapFit" class="desktop-only" title="Zoom the grid to fit (the mouse wheel zooms, holding the wheel down pans)">Fit</button>
           </div>
           <div class="gridscroll" id="gridScroll"><canvas id="mapGrid"></canvas></div>
-          <div class="hint"><span class="desktop-only">The left button uses the tile, the right button erases (every tool), <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> <span id="mapHint">Seen from above: +x right, +z down.</span></div>
+          <div class="hint"><span class="desktop-only">The left button uses the tile; right-click picks up the tile under the pointer (empty picks the eraser). The wheel zooms, holding it down pans, <kbd>[</kbd> <kbd>]</kbd> change layer.</span><span class="mobile-only">Drag to paint; pick tile 0 to erase.</span> <span id="mapHint">Seen from above: +x right, +z down.</span></div>
         </div>
         <div class="previewwrap">
           <canvas id="mapPreview"></canvas>

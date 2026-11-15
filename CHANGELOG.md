@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Map tab grid:** the mouse wheel zooms in and out around the pointer (good for big maps), holding the wheel down and dragging pans, and **Fit** goes back to the whole map. **Right-click now picks up the tile** under the pointer (an empty cell picks the eraser), instead of erasing; to erase, pick the eraser (tile 0) or right-click an empty cell first.
 - **Orthographic views:** `cam_set_ortho(w)` shows w blocks across the screen at any distance, for isometric, top-down and side-on games; `cam_set_ortho(0)` is perspective again. The camera is placed as usual, and things behind it aren't drawn, so moving it into a building cuts the near walls away. Outlines, `mouse_ray`, fog, `fillp`, `repeat` and `cam_set_curve` all work with it. A new demo, **Diorama**, shows it.
 - **No outline seams with `repeat`:** a map's repeated copies are outlined as one surface, so no line appears where copies of flat ground meet in the distance.
 - **`repeat(x, y, z, n)`:** the 3D draws after it are drawn again x, y and z blocks away, n times each way (default 1, at most 3; -1 skips an axis), for worlds you can walk all the way around; `repeat()` stops. Copies are the same map drawn again, so `mset` changes show on all of them. Only the picture repeats: game code wraps the player and collides across the edges (a helper is in the Info tab). Tiny Planet and Tower now use it instead of map copies, and Tiny Planet's far hills now show their trees.

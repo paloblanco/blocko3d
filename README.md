@@ -36,7 +36,7 @@ The IDE is an installable app. Open it in Chrome or Edge and click the install i
 | Tab | What it does |
 | --- | --- |
 | Code | Your game's JavaScript (`_init`, `_update`, `_draw`). |
-| Map | Paint maps layer by layer, seen from the top, front or side, set size, name and origin, with a 3D orbit preview. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
+| Map | Paint maps layer by layer, seen from the top, front or side, set size, name and origin, with a 3D orbit preview. The mouse wheel zooms the grid, holding the wheel down pans, and right-click picks up the tile under the pointer. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
 | Tile | Draw each tile's three 8×8 textures (top, sides, bottom) with the 32-color palette: Pencil, Rect, Rect fill, Fill and Pick. Undo and redo with the buttons or Ctrl+Z / Ctrl+Shift+Z. |
 | Sfx | Make sound effects, PICO-8 style: draw pitches with a brush (waveform, volume, effect), set speed and loop points, play them, and copy a sound out as a string. Turn on **Snap to scale** (default C minor pentatonic; any root and 9 scales) so every note you draw fits the song. |
 | Music | Arrange songs: 64 patterns of up to 4 sounds playing at once, with loop start, loop back and stop flags. Play follows the song through the patterns. |

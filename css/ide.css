@@ -164,8 +164,10 @@ li.CodeMirror-hint-active { background: #2a3a6a; color: var(--text); }
 .layerbar b { color: var(--yellow); font: 600 15px var(--mono); min-width: 1.6em; text-align: center; }
 .layerbar input[type=range] { width: 120px; }
 .check { display: flex; align-items: center; gap: 4px; }
-.gridscroll { flex: 1; min-height: 120px; overflow: auto; display: flex; align-items: flex-start; justify-content: center; }
-#mapGrid { image-rendering: pixelated; cursor: crosshair; }
+.gridscroll { flex: 1; min-height: 120px; overflow: auto; display: flex; align-items: flex-start; }
+/* auto margins center the grid while it fits and let it scroll from its left edge once zoomed in */
+#mapGrid { image-rendering: pixelated; cursor: crosshair; margin: 0 auto; flex: none; }
+.gridscroll.panning, .gridscroll.panning #mapGrid { cursor: grabbing; }
 .previewwrap { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-left: 1px solid var(--line); min-height: 0; }
 .previewwrap canvas { width: 100%; aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); cursor: grab; touch-action: none; }
 

@@ -487,6 +487,9 @@ function refreshMapUI() {
 }
 
 let cell = 16;
+// Grid zoom (desktop: the mouse wheel; middle-drag pans). 1 = the size that fits the panel.
+// It goes back to 1 when another map, plane or size is shown.
+let mapZoom = 1, zoomKey = '';
 const curSlice = () => { const m = curM(); return slice(mapAxis, m.w, m.h, m.d); };
 const mapIdx = (m, [x, y, z]) => x + m.w * (y + m.h * z);
 // The cells of a dragged rectangle (corners included): its outline, or all of it when filled.
@@ -538,8 +541,14 @@ function drawGrid() {
   const box = $('gridScroll');
   // on phones the grid only has to fit the width; the page scrolls
   const availW = Math.max(100, box.clientWidth - 4), availH = MOBILE.matches ? 1e9 : Math.max(100, box.clientHeight - 4);
-  cell = clamp(Math.floor(Math.min(availW / sl.cols, availH / sl.rows)), 8, 34);
+  const fit = clamp(Math.floor(Math.min(availW / sl.cols, availH / sl.rows)), 8, 34);
+  const key = `${curMap}:${mapAxis}:${m.w}x${m.h}x${m.d}`;
+  if (key !== zoomKey) { zoomKey = key; mapZoom = 1; }
   const dpr = window.devicePixelRatio || 1;
+  // keep the canvas under 8192 real pixels a side (browsers refuse much bigger ones)
+  const maxCell = Math.max(3, Math.min(64, Math.floor(8192 / dpr / Math.max(sl.cols, sl.rows))));
+  cell = clamp(Math.round(fit * mapZoom), 3, maxCell);
+  mapZoom = clamp(mapZoom, 3 / fit, maxCell / fit);   // so zooming back from a limit starts at once
   const W = sl.cols * cell + 1, H = sl.rows * cell + 1;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
@@ -703,9 +712,18 @@ function setupMapEditor() {
   cv.addEventListener('pointerdown', (e) => {
     const m = curM(); if (!m) return;
     stroked = false;
-    painting = e.button === 2 ? 0 : mapTile;
+    if (e.button === 1) return;                 // the middle button pans (see below)
     const c = cellAt(e);
     if (!c.inside) { painting = -1; return; }
+    if (e.button === 2) {                       // right-click: pick up the tile under the pointer
+      painting = -1;
+      mapTile = m.data[mapIdx(m, curSlice().at(c.u, c.v, layer))];
+      refreshMapUI();
+      const b = $('mapTiles').children[mapTile];
+      if (b) b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      return;
+    }
+    painting = mapTile;
     if (mapTool === 'fill' || mapTool === 'volfill') {
       const p = curSlice().at(c.u, c.v, layer);
       if (m.data[mapIdx(m, p)] !== painting) {
@@ -746,6 +764,47 @@ function setupMapEditor() {
   cv.addEventListener('pointerup', () => { if (mapRect) endRect(); painting = -1; });
   cv.addEventListener('pointercancel', () => { mapRect = null; painting = -1; drawGrid(); });
   new ResizeObserver(() => { if (activeTab === 'map') drawGrid(); }).observe($('gridScroll'));
+
+  // Zoom with the wheel, keeping the spot under the pointer where it is.
+  const box = $('gridScroll');
+  const zoomAt = (factor, x, y) => {
+    if (!curM()) return;
+    const r = cv.getBoundingClientRect(), fu = (x - r.left) / cell, fv = (y - r.top) / cell;
+    const before = cell;
+    mapZoom *= factor;
+    drawGrid();
+    if (cell === before) return;
+    const r2 = cv.getBoundingClientRect();
+    box.scrollLeft += r2.left + fu * cell - x;
+    box.scrollTop += r2.top + fv * cell - y;
+  };
+  box.addEventListener('wheel', (e) => {
+    if (MOBILE.matches || !curM()) return;
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+    zoomAt(Math.pow(1.0015, -clamp(dy, -300, 300)), e.clientX, e.clientY);
+  }, { passive: false });
+  $('mapFit').onclick = () => { mapZoom = 1; drawGrid(); box.scrollLeft = box.scrollTop = 0; };
+
+  // Hold the middle button (wheel) and drag to pan.
+  let pan = null;
+  box.addEventListener('pointerdown', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();                          // no browser autoscroll
+    pan = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    box.setPointerCapture(e.pointerId);
+    box.classList.add('panning');
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!pan || e.pointerId !== pan.id) return;
+    box.scrollLeft -= e.clientX - pan.x; box.scrollTop -= e.clientY - pan.y;
+    pan.x = e.clientX; pan.y = e.clientY;
+  });
+  const endPan = (e) => { if (pan && e.pointerId === pan.id) { pan = null; box.classList.remove('panning'); } };
+  box.addEventListener('pointerup', endPan);
+  box.addEventListener('pointercancel', endPan);
+  box.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+  box.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); });   // Windows/Linux autoscroll
 }
 
 // ================================================================= spr (tile) editor
