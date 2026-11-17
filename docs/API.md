@@ -172,6 +172,8 @@ Distant things dither away into one color: no lighting to set up, and it hides t
 
 - **`fog(c, near?, far?)`**: Draws after this fade into color c (a palette index; pal() remaps apply, as with bg) with their distance from the camera: untouched up to near blocks away (default 8), solid c from far (default 24), and dithered in between, more and more pixels taking color c. Fogged pixels get no outline. Set bg to the same color, or use bg(sky, c), so the sky and the fog meet.
 - **`fog()`**: No fog for draws after this.
+- **`torch(x, y, z, near?, far?)`**: A light that punches a hole in the fog for this frame: within near blocks of (x, y, z) nothing is fogged (default 2), and from there it dithers back to the fog by far (default 5), the same way fog does from the camera. Torches are cleared at the start of every _draw, so add them each frame (vary near a little for a flicker). A frame can add up to 64; each view uses the 8 nearest to its camera. Without fog, torches do nothing. For a dark dungeon: bg(0) fog(0, 0, 0), then a torch for the player and one for each wall torch. Torches light through walls, and only clear the fog: they don't tint.
+- **`torch()`**: Remove this frame's torches.
 
 ```js
 bg(12, 6)        // a blue sky, pale at the horizon...

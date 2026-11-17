@@ -73,5 +73,10 @@
     "file": "diorama.b3d.json",
     "name": "Diorama",
     "about": "Find 8 coins on a little island, half of them inside a house. Shows cam_set_ortho(w) for an isometric view; hold O and the camera moves in close so the near walls aren't drawn; click to dig with mouse_ray. X: top-down, side-on and perspective."
+  },
+  {
+    "file": "torchlight.b3d.json",
+    "name": "Torchlight",
+    "about": "Find 8 coins in a dark dungeon. Shows fog(0, 0, 0) making everything black and torch(x, y, z, near, far) punching lit holes in it around the hero and flickering wall torches. X: mist, and no fog."
   }
 ]

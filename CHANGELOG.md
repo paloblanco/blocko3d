@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Torches:** `torch(x, y, z, near, far)` punches a hole in the fog for one frame: nothing within near blocks is fogged, dithering back to the fog by far. Torches are cleared each `_draw`; a frame can add up to 64, and each view uses the 8 nearest. With `fog(0, 0, 0)` they make a dark dungeon. A new demo, **Torchlight**, shows it.
 - **Map tab grid:** the mouse wheel zooms in and out around the pointer (good for big maps), holding the wheel down and dragging pans, and **Fit** goes back to the whole map. **Right-click now picks up the tile** under the pointer (an empty cell picks the eraser), instead of erasing; to erase, pick the eraser (tile 0) or right-click an empty cell first.
 - **Orthographic views:** `cam_set_ortho(w)` shows w blocks across the screen at any distance, for isometric, top-down and side-on games; `cam_set_ortho(0)` is perspective again. The camera is placed as usual, and things behind it aren't drawn, so moving it into a building cuts the near walls away. Outlines, `mouse_ray`, fog, `fillp`, `repeat` and `cam_set_curve` all work with it. A new demo, **Diorama**, shows it.
 - **No outline seams with `repeat`:** a map's repeated copies are outlined as one surface, so no line appears where copies of flat ground meet in the distance.

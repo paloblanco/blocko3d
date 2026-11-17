@@ -295,6 +295,13 @@ const PLACE_GLSL = /* glsl */`
   }
 `;
 
+// The torch uniforms are shared by every draw too (set once per view): positions from the camera.
+export const createTorchUniforms = () => ({
+  uTorch: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+  uTorchFar: { value: new Array(8).fill(0) },
+  uTorchN: { value: 0 },
+});
+
 // The curve uniforms are shared by every draw (set once per view), so draws hold these objects.
 export const createCurveUniforms = () => ({
   uCurve: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -313,6 +320,9 @@ const PAL_GLSL = /* glsl */`
   uniform vec4 uFog;        // fog(): palette index, near, far, on (1) / off (0)
   uniform vec2 uFill;       // fillp(n, c): how much (0 none .. 1 all), palette index
   uniform float uPix;       // render pixels per screen pixel (1, 2 or 3), so the dither stays 256-chunky
+  uniform vec4 uTorch[8];   // torch(): position from the camera (view space) and near, this frame
+  uniform float uTorchFar[8];
+  uniform int uTorchN;      // how many torches (0-8)
   varying vec3 vFogPos;     // this pixel's position from the camera, for its distance
   layout(location = 0) out highp vec4 outColor;
   layout(location = 1) out highp vec4 outInfo;   // read by the outline pass
@@ -336,6 +346,12 @@ const PAL_GLSL = /* glsl */`
     // color. A fogged pixel casts no outline and makes no crease, so far shapes fade out whole.
     if (uFog.w > 0.5) {
       float t = (length(vFogPos) - uFog.y) / max(uFog.z - uFog.y, 0.0001);
+      // torches punch holes: a pixel near one is fogged by its distance from the torch instead,
+      // if that's less fog (the same near-to-far ramp and dither as fog itself)
+      for (int i = 0; i < 8; i++) {
+        if (i >= uTorchN) break;
+        t = min(t, (length(vFogPos - uTorch[i].xyz) - uTorch[i].w) / max(uTorchFar[i] - uTorch[i].w, 0.0001));
+      }
       if (t > th) { c = uPalette[int(uFog.x + 0.5)]; oc = -1.0; d = 0.0; }
     }
     outColor = vec4(c, 1.0);
@@ -353,6 +369,7 @@ const drawUniforms = (paletteUniform) => ({
   uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
   uFill: { value: new THREE.Vector2(0, 0) },
   ...createCurveUniforms(),
+  ...createTorchUniforms(),
   uPix: { value: 1 },
 });
 

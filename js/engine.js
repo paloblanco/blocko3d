@@ -6,7 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh, createCurveUniforms,
+  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
@@ -104,6 +104,10 @@ export function createEngine({
   let clipRect = null, fovDeg = 90, orthoW = 0;   // orthoW: cam_set_ortho's width, 0 = perspective
   let curve = [0, 'view', 'down'];      // cam_set_curve(k, along, push)
   const curveU = createCurveUniforms();   // shared by every draw's material, set per view
+  const torchU = createTorchUniforms();   // likewise: this frame's torches, from each view's camera
+  let torches = [];                       // torch(x, y, z, near, far) this frame: [x, y, z, near, far]
+  const MAX_TORCHES = 64, TORCHES_SHOWN = 8;   // a frame may add 64; each view uses its 8 nearest
+  const _tv = new THREE.Vector3();
   let views = [], curView = null, lastViews = [], inDraw = false;
   const FULL = [0, 0, SCREEN - 1, SCREEN - 1];
 
@@ -131,7 +135,7 @@ export function createEngine({
       } else {
         o = new THREE.Mesh(kind === 'cube' ? cubeGeo : sphereGeo, createSolidMaterial(palU));
       }
-      Object.assign(o.material.uniforms, curveU);   // the one shared curve, not a copy per draw
+      Object.assign(o.material.uniforms, curveU, torchU);   // the shared curve and torches, not copies per draw
       pool.push(o);
       scene.add(o);
     }
@@ -434,6 +438,15 @@ export function createEngine({
     fillp(n, c = 0) {
       fillN = n === undefined || n === null || n === false ? 0 : Math.max(0, Math.min(1, +n || 0));
       fillC = c === -1 ? -1 : remap[(c | 0) & 31];   // -1: see-through
+    },
+    // torch(x, y, z, near, far): a light that punches a hole in the fog for this frame: within near
+    // blocks of it nothing is fogged, then it dithers back to the fog by far. Each view uses the 8
+    // nearest to its camera (of up to 64 a frame). They're cleared at the start of each _draw
+    // (torch() clears them now). Without fog, torches do nothing.
+    torch(x, y, z, near = 2, far = 5) {
+      if (x === undefined) { torches = []; return; }
+      if (torches.length >= MAX_TORCHES) return;
+      torches.push([+x || 0, +y || 0, +z || 0, Math.max(0, +near || 0), Math.max(0, +far || 0)]);
     },
     // fog(c, near, far): from near to far blocks away from the camera, 3D draws dither into color c
     // (through pal, like bg). Draw state, like pal and outline: it applies to the draws after it.
@@ -977,6 +990,7 @@ export function createEngine({
 
   function beginDraw() {
     for (const k in used) used[k] = 0;
+    torches = [];
     if (clipped2d) { ctx.restore(); clipped2d = false; }
     ctx.clearRect(0, 0, SCREEN, SCREEN);
     apply2dClip();
@@ -1037,6 +1051,23 @@ export function createEngine({
     for (const kind of ['map', 'vox', 'cube', 'sphere']) for (const o of pools[kind]) o.frustumCulled = k === 0;
   }
 
+  // this frame's torches into the shared uniforms, as positions from this view's camera
+  function setTorches() {
+    let list = torches;
+    if (list.length > TORCHES_SHOWN) {
+      const [cx, cy, cz] = camera.position.toArray();
+      list = list.map((t) => [(t[0] - cx) ** 2 + (t[1] - cy) ** 2 + (t[2] - cz) ** 2, t]).sort((a, b) => a[0] - b[0]).slice(0, TORCHES_SHOWN).map((e) => e[1]);
+    }
+    torchU.uTorchN.value = list.length;
+    if (!list.length) return;
+    camera.updateMatrixWorld();
+    list.forEach(([x, y, z, near, far], i) => {
+      _tv.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+      torchU.uTorch.value[i].set(_tv.x, _tv.y, _tv.z, near);
+      torchU.uTorchFar.value[i] = far;
+    });
+  }
+
   function drawView(v, several) {
     const [x0, y0, x1, y1] = v.rect;
     const x = x0 * scale, y = (SCREEN - 1 - y1) * scale, w = (x1 - x0 + 1) * scale, h = (y1 - y0 + 1) * scale;
@@ -1045,6 +1076,7 @@ export function createEngine({
     aimCamera(camera, v);
     outlinePass.uniforms.uOrtho.value = growPasses.paint.uOrtho.value = v.ortho > 0 ? 1 : 0;
     setCurve(v);
+    setTorches();
     sky.visible = v.bg2 >= 0;
     if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
     // 1) scene -> color + draw info + depth, inside this view only
