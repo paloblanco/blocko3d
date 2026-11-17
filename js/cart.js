@@ -10,30 +10,48 @@ import { emptySfx, encodeSfx, encodePattern, emptyPattern } from './audio.js';
 export const CART_VERSION = 1;
 
 export function emptyCart() {
+  // a grass block (dirt sides with a green top edge) and a little figure standing on an 8 x 8 floor
+  const grass = (r, c) => ((r * 3 + c * 5) % 7 ? 11 : 3);
+  const side = (r, c) => (r < 2 ? grass(r, c) : (r * 5 + c * 3) % 6 ? 4 : 5);
   return {
     version: CART_VERSION,
-    code: `// your BLOCKO3D game
+    name: 'untitled',
+    code: `// your BLOCKO3D game: a figure on a little island.
+// Drag with the mouse (or a finger) to look around, the wheel zooms,
+// and the arrow keys turn the view too.
+let yaw = 0.45, pitch = -0.06, dist = 6
+
 function _init() {
-  bg(1)
+  mouse_set_mode(1)   // mouse and touch on: dragging gives mouse_delta()
 }
 
 function _update() {
-  if (title) {
-    if (btnp(4) || btnp(5)) { title = false; sfx(4) }
-    return
+  let [dx, dy] = mouse_delta()
+  if (btn(19)) {      // left button (or a finger) held: drag to turn
+    yaw -= dx / 500
+    pitch -= dy / 500
   }
-  if (!done) ticks++
+  let [sx, sy] = stick(0)   // arrows, WASD or a gamepad
+  yaw -= sx * 0.01
+  pitch -= sy * 0.01
+  pitch = mid(-0.22, pitch, -0.01)   // stay above the ground
+  dist = mid(3, dist + mouse_wheel() * 0.5, 14)
 }
 
 function _draw() {
-  cam_set_pos([4, 6, -6])
-  cam_set_lookat([4, 0, 4])
+  bg(12)
+  cam_orbit([4, 2, 4], yaw, pitch, dist)
+  outline(0)
   map(0)
-  print('Hello, BLOCKO3D!', 4, 4, 7)
+  vox(0, 4, 1, 4, 0, 0, 0, 2)   // model 0, twice its size, on the floor, facing +z
+  outline()
+  printc('Hello, BLOCKO3D!', 6, 7, 0)
+  printc('drag to look, wheel to zoom', 242, 7, 0)
 }
 `,
-    tiles: [null, makeTile((r, c) => ((r + c) % 2 ? 6 : 13))],
-    maps: [encodeMap('level', 8, 4, 8, [0, 0, 0], (x, y) => (y === 0 ? 1 : 0))],
+    tiles: [null, makeTile(grass, side, side)],
+    maps: [encodeMap('island', 8, 1, 8, [0, 0, 0], () => 1)],
+    vox: [makeVox('hero', figure(0, { hair: 4, skin: 15, shirt: 8, belt: 4, legs: 1, shoes: 5 }))],
   };
 }
 

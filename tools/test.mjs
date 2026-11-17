@@ -70,6 +70,16 @@ try {
   test('b3d new makes a game that passes check', freshRes.errors.length === 0, freshRes.errors.map((e) => `${e.at}: ${e.msg}`).join('; '));
   games.push({ label: 'b3d new game', game: freshGame });
 
+  // the IDE's New button: the cart it starts must check and run (it once threw on a leftover name)
+  {
+    const { emptyCart } = await import('../js/cart.js');
+    const cart = emptyCart();
+    const game = { kind: 'cart', cart, raw: cart, errors: [], warnings: [], ok: [], where: (at) => (at ? `the IDE's New cart: ${at}` : "the IDE's New cart") };
+    const res = await checkGame(game);
+    test("the IDE's New cart passes check", res.errors.length === 0, res.errors.map((e) => `${e.at}: ${e.msg}`).join('; '));
+    games.push({ label: "the IDE's New cart", game });
+  }
+
   // ---------------------------------------------------------------- 3b. text maps
   {
     const { writeFileSync, readdirSync, readFileSync: read } = await import('node:fs');
