@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **`touch_set_mode(left, 2)`:** the right side of a phone's controls can be a **touchpad** (with the small O button): sliding a finger on it moves `mouse_delta()`, so mouse-look code works on phones. **First Person** now uses it: the left stick walks and strafes (arrows and WASD strafe on a keyboard too), and the touchpad or the mouse looks around.
 - **`touch_set_mode(left, right)`:** a second argument sets the right side of a phone's touch controls: 0 the O and X buttons (the default, as before), 1 an analog stick that feeds `stick(1)` (like a gamepad's right stick), with a small O button beside it. `touch_set_mode(1, 1)` gives a twin-stick shooter a stick on each side. While paused, the d-pad and both buttons come back for the menu.
 - **Twin Stick** demo: survive the guards in an arena, moving with the left stick and aiming and firing with the right (the mouse on a computer); O drops a bomb.
 - **Fixed: a cart made with New didn't run** ("title is not defined": leftover lines from the castle demo). New now starts a working 33-line cart: a figure (vox model 0) standing on a grass island, with an orbit camera you turn by dragging the mouse or a finger (mouse mode 1, `mouse_delta`), the wheel to zoom, and the arrow keys. `npm test` now checks and runs the New cart too.

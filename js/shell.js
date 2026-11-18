@@ -73,8 +73,13 @@ html.b3d-touch .b3d-dpad, html.b3d-touch .b3d-ab { display: block; }
   left: calc(32% + var(--kx, 0) * 30%); top: calc(32% + var(--ky, 0) * 30%); }
 .b3d-ab .stick.on .knob { background: #5a5a5a; }
 .b3d-ab[data-mode="1"] .stick { display: block; }
-.b3d-ab[data-mode="1"] .x { display: none; }
-.b3d-ab[data-mode="1"] .o { left: 0; top: 0; bottom: auto; width: 28%; height: 28%; font-size: calc(var(--dp) * 0.1); }
+/* touch_set_mode(l, 2): a touchpad for looking around (mouse_delta()), with the same small O */
+.b3d-ab .pad { display: none; position: absolute; right: 0; bottom: 0; width: 80%; height: 80%; touch-action: none; border-radius: 14px;
+  background: #1b1b1b radial-gradient(#333 1px, transparent 1.5px) 0 0 / 12px 12px; border: 2px solid #383838; }
+.b3d-ab .pad.on { border-color: #5a5a5a; background-color: #222; }
+.b3d-ab[data-mode="2"] .pad { display: block; }
+.b3d-ab[data-mode="1"] .x, .b3d-ab[data-mode="2"] .x { display: none; }
+.b3d-ab[data-mode="1"] .o, .b3d-ab[data-mode="2"] .o { left: 0; top: 0; bottom: auto; width: 28%; height: 28%; font-size: calc(var(--dp) * 0.1); }
 
 @media (orientation: landscape) {
   #b3d-shell {
@@ -136,6 +141,7 @@ export function mountShell(doc = document) {
     <button class="o" aria-label="O button">O</button>
     <button class="x" aria-label="X button">X</button>
     <div class="stick" aria-label="Right stick"><div class="ring"></div><div class="knob"></div></div>
+    <div class="pad" aria-label="Touchpad"></div>
   </div>`;
   doc.body.prepend(shell);
   return { canvas: doc.getElementById('gl'), overlay: doc.getElementById('ui') };
@@ -226,11 +232,33 @@ export function wireShell(engine, doc = document) {
     rstick.addEventListener(ev, (e) => { if (rtouches.delete(e.pointerId)) rstickUpdate(); });
   }
 
+  // The touchpad (touch_set_mode(l, 2)): one finger's movement goes to mouse_delta(), scaled so a
+  // swipe across the pad counts as 256 pixels (the width of the game screen), whatever its size.
+  const pad = $('.b3d-ab .pad');
+  let padId = null, padX = 0, padY = 0;
+  pad.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (padId !== null) return;                    // one finger looks; others are ignored
+    padId = e.pointerId; padX = e.clientX; padY = e.clientY;
+    try { pad.setPointerCapture(e.pointerId); } catch { /* already gone */ }
+    pad.classList.add('on');
+  });
+  pad.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== padId) return;
+    const k = 256 / Math.max(1, pad.getBoundingClientRect().width);
+    if (engine.touchDelta) engine.touchDelta((e.clientX - padX) * k, (e.clientY - padY) * k);
+    padX = e.clientX; padY = e.clientY;
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    pad.addEventListener(ev, (e) => { if (e.pointerId === padId) { padId = null; pad.classList.remove('on'); } });
+  }
+
   const setMode = (m, rm = 0) => {
     if (rm !== right) {
       right = rm;
       ab.dataset.mode = String(rm);
-      if (!rm) { rtouches.clear(); rstickUpdate(); }   // back to buttons: the stick lets go
+      if (rm !== 1) { rtouches.clear(); rstickUpdate(); }   // the stick lets go when it's hidden
+      if (rm !== 2) { padId = null; pad.classList.remove('on'); }
     }
     if (m === mode) return;
     mode = m;

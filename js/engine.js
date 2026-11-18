@@ -302,7 +302,8 @@ export function createEngine({
   // the on-screen analog circles, -1..1, right and down positive: [0] left (stick(0)), [1] right (stick(1))
   const touchSticks = [[0, 0], [0, 0]];
   // Which touch controls the page shows. Left: 0 d-pad, 1 analog circle, 2 left/right, 3 up/down.
-  // Right: 0 the O and X buttons, 1 an analog circle (stick(1)) with a small O button.
+  // Right: 0 the O and X buttons, 1 an analog circle (stick(1)) with a small O button, 2 a touchpad
+  // (finger movement goes to mouse_delta(), in any mouse mode) with a small O button.
   // The page (js/shell.js) listens through onTouchMode(left, right); while paused it always shows
   // the d-pad and both buttons, for the menu.
   let touchMode = 0, touchRight = 0, onTouchMode = null;
@@ -764,12 +765,13 @@ export function createEngine({
     time() { return frames / 60; },
     // touch_set_mode(left, right): the touch controls of a phone screen. left: 0 d-pad (default),
     // 1 analog circle (feeds stick(0), and the arrow buttons past halfway), 2 left/right, 3 up/down.
-    // right: 0 the O and X buttons (default), 1 an analog circle (feeds stick(1) only, no buttons)
-    // with a small O button beside it. Leaving right out means 0.
+    // right: 0 the O and X buttons (default), 1 an analog circle (feeds stick(1) only, no buttons),
+    // 2 a touchpad (feeds mouse_delta(), for looking around); 1 and 2 have a small O button beside
+    // them. Leaving right out means 0.
     touch_set_mode(n, r = 0) {
       touchMode = [0, 1, 2, 3].includes(n | 0) ? n | 0 : 0;
-      touchRight = (r | 0) === 1 ? 1 : 0;
-      if (!touchRight) touchSticks[1][0] = touchSticks[1][1] = 0;
+      touchRight = [0, 1, 2].includes(r | 0) ? r | 0 : 0;
+      if (touchRight !== 1) touchSticks[1][0] = touchSticks[1][1] = 0;
       showTouchMode();
     },
     // freeze(n, fn): for the next n updates, call fn instead of _update (nothing at all without fn).
@@ -1454,6 +1456,8 @@ export function createEngine({
   }
 
   // On-screen buttons (touch controls, the pause button) press game buttons directly.
+  // the on-screen touchpad (touch_set_mode(l, 2)): finger movement, already scaled, joins mouse_delta()
+  function touchDelta(dx, dy) { if (!paused) { dxAcc += +dx || 0; dyAcc += +dy || 0; } }
   function setStick(x, y, i = 0) { const t = touchSticks[i ? 1 : 0]; t[0] = +x || 0; t[1] = +y || 0; }
 
   function setButton(i, on) {
@@ -1481,7 +1485,7 @@ export function createEngine({
   }
 
   return {
-    api, start, stop, reset, step, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, setMuted,
+    api, start, stop, reset, step, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, touchDelta, setMuted,
     set onTouchMode(fn) { onTouchMode = fn; showTouchMode(); }, get touchMode() { return paused ? 0 : touchMode; }, get touchRight() { return paused ? 0 : touchRight; },
     get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
   };
