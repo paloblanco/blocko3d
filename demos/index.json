@@ -27,7 +27,7 @@
   {
     "file": "firstperson.b3d.json",
     "name": "First Person",
-    "about": "Find the key in a dungeon maze and escape. Shows a first-person camera with mouse capture, and on a phone touch_set_mode(1, 2): the left stick walks and strafes, the touchpad on the right looks around. Also sphere collision, mray() to see what you face, and gates that are maps of their own."
+    "about": "Find the key in a dungeon maze and escape, and pop the floating orbs on the way. Shows a first-person camera with mouse capture, and on a phone touch_set_mode(1, 2): the left stick walks and strafes, the touchpad looks around, a tap on it shoots and tap-then-hold keeps firing. Also sphere collision, mray() to see what you face and aim, and gates that are maps of their own."
   },
   {
     "file": "builder.b3d.json",

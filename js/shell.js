@@ -77,6 +77,7 @@ html.b3d-touch .b3d-dpad, html.b3d-touch .b3d-ab { display: block; }
 .b3d-ab .pad { display: none; position: absolute; right: 0; bottom: 0; width: 80%; height: 80%; touch-action: none; border-radius: 14px;
   background: #1b1b1b radial-gradient(#333 1px, transparent 1.5px) 0 0 / 12px 12px; border: 2px solid #383838; }
 .b3d-ab .pad.on { border-color: #5a5a5a; background-color: #222; }
+.b3d-ab .pad.hold { border-color: #8a8a8a; background-color: #2c2c2c; }
 .b3d-ab[data-mode="2"] .pad { display: block; }
 .b3d-ab[data-mode="1"] .x, .b3d-ab[data-mode="2"] .x { display: none; }
 .b3d-ab[data-mode="1"] .o, .b3d-ab[data-mode="2"] .o { left: 0; top: 0; bottom: auto; width: 28%; height: 28%; font-size: calc(var(--dp) * 0.1); }
@@ -232,25 +233,47 @@ export function wireShell(engine, doc = document) {
     rstick.addEventListener(ev, (e) => { if (rtouches.delete(e.pointerId)) rstickUpdate(); });
   }
 
-  // The touchpad (touch_set_mode(l, 2)): one finger's movement goes to mouse_delta(), scaled so a
-  // swipe across the pad counts as 256 pixels (the width of the game screen), whatever its size.
+  // The touchpad (touch_set_mode(l, 2)), like a laptop's: one finger's movement goes to
+  // mouse_delta(), scaled so a swipe across the pad counts as 256 pixels (the width of the game
+  // screen), whatever its size. A quick tap is a click of the left mouse button (btn(19)); a tap
+  // and then a touch that stays down (within TAP_GAP) holds the button while the finger keeps
+  // sliding, so a game can fire while aiming. Any mouse mode.
+  const TAP_TIME = 250, TAP_MOVE = 12, TAP_GAP = 300;   // ms, CSS pixels, ms
   const pad = $('.b3d-ab .pad');
-  let padId = null, padX = 0, padY = 0;
+  let padId = null, padX = 0, padY = 0, padT = 0, padMoved = 0, padHold = false, lastTap = -1e9;
+  const padRelease = () => {
+    if (padHold) { padHold = false; engine.setButton(19, false); pad.classList.remove('hold'); }
+    padId = null; pad.classList.remove('on');
+  };
   pad.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     if (padId !== null) return;                    // one finger looks; others are ignored
-    padId = e.pointerId; padX = e.clientX; padY = e.clientY;
+    padId = e.pointerId; padX = e.clientX; padY = e.clientY; padT = performance.now(); padMoved = 0;
     try { pad.setPointerCapture(e.pointerId); } catch { /* already gone */ }
     pad.classList.add('on');
+    if (padT - lastTap < TAP_GAP) {                // tap, then hold: the button stays down
+      padHold = true; lastTap = -1e9;
+      engine.setButton(19, true); pad.classList.add('hold');
+    }
   });
   pad.addEventListener('pointermove', (e) => {
     if (e.pointerId !== padId) return;
     const k = 256 / Math.max(1, pad.getBoundingClientRect().width);
     if (engine.touchDelta) engine.touchDelta((e.clientX - padX) * k, (e.clientY - padY) * k);
+    padMoved += Math.hypot(e.clientX - padX, e.clientY - padY);
     padX = e.clientX; padY = e.clientY;
   });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    pad.addEventListener(ev, (e) => { if (e.pointerId === padId) { padId = null; pad.classList.remove('on'); } });
+  pad.addEventListener('pointerup', (e) => {
+    if (e.pointerId !== padId) return;
+    const now = performance.now();
+    if (!padHold && now - padT < TAP_TIME && padMoved < TAP_MOVE) {   // a tap: one click
+      engine.setButton(19, true); engine.setButton(19, false);        // latched for one update
+      lastTap = now;
+    }
+    padRelease();
+  });
+  for (const ev of ['pointercancel', 'lostpointercapture']) {
+    pad.addEventListener(ev, (e) => { if (e.pointerId === padId) padRelease(); });
   }
 
   const setMode = (m, rm = 0) => {
@@ -258,7 +281,7 @@ export function wireShell(engine, doc = document) {
       right = rm;
       ab.dataset.mode = String(rm);
       if (rm !== 1) { rtouches.clear(); rstickUpdate(); }   // the stick lets go when it's hidden
-      if (rm !== 2) { padId = null; pad.classList.remove('on'); }
+      if (rm !== 2) { padRelease(); lastTap = -1e9; }
     }
     if (m === mode) return;
     mode = m;
