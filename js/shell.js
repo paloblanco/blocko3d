@@ -65,6 +65,16 @@ html.b3d-touch .b3d-dpad, html.b3d-touch .b3d-ab { display: block; }
 .b3d-ab button.on { background: #4a4a4a; color: #fff; }
 .b3d-ab .o { left: 2%; bottom: 14%; }
 .b3d-ab .x { right: 2%; top: 14%; }
+/* touch_set_mode(l, 1): the right side is an analog circle (stick(1)) with a small O button above it */
+.b3d-ab .stick { display: none; position: absolute; right: 0; bottom: 0; width: 80%; height: 80%; touch-action: none; }
+.b3d-ab .stick div { position: absolute; }
+.b3d-ab .stick .ring { inset: 2%; border-radius: 50%; background: #1b1b1b; border: 2px solid #383838; }
+.b3d-ab .stick .knob { width: 36%; height: 36%; border-radius: 50%; background: #3a3a3a; border: 1px solid #555;
+  left: calc(32% + var(--kx, 0) * 30%); top: calc(32% + var(--ky, 0) * 30%); }
+.b3d-ab .stick.on .knob { background: #5a5a5a; }
+.b3d-ab[data-mode="1"] .stick { display: block; }
+.b3d-ab[data-mode="1"] .x { display: none; }
+.b3d-ab[data-mode="1"] .o { left: 0; top: 0; bottom: auto; width: 28%; height: 28%; font-size: calc(var(--dp) * 0.1); }
 
 @media (orientation: landscape) {
   #b3d-shell {
@@ -125,6 +135,7 @@ export function mountShell(doc = document) {
   <div class="b3d-ab">
     <button class="o" aria-label="O button">O</button>
     <button class="x" aria-label="X button">X</button>
+    <div class="stick" aria-label="Right stick"><div class="ring"></div><div class="knob"></div></div>
   </div>`;
   doc.body.prepend(shell);
   return { canvas: doc.getElementById('gl'), overlay: doc.getElementById('ui') };
@@ -183,7 +194,44 @@ export function wireShell(engine, doc = document) {
     dpad.style.setProperty('--kx', sx); dpad.style.setProperty('--ky', sy);
     dpad.classList.toggle('on', mode === 1 && touches.size > 0);
   };
-  const setMode = (m) => {
+  // The right stick (touch_set_mode(l, 1)): an analog circle like the left one, feeding stick(1)
+  // only (it presses no buttons). The O button stays beside it, smaller; X is hidden.
+  const ab = $('.b3d-ab'), rstick = $('.b3d-ab .stick');
+  const rtouches = new Map();
+  let right = 0;
+  const rstickUpdate = () => {
+    const r = rstick.getBoundingClientRect();
+    let sx = 0, sy = 0;
+    for (const [x, y] of rtouches.values()) {
+      const dx = (x - r.left) / r.width * 2 - 1, dy = (y - r.top) / r.height * 2 - 1;
+      const m = Math.hypot(dx, dy) / 0.9, k = m > 1 ? 1 / m : 1;
+      sx = dx / 0.9 * k; sy = dy / 0.9 * k;
+    }
+    if (engine.setStick) engine.setStick(sx, sy, 1);
+    rstick.style.setProperty('--kx', sx); rstick.style.setProperty('--ky', sy);
+    rstick.classList.toggle('on', rtouches.size > 0);
+  };
+  rstick.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { rstick.setPointerCapture(e.pointerId); } catch { /* already gone */ }
+    rtouches.set(e.pointerId, [e.clientX, e.clientY]);
+    rstickUpdate();
+  });
+  rstick.addEventListener('pointermove', (e) => {
+    if (!rtouches.has(e.pointerId)) return;
+    rtouches.set(e.pointerId, [e.clientX, e.clientY]);
+    rstickUpdate();
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    rstick.addEventListener(ev, (e) => { if (rtouches.delete(e.pointerId)) rstickUpdate(); });
+  }
+
+  const setMode = (m, rm = 0) => {
+    if (rm !== right) {
+      right = rm;
+      ab.dataset.mode = String(rm);
+      if (!rm) { rtouches.clear(); rstickUpdate(); }   // back to buttons: the stick lets go
+    }
     if (m === mode) return;
     mode = m;
     dpad.dataset.mode = String(m);

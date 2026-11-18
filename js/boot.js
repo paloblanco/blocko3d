@@ -36,7 +36,7 @@ export function play(cart, cartFn) {
   let real = null, begun = false;
   const stand = {
     setButton(i, on) { if (real) real.setButton(i, on); else if (on && i !== 6) begin(); },
-    setStick(x, y) { if (real) real.setStick(x, y); },
+    setStick(x, y, i) { if (real) real.setStick(x, y, i); },
     onTouchMode: null,   // set by wireShell; handed to the engine once it exists
     get muted() { if (real) return real.muted; try { return localStorage.getItem('blocky3d.mute') === '1'; } catch { return false; } },
     setMuted(m) { if (real) real.setMuted(m); else try { localStorage.setItem('blocky3d.mute', m ? '1' : '0'); } catch { /* storage blocked */ } },

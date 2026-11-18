@@ -78,5 +78,10 @@
     "file": "torchlight.b3d.json",
     "name": "Torchlight",
     "about": "Find 8 coins in a dark dungeon. Shows fog(0, 0, 0) making everything black and torch(x, y, z, near, far) punching lit holes in it around the hero and flickering wall torches. X: mist, and no fog."
+  },
+  {
+    "file": "twinstick.b3d.json",
+    "name": "Twin Stick",
+    "about": "Survive the guards in an arena. Shows touch_set_mode(1, 1): on a phone, an analog stick on each side (stick(0) moves, stick(1) aims and fires) plus a small O button for the bomb. On a computer the mouse aims; a gamepad's right stick aims too."
   }
 ]

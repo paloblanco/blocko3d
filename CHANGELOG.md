@@ -4,6 +4,8 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **`touch_set_mode(left, right)`:** a second argument sets the right side of a phone's touch controls: 0 the O and X buttons (the default, as before), 1 an analog stick that feeds `stick(1)` (like a gamepad's right stick), with a small O button beside it. `touch_set_mode(1, 1)` gives a twin-stick shooter a stick on each side. While paused, the d-pad and both buttons come back for the menu.
+- **Twin Stick** demo: survive the guards in an arena, moving with the left stick and aiming and firing with the right (the mouse on a computer); O drops a bomb.
 - **Fixed: a cart made with New didn't run** ("title is not defined": leftover lines from the castle demo). New now starts a working 33-line cart: a figure (vox model 0) standing on a grass island, with an orbit camera you turn by dragging the mouse or a finger (mouse mode 1, `mouse_delta`), the wheel to zoom, and the arrow keys. `npm test` now checks and runs the New cart too.
 - **Torches:** `torch(x, y, z, near, far)` punches a hole in the fog for one frame: nothing within near blocks is fogged, dithering back to the fog by far. Torches are cleared each `_draw`; a frame can add up to 64, and each view uses the 8 nearest. With `fog(0, 0, 0)` they make a dark dungeon. A new demo, **Torchlight**, shows it.
 - **Map tab grid:** the mouse wheel zooms in and out around the pointer (good for big maps), holding the wheel down and dragging pans, and **Fit** goes back to the whole map. **Right-click now picks up the tile** under the pointer (an empty cell picks the eraser), instead of erasing; to erase, pick the eraser (tile 0) or right-click an empty cell first.
