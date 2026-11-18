@@ -26,6 +26,25 @@ The Starter cart comes with art and sound already made (the **starter kit**, bel
 - **Colors are palette numbers 0-31**, never hex codes (0 black, 1 dark blue, 2 purple, 3 dark green, 4 brown, 5 dark gray, 6 light gray, 7 white, 8 red, 9 orange, 10 yellow, 11 green, 12 light blue, 13 lavender, 14 pink, 15 peach).
 - **Text** goes on top of the 3D view, at screen pixels 0-255 (the font is 7 x 10).
 
+## Directions: left and right (read this before writing movement code)
+
+BLOCKO3D's directions work like Minecraft's: y is up, and **+z is "forward"**. A yaw of 0 looks along +z, `dir3(0)` is `[0, 0, 1]`, and every vox model's front faces +z. Because of that, **when you face +z, +x is on your LEFT** (in Minecraft, facing south, east is on your left). This is the most common source of controls that go the wrong way.
+
+- **Camera looking along +z** (like the Starter's, which sits behind the player at -z and looks toward +z, or `cam_orbit(target, 0, pitch, dist)`): screen right is **-x**, and up the screen (away from the camera) is **+z**. So a stick or the arrow keys turn into world movement like this:
+  ```js
+  let [sx, sy] = stick(0)
+  let dx = -sx * speed, dz = -sy * speed   // note the minus on x: screen right is -x
+  ```
+- **Any camera yaw** (an orbit or chase camera at `yaw`): move along the camera's forward and right directions.
+  ```js
+  let [sx, sy] = stick(0)
+  let [fx, , fz] = dir3(yaw)          // forward, where the camera looks
+  let [rx, , rz] = dir3(yaw - 0.25)   // the camera's right
+  let dx = (fx * -sy + rx * sx) * speed, dz = (fz * -sy + rz * sx) * speed
+  ```
+- **Turning:** a bigger yaw turns **left**, so turning right is `yaw -= amount` (mouse-look: `yaw -= mx * 0.001`).
+- **Facing the way you move:** `vox(n, x, y, z, 0, yaw_to(dx, dz))` points a model's front along (dx, dz). `yaw_to` and `dir3` are opposites, so they always agree.
+
 ## The starter kit (the Starter cart)
 
 - **tiles:** 1 grass, 2 dirt, 3 stone, 4 brick, 5 wood, 6 sand, 7 water, 8 snow, 9 metal, 10 lava, 11 leaves, 12 log, 13 checker, 14 roof, 15 bounce pad, 16 gold
@@ -106,6 +125,7 @@ The full reference is https://paloblanco.github.io/blocko3d/docs/API.md (the sam
 - **Placing the player inside blocks:** a ball of radius 0.4 standing on a floor whose top is at y has its center at y + 0.4.
 - **Jumps that are too far:** with the example's physics (jump speed 0.2, gravity 0.01 a frame, run speed 0.09), a jump rises about 2 blocks and crosses about 3 blocks of gap on the level. Keep gaps at 1-2 blocks and steps at most 1 block up, or add a bounce pad.
 - **Tiles that don't exist**, or vox models past 8, or sounds past 12: only the starter kit is there.
+- **Left and right swapped:** with the camera looking along +z, screen right is -x, so movement needs `dx = -sx * speed` (see "Directions" above). If pressing right moves left, the minus is missing.
 - **A camera that turns with the player:** the example keeps the camera looking along +z, so the controls never change direction. Stick with that unless the game needs more.
 
 ## A complete example: the Starter cart's own game
