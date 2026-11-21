@@ -1,10 +1,16 @@
 # Publishes the site (the IDE and the exported demos) to GitHub Pages on every push to main.
 # standalone_demo/ isn't committed: it's built here by `npm run build`. Needs the repo's
 # Settings > Pages > Source set to "GitHub Actions".
+#
+# Feature branches: while the `multiplayer` branch exists, it's built too and published under
+# /multiplayer/ (the IDE at /blocko3d/multiplayer/), and a push to it redeploys the whole site.
+# It needs `multiplayer` added to Settings > Environments > github-pages > Deployment branches.
+# This file must be the same on main and on the branch. When the branch is done, delete it,
+# remove `multiplayer` from the list below and from that setting.
 name: Deploy site
 on:
   push:
-    branches: [main]
+    branches: [main, multiplayer]
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,15 +27,36 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+      - name: Is the multiplayer branch still there?
+        id: branch
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" multiplayer > /dev/null; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.branch.outputs.found == 'true'
+        with:
+          ref: multiplayer
+          path: branch
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
-      - run: npm run build
+      - name: Build main
+        working-directory: site
+        run: npm ci && npm run build
+      - name: Build the multiplayer branch into /multiplayer/
+        if: steps.branch.outputs.found == 'true'
+        run: |
+          cd branch && npm ci && npm run build && cd ..
+          rm -rf branch/node_modules branch/.git
+          mv branch site/multiplayer
       - name: Leave out what the site doesn't need
-        run: rm -rf node_modules
+        run: rm -rf site/node_modules site/.git
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: site
       - id: deployment
         uses: actions/deploy-pages@v4

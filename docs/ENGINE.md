@@ -16,7 +16,7 @@ Guiding principles. Keep them when adding features:
 
 **Current version: 0.1.0-alpha**, tagged `v0.1.0-alpha` (the first version for human testing). The version lives in `js/version.js` (shown at the top of the Info tab, in the IDE console, in the first line of exported game scripts and as `Blocko3D.VERSION`) and in `package.json`; `CHANGELOG.md` lists what each version has. To release: bump both, add a CHANGELOG entry, `npm run build`, commit, then tag `v<version>` and push the tag.
 
-The site is live on GitHub Pages (built and deployed from `main` by `.github/workflows/pages.yml`): the IDE at https://paloblanco.github.io/blocko3d/ and the exported demos at https://paloblanco.github.io/blocko3d/standalone_demo/ (a list page; the castle is at `/standalone_demo/castle/`).
+The site is live on GitHub Pages (built and deployed from `main` by `.github/workflows/pages.yml`; while the `multiplayer` feature branch exists, the same workflow also builds it into `/multiplayer/`, so its IDE is at https://paloblanco.github.io/blocko3d/multiplayer/, and a push to either branch redeploys both; the workflow file must match on both branches, and the branch is allowed under Settings > Environments > github-pages): the IDE at https://paloblanco.github.io/blocko3d/ and the exported demos at https://paloblanco.github.io/blocko3d/standalone_demo/ (a list page; the castle is at `/standalone_demo/castle/`).
 
 The design spec lives in a Claude Doc titled "BLOCKO3D Spec" (claude.ai artifact `JH2BMJck8VtrndcyhxTSB5`). This file (`docs/ENGINE.md`) and the code are the source of truth if they disagree.
 
