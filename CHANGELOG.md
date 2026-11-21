@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Crystal Defense** demo: keep the guards off a crystal in a round arena, alone or with up to 4 players on gamepads; guards speed up and come more often over time, 10 reaching the crystal ends it, and a touch freezes you for a second. The groundwork for online multiplayer (on the `multiplayer` branch).
 - **Touchpad clicks:** like a laptop's, a quick tap on the phone touchpad is a click of the left mouse button (`btn(19)`), and a tap followed straight away by a touch that stays down holds the button while you keep sliding to aim, so `if (btn(19)) shoot()` fires while aiming on a phone as with a mouse. **First Person** has a shooting test: 10 floating orbs to pop by clicking (hold to keep firing), tapping the pad, or X.
 - **`touch_set_mode(left, 2)`:** the right side of a phone's controls can be a **touchpad** (with the small O button): sliding a finger on it moves `mouse_delta()`, so mouse-look code works on phones. **First Person** now uses it: the left stick walks and strafes (arrows and WASD strafe on a keyboard too), and the touchpad or the mouse looks around.
 - **`touch_set_mode(left, right)`:** a second argument sets the right side of a phone's touch controls: 0 the O and X buttons (the default, as before), 1 an analog stick that feeds `stick(1)` (like a gamepad's right stick), with a small O button beside it. `touch_set_mode(1, 1)` gives a twin-stick shooter a stick on each side. While paused, the d-pad and both buttons come back for the menu.

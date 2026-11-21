@@ -83,5 +83,10 @@
     "file": "twinstick.b3d.json",
     "name": "Twin Stick",
     "about": "Survive the guards in an arena. Shows touch_set_mode(1, 1): on a phone, an analog stick on each side (stick(0) moves, stick(1) aims and fires) plus a small O button for the bomb. On a computer the mouse aims; a gamepad's right stick aims too."
+  },
+  {
+    "file": "crystal.b3d.json",
+    "name": "Crystal Defense",
+    "about": "Keep the guards off the crystal in the middle of a round arena, alone or with up to 3 friends on gamepads (press A to join). Guards come faster and more often as time goes on; 10 reaching the crystal ends the game, and a guard that touches you freezes you for a second. Built on Twin Stick, with the code split into players and the world, ready for online play."
   }
 ]
