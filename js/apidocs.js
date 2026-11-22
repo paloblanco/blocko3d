@@ -185,8 +185,20 @@ if (secs < data.best) save({ best: secs })`,
   },
   {
     title: 'Pause menu',
-    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start), Screenshot (saves the game screen as a PNG, without the menu), Capture GIF (saves the last 10 seconds of play as an animated GIF, 256 × 256 at 30 frames a second) and Resolution; in the IDE it also has Capture cover, which makes the current screen the cover art an exported game shows, with a play button, before it starts. Up/down choose; O, X or Enter select; Enter again resumes. In games that use the mouse, the menu can also be clicked or tapped. Next to the game are buttons for pause, mute (remembered on that device) and fullscreen; on touch screens a d-pad and O and X buttons appear too, beside the game in landscape and under it in portrait. Resolution (left/right) renders the 3D view at 1×, 2× or 3× (256, 512 or 768 pixels square) for smoother edges; text and rectangles stay at 256, and outlines keep the same thickness. The choice is remembered on that device, and screenshots use it.',
-    items: [],
+    intro: 'Enter (or P) pauses any game, PICO-8 style: the game freezes, sounds pause, and a menu offers Resume, Restart (runs the game again from the start), Screenshot (saves the game screen as a PNG, without the menu), Capture GIF (saves the last 10 seconds of play as an animated GIF, 256 × 256 at 30 frames a second) and Resolution; in the IDE it also has Capture cover, which makes the current screen the cover art an exported game shows, with a play button, before it starts. Games can add up to five items of their own with menuitem (below). Up/down choose; O, X or Enter select; Enter again resumes. In games that use the mouse, the menu can also be clicked or tapped. Next to the game are buttons for pause, mute (remembered on that device) and fullscreen; on touch screens a d-pad and O and X buttons appear too, beside the game in landscape and under it in portrait. Resolution (left/right) renders the 3D view at 1×, 2× or 3× (256, 512 or 768 pixels square) for smoother edges; text and rectangles stay at 256, and outlines keep the same thickness. The choice is remembered on that device, and screenshots use it.',
+    items: [
+      ['menuitem(i, label, fn)', 'Add the game\'s own item to the pause menu, in slot i (1-5); the game\'s items come right after Resume, in slot order. label is cut to 16 characters. When the player chooses it, fn(b) runs with the button that chose it: 4 for O, Enter, a click or a tap, 5 for X, 0 and 1 for left and right (so an item can step through settings). Afterwards the menu closes and the game resumes, unless fn returns true: then the menu stays open (for a toggle whose label changes). The game is still paused while fn runs. Restart clears the items, so set them in _init.'],
+      ['menuitem(i, label)', 'Change an item\'s label and keep its function: handy inside fn, as in the example.'],
+      ['menuitem(i)', 'Remove the item in slot i.'],
+    ],
+    code: `let musicOn = true
+menuitem(1, 'Music: on', (b) => {
+  musicOn = !musicOn
+  if (musicOn) music(0); else music(-1)
+  menuitem(1, musicOn ? 'Music: on' : 'Music: off')   // a new label, same function
+  return true                                          // keep the menu open
+})
+menuitem(2, 'Back to title', () => { state = 'title' })   // closes the menu`,
   },
   {
     title: 'Camera',

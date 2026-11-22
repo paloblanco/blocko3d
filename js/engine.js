@@ -768,6 +768,17 @@ export function createEngine({
     // right: 0 the O and X buttons (default), 1 an analog circle (feeds stick(1) only, no buttons),
     // 2 a touchpad (feeds mouse_delta(), for looking around); 1 and 2 have a small O button beside
     // them. Leaving right out means 0.
+    // menuitem(i, label, fn): the game's own pause menu item in slot i (1-5), after Resume. label is
+    // cut to 16 characters; menuitem(i) removes the item; leaving fn out keeps the item's function.
+    // fn(b) gets the button that chose it: 4 O (or Enter, a click, a tap), 5 X, 0 left, 1 right.
+    // The game resumes afterwards unless fn returns true (the menu stays, e.g. for a toggle).
+    menuitem(i, label, fn) {
+      const n = Number(i);
+      if (!Number.isInteger(n) || n < 1 || n > 5) throw new Error(`menuitem(${i}, ...): the slot is 1 to 5`);
+      if (label === undefined || label === null) { customItems[n] = null; return; }
+      const old = customItems[n];
+      customItems[n] = { label: String(label).slice(0, 16), fn: typeof fn === 'function' ? fn : old ? old.fn : null };
+    },
     touch_set_mode(n, r = 0) {
       touchMode = [0, 1, 2, 3].includes(n | 0) ? n | 0 : 0;
       touchRight = [0, 1, 2].includes(r | 0) ? r | 0 : 0;
@@ -1141,6 +1152,15 @@ export function createEngine({
   const MENU = ['Resume', 'Restart', 'Screenshot', 'Capture GIF'];
   if (onCover) MENU.push('Capture cover');
   if (canHires) MENU.push('Resolution');
+  // The game's own items (menuitem), slots 1-5, shown after Resume and before the built-in ones.
+  // Each is { label, fn } or empty; Restart clears them (the game's _init sets them again).
+  let customItems = [];
+  // the menu as it stands: built-in items are their label, the game's are { slot, label }
+  const menuList = () => {
+    const mine = [];
+    for (let i = 1; i <= 5; i++) if (customItems[i]) mine.push({ slot: i, label: customItems[i].label });
+    return [MENU[0], ...mine, ...MENU.slice(1)];
+  };
   let paused = false, menuSel = 0, note = '', noteUntil = 0, menuAge = 0;
   const menuCanvas = document.createElement('canvas');
   menuCanvas.width = menuCanvas.height = SCREEN;
@@ -1170,15 +1190,17 @@ export function createEngine({
     ctx.clearRect(0, 0, SCREEN, SCREEN);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
     ctx.fillRect(0, 0, SCREEN, SCREEN);
-    const w = 156, h = 26 + MENU.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
+    const list = menuList();
+    menuSel = Math.min(menuSel, list.length - 1);
+    const w = 156, h = 26 + list.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[0]); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
     ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
     drawText(ctx, 'Paused', x + ((w - textWidth('Paused')) >> 1), y + 4, hexColor(DEFAULT_PALETTE[6]));
-    menuRects = MENU.map((_, i) => [x + 4, y + 19 + i * 14, w - 8, 14]);
-    MENU.forEach((label, i) => {
+    menuRects = list.map((_, i) => [x + 4, y + 19 + i * 14, w - 8, 14]);
+    list.forEach((item, i) => {
       const on = i === menuSel;
-      const text = label === 'Resolution' ? `Resolution < ${scale}x >` : label;
+      const text = typeof item === 'object' ? item.label : item === 'Resolution' ? `Resolution < ${scale}x >` : item;
       drawText(ctx, (on ? '> ' : '  ') + text, x + 8, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
     });
     if (note && performance.now() < noteUntil) {
@@ -1331,20 +1353,35 @@ export function createEngine({
     const pressed = (i) => nowP.some((pl, p) => pl[i] && !prevP[p][i]);
     if (++menuAge < 15) return;
     if (menuHover >= 0) { menuSel = menuHover; menuHover = -1; }
+    const list = menuList();
     if (menuClick >= 0) {                     // a click or tap on an item chooses it
-      menuSel = menuClick; menuClick = -1;
-      return menuChoose(MENU[menuSel]);
+      menuSel = Math.min(menuClick, list.length - 1); menuClick = -1;
+      return menuChoose(list[menuSel], 4);
     }
-    if (pressed(2)) menuSel = (menuSel + MENU.length - 1) % MENU.length;
-    if (pressed(3)) menuSel = (menuSel + 1) % MENU.length;
-    if (MENU[menuSel] === 'Resolution' && (pressed(0) || pressed(1))) changeRes(pressed(1) ? 1 : -1);
-    if (pressed(4) || pressed(5) || pressed(6)) {
-      menuChoose(pressed(6) ? 'Resume' : MENU[menuSel]);
+    if (pressed(2)) menuSel = (menuSel + list.length - 1) % list.length;
+    if (pressed(3)) menuSel = (menuSel + 1) % list.length;
+    const item = list[menuSel];
+    if (pressed(0) || pressed(1)) {
+      if (item === 'Resolution') changeRes(pressed(1) ? 1 : -1);
+      else if (typeof item === 'object') menuChoose(item, pressed(1) ? 1 : 0);   // the game's item hears left / right
     }
+    if (pressed(6)) menuChoose('Resume');
+    else if (pressed(4) || pressed(5)) menuChoose(item, pressed(4) ? 4 : 5);
   }
 
-  function menuChoose(choice) {
-    if (choice === 'Resume') setPaused(false);
+  // One of the game's items: call its function with the button (0 left, 1 right, 4 O / click,
+  // 5 X). The menu closes and the game resumes, unless the function returns true.
+  function runItem(slot, b) {
+    const it = customItems[slot];
+    if (!it || !it.fn) return setPaused(false);
+    let stay = false;
+    if (!guard(() => { stay = it.fn(b) === true; })) return;   // an error stops the game, as anywhere
+    if (!stay) setPaused(false);
+  }
+
+  function menuChoose(choice, b = 4) {
+    if (typeof choice === 'object') runItem(choice.slot, b);
+    else if (choice === 'Resume') setPaused(false);
     else if (choice === 'Restart') { stop(); onRestart(); }
     else if (choice === 'Screenshot') screenshot();
     else if (choice === 'Capture GIF') saveGif();
@@ -1443,6 +1480,7 @@ export function createEngine({
     resetGif();
     frames = 0; acc = 0; freezeN = 0; freezeFn = null; seed = null; manual = false;
     touchMode = touchRight = 0; for (const t of touchSticks) t[0] = t[1] = 0; showTouchMode();
+    customItems = [];
     setMouseMode(0);
     dxAcc = dyAcc = wheelAcc = mdx = mdy = mwheel = 0;
     for (const a of [down, held, tapped]) a.fill(false);

@@ -103,6 +103,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 **Other:**
 
 - `save(value)` / `load()`: keep any JSON value between plays (a best time). `load()` gives `null` the first time.
+- `menuitem(i, label, fn)`: add an item to the pause menu (slot 1-5), after Resume. When it's chosen, your function runs with the button that chose it (4 O or a click, 5 X, 0 left, 1 right); return `true` to keep the menu open. `menuitem(i, label)` changes the label, `menuitem(i)` removes it. Set them in `_init`.
 - `time()`: seconds since the start.
 - `rnd(n)`: a random number from 0 up to n. `rnd([a, b, c])`: a random element.
 - `flr`, `abs`, `sqrt`, `min`, `max`, `mid(a, b, c)` (clamp), `sgn`.

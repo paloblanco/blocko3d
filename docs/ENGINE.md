@@ -129,7 +129,6 @@ Part 4 needs Playwright's Chromium (`npx playwright install chromium`, once). Wh
 - **Riding moving maps**: done in game code for now (Third Person: `wtom` before moving the platform, `mtow` after, about six lines). The owner said to add an API only if that looks clunky; it didn't.
 - Palette editing in the IDE. For now, change `palette[i]` from code.
 - Faces between two solid blocks are always culled, even if a tile has `palt` transparency (three see-through blocks in a row read as one open tube; `map(m, true)` doesn't change that). The owner hasn't asked for it yet; a fix would need the mesher to know which tiles have see-through pixels, which today is per-draw `palt` state, not tile data.
-- Games can't add their own pause menu items yet (PICO-8's `menuitem`).
 
 ## Working with the owner
 

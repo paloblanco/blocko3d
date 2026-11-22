@@ -178,7 +178,7 @@ function demoLevel() {
 
 const DEMO_CODE = `// BLOCKO3D demo
 // arrows or WASD move, X jumps, Z raises / lowers the drawbridge
-// Enter pauses (resume, restart, screenshot)
+// Enter pauses (resume, music on/off, restart, screenshot)
 // vox models: 0 hero, 1-2 hero steps, 3-4 guard steps, 5 gem
 // sounds: 0 jump, 1 gem, 2 hit, 3 bridge, 4 start, 5 win; 6-10 the song (Music tab, patterns 0-1)
 // map 0 = the level, map 1 = the drawbridge, hinged at its castle end
@@ -197,6 +197,14 @@ function _init() {
   let data = load()            // whatever this game saved last time, or null
   if (data) best = data.best
   music(0, 1500)               // the song fades in; browsers start sound on the first key press
+  // the game's own pause menu item: pause, then choose it to turn the song off and on
+  let musicOn = true
+  menuitem(1, 'Music: on', () => {
+    musicOn = !musicOn
+    if (musicOn) music(0); else music(-1)
+    menuitem(1, musicOn ? 'Music: on' : 'Music: off')   // a new label; the function stays
+    return true                                          // keep the menu open
+  })
   // the bridge's origin is the middle of its castle-side top edge;
   // put that hinge at the castle shore, level with the grass
   map_set_pos(1, [8.5, 3, 14])
