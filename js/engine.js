@@ -1084,8 +1084,52 @@ export function createEngine({
     lastViews = list.map((v) => ({ rect: v.rect, pos: v.pos, look: v.look, fov: v.fov, ortho: v.ortho }));
   }
 
+  // ---- off-screen culling in a bent world. three.js skips draws whose bounding sphere is off
+  // screen, but cam_set_curve moves things in the shader, after that check, so it's off while a
+  // curve is on (setCurve) and this does it instead, exactly: the bend moves every point along P by
+  // k * (a^2 + b^2), a and b its offsets from the target along A and B. Over a draw's box, a and b
+  // each lie in a range, so the push lies between a smallest and largest value; the box stretched
+  // along P over that range holds everything the draw can bend to. If that's off screen, so is the
+  // draw. Never wrong (no popping at the edges); it skips what stays behind or beside the view.
+  const _cullBox = new THREE.Box3(), _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
+  let lastCulled = 0;
+  function cullBent() {
+    const U = curveU, k = U.uCurve.value.x;
+    const T = [U.uCurve.value.y, U.uCurve.value.z, U.uCurve.value.w];
+    const A = U.uCurveA.value.toArray(), B = U.uCurveB.value.toArray(), P = U.uCurveP.value.toArray();
+    scene.updateMatrixWorld();
+    camera.updateMatrixWorld();
+    _frustum.setFromProjectionMatrix(_pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const lo = [0, 0, 0], hi = [0, 0, 0];
+    // smallest and largest square of (x - T) . D over the box
+    const sq = (D) => {
+      let c = 0, e = 0;
+      for (let i = 0; i < 3; i++) { c += ((lo[i] + hi[i]) / 2 - T[i]) * D[i]; e += ((hi[i] - lo[i]) / 2) * Math.abs(D[i]); }
+      const a0 = c - e, a1 = c + e;
+      return [a0 <= 0 && a1 >= 0 ? 0 : Math.min(a0 * a0, a1 * a1), Math.max(a0 * a0, a1 * a1)];
+    };
+    let culled = 0;
+    for (const kind of ['map', 'vox', 'cube', 'sphere']) {
+      const pool = pools[kind];
+      for (let n = 0; n < used[kind]; n++) {
+        const o = pool[n];
+        if (!o.visible) continue;
+        const g = o.geometry;
+        if (!g.boundingBox) g.computeBoundingBox();
+        _cullBox.copy(g.boundingBox).applyMatrix4(o.matrixWorld);
+        _cullBox.min.toArray(lo); _cullBox.max.toArray(hi);
+        const [a0, a1] = sq(A), [b0, b1] = sq(B);
+        const f0 = k > 0 ? k * (a0 + b0) : k * (a1 + b1), f1 = k > 0 ? k * (a1 + b1) : k * (a0 + b0);
+        for (let i = 0; i < 3; i++) { const d0 = P[i] * f0, d1 = P[i] * f1; lo[i] += Math.min(d0, d1); hi[i] += Math.max(d0, d1); }
+        _cullBox.min.fromArray(lo); _cullBox.max.fromArray(hi);
+        if (!_frustum.intersectsBox(_cullBox)) { o.visible = false; culled++; }
+      }
+    }
+    lastCulled = culled;
+  }
+
   // the view's curve into the shared uniforms; a bent world can bend into view from outside it, so
-  // nothing is skipped as off-screen while it's on
+  // three.js's own culling is off while it's on (cullBent does it instead)
   function setCurve(v) {
     const [k, along, push] = v.curve || [0, 'view', 'down'];
     // the camera's forward direction across the ground (straight down: +z)
@@ -1128,6 +1172,7 @@ export function createEngine({
     aimCamera(camera, v);
     outlinePass.uniforms.uOrtho.value = growPasses.paint.uOrtho.value = v.ortho > 0 ? 1 : 0;
     setCurve(v);
+    if (v.curve && v.curve[0]) cullBent(); else lastCulled = 0;
     setTorches();
     sky.visible = v.bg2 >= 0;
     if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
@@ -1595,7 +1640,7 @@ export function createEngine({
 
   return {
     api, start, stop, reset, step, key, maps, renderer, unlockAudio: () => audio.unlock(), setButton, setStick, touchDelta, setMuted,
-    set onTouchMode(fn) { onTouchMode = fn; showTouchMode(); }, get touchMode() { return paused ? 0 : touchMode; }, get touchRight() { return paused ? 0 : touchRight; },
+    set onTouchMode(fn) { onTouchMode = fn; showTouchMode(); }, get touchMode() { return paused ? 0 : touchMode; }, get culled() { return lastCulled; }, get touchRight() { return paused ? 0 : touchRight; },
     get muted() { return muted; }, get paused() { return paused; }, get scale() { return scale; }, setScale,
   };
 }

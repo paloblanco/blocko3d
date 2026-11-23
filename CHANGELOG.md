@@ -4,6 +4,7 @@ BLOCKO3D was called blocky3D until 2026-10-29; older entries use the old name.
 
 ## Unreleased
 
+- **Off-screen culling with `cam_set_curve`:** with a curve on, the engine used to draw everything, since bending can move things into view. It now works out exactly where each map piece, model, cube and sphere can bend to and skips the ones that stay off screen, for every kind of bend. On a 128 × 128 world with 300 models, a rolling-log or planet view went from 317 draws to about 130 and from 208,000 triangles to about 100,000. The picture is exactly the same.
 - **Changing blocks no longer stalls big maps:** maps are now meshed in 32 × 32 × 32 pieces, and `mset`, `msetw` and `map_box` only remake the pieces they touch. With one block changing every frame on a 128 × 16 × 128 map, a frame went from about 20 ms to about 2 ms here. Pieces out of view aren't drawn. Maps up to 32 blocks a side are one piece, as before, and everything looks exactly the same.
 - **No more stutter the first time a sound or song plays:** a cart's sounds and music patterns are now made ahead of time, a few milliseconds at a time while the browser is idle (from the cover screen on in exported games). The first `sfx()` of a sound took about 10 ms here, and a music pattern about 45 ms, several times more on a tablet; now it's under a millisecond. Sounds are exactly the same.
 - **Touch controls are lighter:** the d-pad, sticks and touchpad measure where they are once per touch instead of on every finger movement (which made the browser lay out the page again up to 120 times a second).
