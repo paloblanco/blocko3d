@@ -40,7 +40,7 @@ export function createEngine({
 }) {
   const renderer = setupRenderer(canvas, SCREEN, { preserve: keepFrame });
   // The player's speed settings, in the pause menu of every game and kept per device (like
-  // Resolution and mute): GIF+Screenshot (off by default: recording for Capture GIF costs a lot on
+  // Resolution and mute): GIF recording (off by default: recording for Capture GIF costs a lot on
   // slow devices), Outlines (on) and an FPS readout (off).
   const PERF_KEY = 'blocko3d.perf';
   const perf = { capture: false, outlines: true, fps: false };
@@ -1161,9 +1161,9 @@ export function createEngine({
   // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
   // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
   // first time that happened the menu stopped showing.
-  // the built-in items; Screenshot and Capture GIF only show while GIF+Screenshot is on
+  // the built-in items; Capture GIF only shows while GIF recording is on
   const builtIn = () => [
-    'Resume', 'Restart', ...(perf.capture ? ['Screenshot', 'Capture GIF'] : []),
+    'Resume', 'Restart', 'Screenshot', ...(perf.capture ? ['Capture GIF'] : []),
     ...(onCover ? ['Capture cover'] : []), ...(canHires ? ['Resolution'] : []),
     'Capture', 'Outlines', 'FPS',
   ];
@@ -1218,7 +1218,7 @@ export function createEngine({
       const on = i === menuSel;
       const onOff = (v) => (v ? 'on' : 'off');
       const text = typeof item === 'object' ? item.label : item === 'Resolution' ? `Resolution < ${scale}x >`
-        : item === 'FPS' ? `FPS: ${onOff(perf.fps)}` : item === 'Capture' ? `GIF+Screenshot: ${onOff(perf.capture)}`
+        : item === 'FPS' ? `FPS: ${onOff(perf.fps)}` : item === 'Capture' ? `GIF recording: ${onOff(perf.capture)}`
           : item === 'Outlines' ? `Outlines: ${onOff(perf.outlines)}` : item;
       drawText(ctx, (on ? '> ' : '  ') + text, x + 8, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
     });
@@ -1413,7 +1413,7 @@ export function createEngine({
     else if (choice === 'Outlines') { perf.outlines = !perf.outlines; redraw(); savePerf(); }
     else if (choice === 'Capture') {      // recording starts from now (the GIF is the 10 s after this)
       perf.capture = !perf.capture; resetGif(); savePerf();
-      menuSel = menuList().indexOf('Capture');   // Screenshot and Capture GIF come and go above it
+      menuSel = menuList().indexOf('Capture');   // Capture GIF comes and goes above it
     }
   }
 
