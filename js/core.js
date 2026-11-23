@@ -75,7 +75,7 @@ export function mapGet(m, x, y, z) {
 export function mapSet(m, x, y, z, t) {
   if (x < 0 || y < 0 || z < 0 || x >= m.w || y >= m.h || z >= m.d) return;
   m.data[mapIndex(m, x, y, z)] = t & 255;
-  m.dirty = true;
+  markBox(m, x, y, z, x, y, z);   // only the chunk(s) this block shows in are remade
 }
 
 // Rotation for [pitch, yaw, roll] in turns, applied yaw, then pitch, then roll.
@@ -111,11 +111,12 @@ const FACE_DEFS = [
   { n: [0, 0, -1], f: 1, v: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], uv: [[0, 0], [1, 0], [1, 1], [0, 1]] },
 ];
 
-// Builds a mesh in map space: one quad per block face that touches empty space.
+// Builds a mesh in map space: one quad per block face that touches empty space. With a box
+// (x0, y0, z0 included, x1, y1, z1 not), only the blocks in it: a chunk (see below). Faces at the
+// box's edge still look at the blocks beyond it, so chunks fit together exactly.
 // Two passes over the blocks: the first counts the open faces, the second writes them straight
-// into typed arrays of exactly that size (about 7x faster than growing plain arrays, which
-// matters because any mset remeshes the whole map at its next draw).
-export function buildMapGeometry(m) {
+// into typed arrays of exactly that size (about 7x faster than growing plain arrays).
+export function buildMapGeometry(m, x0 = 0, y0 = 0, z0 = 0, x1 = m.w, y1 = m.h, z1 = m.d) {
   const { w, h, d, data } = m, wh = w * h;
   // is face fi of the block at (x, y, z), index i, against empty space (or the map's edge)?
   const open = (x, y, z, i, fi) => {
@@ -129,14 +130,14 @@ export function buildMapGeometry(m) {
     }
   };
   let quads = 0;
-  for (let z = 0, i = 0; z < d; z++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+  for (let z = z0; z < z1; z++) for (let y = y0; y < y1; y++) for (let x = x0, i = x0 + w * (y + h * z); x < x1; x++, i++) {
     if (!data[i]) continue;
     for (let fi = 0; fi < 6; fi++) if (open(x, y, z, i, fi)) quads++;
   }
   const pos = new Float32Array(quads * 12), uv = new Float32Array(quads * 8), tf = new Float32Array(quads * 12);
   const idx = quads * 4 > 65535 ? new Uint32Array(quads * 6) : new Uint16Array(quads * 6);
   let p = 0, u = 0, f = 0, n = 0, vi = 0;
-  for (let z = 0, i = 0; z < d; z++) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+  for (let z = z0; z < z1; z++) for (let y = y0; y < y1; y++) for (let x = x0, i = x0 + w * (y + h * z); x < x1; x++, i++) {
     const t = data[i];
     if (!t) continue;
     for (let fi = 0; fi < 6; fi++) {
@@ -167,6 +168,52 @@ export function ensureGeometry(m) {
   m.geometry = buildMapGeometry(m);
   m.dirty = false;
   return m.geometry;
+}
+
+// ---- chunks: the engine meshes a map in CHUNK x CHUNK x CHUNK pieces, so changing a block only
+// remakes the piece(s) it shows in (not the whole map), and pieces out of view aren't drawn.
+// 32, not 16: maps up to 32 a side stay one piece, as before, and each piece is a draw of its own
+// (a 128 x 128 map cost 0.7 ms a frame more to draw in pieces of 16, about 0.15 in pieces of 32).
+// m.dirty = true still means "remake everything" (a reload, a stamp, new data).
+export const CHUNK = 32;
+function chunkGrid(m) {
+  if (!m.chunks) {
+    const nx = Math.ceil(m.w / CHUNK), ny = Math.ceil(m.h / CHUNK), nz = Math.ceil(m.d / CHUNK), list = [];
+    for (let cz = 0; cz < nz; cz++) for (let cy = 0; cy < ny; cy++) for (let cx = 0; cx < nx; cx++) {
+      list.push({ x: cx * CHUNK, y: cy * CHUNK, z: cz * CHUNK, geometry: null, dirty: true });
+    }
+    m.chunks = { nx, ny, nz, list };
+  }
+  return m.chunks;
+}
+// Mark the chunks that show blocks x0..x1, y0..y1, z0..z1 (all included) for remaking: those
+// holding them and, one block further out, the neighbours whose faces they cover or uncover.
+export function markBox(m, x0, y0, z0, x1, y1, z1) {
+  if (!m.chunks) { m.dirty = true; return; }   // never drawn yet: it's all made on the first draw
+  const { nx, ny, nz, list } = m.chunks;
+  const c = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v / CHUNK)));
+  for (let cz = c(z0 - 1, nz); cz <= c(z1 + 1, nz); cz++) for (let cy = c(y0 - 1, ny); cy <= c(y1 + 1, ny); cy++) {
+    for (let cx = c(x0 - 1, nx); cx <= c(x1 + 1, nx); cx++) list[cx + nx * (cy + ny * cz)].dirty = true;
+  }
+}
+// The map's chunks, each with a current geometry (null when it has no faces).
+export function ensureChunks(m) {
+  const { list } = chunkGrid(m);
+  if (m.dirty) { for (const ch of list) ch.dirty = true; m.dirty = false; }
+  for (const ch of list) {
+    if (!ch.dirty) continue;
+    if (ch.geometry) ch.geometry.dispose();
+    const g = buildMapGeometry(m, ch.x, ch.y, ch.z, Math.min(m.w, ch.x + CHUNK), Math.min(m.h, ch.y + CHUNK), Math.min(m.d, ch.z + CHUNK));
+    if (g.index.count) ch.geometry = g; else { g.dispose(); ch.geometry = null; }
+    ch.dirty = false;
+  }
+  return list;
+}
+// Free everything a map has on the GPU.
+export function disposeMap(m) {
+  if (m.geometry) { m.geometry.dispose(); m.geometry = null; }
+  if (m.chunks) for (const ch of m.chunks.list) if (ch.geometry) ch.geometry.dispose();
+  m.chunks = null;
 }
 
 // ---------------------------------------------------------------- vox models

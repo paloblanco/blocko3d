@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
   DEFAULT_PALETTE, NCOLORS, TURN, hexColor,
-  createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureGeometry,
+  createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureChunks, markBox, disposeMap,
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
@@ -223,7 +223,7 @@ export function createEngine({
   let sceneMaps = [];   // map numbers made by the last scene_load
   function freeSceneMaps() {
     for (const i of sceneMaps) {
-      if (maps[i] && maps[i].geometry) maps[i].geometry.dispose();
+      if (maps[i]) disposeMap(maps[i]);
       maps[i] = null;
     }
     sceneMaps = [];
@@ -569,7 +569,7 @@ export function createEngine({
       const ax = lo(x0, x1), bx = hi(x0, x1, map.w), ay = lo(y0, y1), by = hi(y0, y1, map.h), az = lo(z0, z1), bz = hi(z0, z1, map.d);
       const v = (t | 0) & 255;
       for (let z = az; z <= bz; z++) for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) map.data[x + map.w * (y + map.h * z)] = v;
-      map.dirty = true;
+      if (ax <= bx && ay <= by && az <= bz) markBox(map, ax, ay, az, bx, by, bz);   // only the chunks it touches
     },
     // scene_load(n): build scene n from the Scene editor. Returns { maps, named, things }:
     // maps = the numbers of fresh map copies, already placed (draw and collide with them),
@@ -611,15 +611,17 @@ export function createEngine({
     // pixels (palt) you see the inside of its far faces instead of straight through it
     map(m, backs = false) {
       const map = getMap(m);
-      ensureGeometry(map);
+      const chunks = ensureChunks(map);    // 16-block pieces; only edited ones are remade
       updateTransform(map);
       let id0 = 0;
-      for (const off of repeatOffsets()) {
+      for (const off of repeatOffsets()) for (const ch of chunks) {
+        if (!ch.geometry) continue;        // a piece with nothing to show
         const o = take('map');
-        // repeat copies of a map share the first one's draw id, so the outline pass treats them as one
-        // surface: no outline along the seams where copies meet
-        if (!id0) id0 = o.material.uniforms.uId.value; else o.material.uniforms.uId.value = id0;
-        o.geometry = map.geometry;
+        // the pieces of a map, and repeat copies of it, share one draw id, so the outline pass treats
+        // them as one surface: no outline along the seams where they meet
+        if (!id0) id0 = o.material.uniforms.uId.value;
+        else { o.material.uniforms.uId.value = id0; drawId--; }
+        o.geometry = ch.geometry;
         o.matrix.copy(map._m);
         if (off !== NO_REPEAT[0]) shiftMatrix(o.matrix, off);
         o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
@@ -1538,7 +1540,7 @@ export function createEngine({
   // (resolution, mute) stay as they are.
   function reset() {
     stop();
-    for (const m of maps) if (m && m.geometry) m.geometry.dispose();
+    for (const m of maps) if (m) disposeMap(m);
     maps.splice(0, maps.length, ...mapsFromCart(cart));
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];

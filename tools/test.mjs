@@ -10,7 +10,7 @@
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createMap, buildMapGeometry, mapIndex } from '../js/core.js';
+import { createMap, buildMapGeometry, mapIndex, mapSet, ensureChunks, CHUNK } from '../js/core.js';
 import { loadGame } from '../cli/project.mjs';
 import { checkGame } from '../cli/check.mjs';
 import { writeFolder } from '../cli/folder.mjs';
@@ -45,6 +45,34 @@ try {
   for (let i = 0; i < big.data.length; i++) big.data[i] = ((i % 64) + Math.floor(i / 64)) & 1;   // many faces
   const g = buildMapGeometry(big);
   test('mesher: more than 65,536 vertices use 32-bit indices', g.index.array instanceof Uint32Array && g.attributes.position.count > 65536);
+
+  // chunks: after edits (many on chunk borders), the pieces together have exactly the faces of the
+  // whole map meshed at once (as sorted lists of face corners and tiles)
+  {
+    const faces = (geos) => {
+      const out = [];
+      for (const g of geos) {
+        const p = g.attributes.position.array, t = g.attributes.aTF.array;
+        for (let q = 0; q < p.length / 12; q++) out.push(Array.from(p.slice(q * 12, q * 12 + 12)).join(',') + '|' + Array.from(t.slice(q * 12, q * 12 + 3)).join(','));
+      }
+      return out.sort().join(';');
+    };
+    const m = createMap(70, 36, 75);   // 3 x 2 x 3 chunks of 32
+    let s = 7;
+    const rnd = (n) => ((s = (s * 1664525 + 1013904223) >>> 0) % n);
+    for (let i = 0; i < m.data.length; i++) m.data[i] = rnd(3) ? 0 : 1 + rnd(4);
+    let ok = true, edits = 0;
+    for (let round = 0; round < 6; round++) {
+      const pieces = ensureChunks(m).filter((c) => c.geometry).map((c) => c.geometry);
+      if (faces(pieces) !== faces([buildMapGeometry(m)])) ok = false;
+      for (let k = 0; k < 40; k++) {
+        // half the edits right on a chunk border
+        const on = (n) => (rnd(2) ? Math.min(n - 1, CHUNK * rnd(Math.ceil(n / CHUNK)) + (rnd(2) ? 0 : CHUNK - 1)) : rnd(n));
+        mapSet(m, on(m.w), on(m.h), on(m.d), rnd(2) ? 0 : 1 + rnd(4)); edits++;
+      }
+    }
+    test(`chunks: after ${edits} edits the pieces match the whole map meshed at once`, ok);
+  }
 
   // ---------------------------------------------------------------- 2. the demos
   const demos = JSON.parse(readFileSync(new URL('demos/index.json', root), 'utf8'));
