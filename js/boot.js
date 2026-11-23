@@ -13,11 +13,11 @@ let reportError = null;
 // Without a canvas, it builds the standard page first: the screen, touch controls and system buttons.
 // Restart (pause menu) runs the cart again in the same page unless onRestart says otherwise, so
 // fullscreen and the touch controls stay as they are.
-export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart = restart, onSave, onCover, dev, onDev, wire = true } = {}) {
+export function install(cart, { canvas, overlay: ui, onError = showError, onLog = console.log, onRestart = restart, onSave, onCover, keepFrame, wire = true } = {}) {
   if (!canvas) ({ canvas, overlay: ui } = mountShell());
   overlay = ui;
   reportError = onError;
-  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave, onCover, dev, onDev });
+  engine = createEngine({ canvas, overlay: ui, cart, onError, onLog, onRestart, onSave, onCover, keepFrame });
   Object.defineProperties(window, Object.getOwnPropertyDescriptors(engine.api));
   window.addEventListener('keydown', (e) => engine.key(e, true));
   window.addEventListener('keyup', (e) => engine.key(e, false));

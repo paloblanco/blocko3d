@@ -32,15 +32,20 @@ export function createEngine({
   canvas, overlay, cart, onError = console.error, onLog = console.log,
   onRestart = () => location.reload(), onSave = () => {},   // boot passes a soft restart (see reset)
   onCover = null,   // the IDE passes this: the pause menu gets 'Capture cover' (never in exports)
-  // The IDE passes its performance settings { fps, nocapture, nooutline } (never in exports): the
-  // pause menu gets toggles for them, and onDev(settings, reload) reports a change (reload: the
-  // player must start again, for nocapture, which decides how the WebGL context is made).
-  dev = null, onDev = () => {},
+  // Tools that read the screen long after drawing it (b3d shot, render) ask for the last frame to
+  // be kept. Games never do: keeping it (preserveDrawingBuffer) slows tablet GPUs a lot, so the
+  // pause menu's Screenshot and Capture cover draw the frame again and read it straight away, and
+  // Capture GIF reads each frame right after it's drawn.
+  keepFrame = false,
 }) {
-  const noCapture = !!(dev && dev.nocapture);
-  // Keeping each frame (preserveDrawingBuffer) is only for reading the screen later (Screenshot,
-  // Capture GIF, Capture cover); "GIF+Screenshot: off" makes the context without it.
-  const renderer = setupRenderer(canvas, SCREEN, { preserve: !noCapture });
+  const renderer = setupRenderer(canvas, SCREEN, { preserve: keepFrame });
+  // The player's speed settings, in the pause menu of every game and kept per device (like
+  // Resolution and mute): GIF+Screenshot (off by default: recording for Capture GIF costs a lot on
+  // slow devices), Outlines (on) and an FPS readout (off).
+  const PERF_KEY = 'blocko3d.perf';
+  const perf = { capture: false, outlines: true, fps: false };
+  try { Object.assign(perf, JSON.parse(localStorage.getItem(PERF_KEY)) || {}); } catch { /* storage blocked or bad */ }
+  const savePerf = () => { try { localStorage.setItem(PERF_KEY, JSON.stringify(perf)); } catch { /* storage blocked */ } };
   // Resolution: the 3D view renders at SCREEN * scale (1x, 2x or 3x); text and rectangles stay on
   // the SCREEN-sized overlay. 2x and 3x need float render targets for the outline mask.
   const canHires = renderer.extensions.has('EXT_color_buffer_float');
@@ -157,7 +162,7 @@ export function createEngine({
     u.uPix.value = scale;
     u.uFill.value.set(fillN, fillC);
     u.uId.value = ++drawId;
-    if (outlineColor >= 0 && !(dev && dev.nooutline)) anyOutline = true;   // dev: outlines off
+    if (outlineColor >= 0 && perf.outlines) anyOutline = true;   // the player can turn outlines off
     o.userData.view = curView ? curView.i : 0;
     if (curView) curView.n++;
     return o;
@@ -1156,10 +1161,12 @@ export function createEngine({
   // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
   // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
   // first time that happened the menu stopped showing.
-  const MENU = noCapture ? ['Resume', 'Restart'] : ['Resume', 'Restart', 'Screenshot', 'Capture GIF'];
-  if (onCover) MENU.push('Capture cover');
-  if (canHires) MENU.push('Resolution');
-  if (dev) MENU.push('FPS', 'Capture', 'Outlines');   // the IDE's performance toggles
+  // the built-in items; Screenshot and Capture GIF only show while GIF+Screenshot is on
+  const builtIn = () => [
+    'Resume', 'Restart', ...(perf.capture ? ['Screenshot', 'Capture GIF'] : []),
+    ...(onCover ? ['Capture cover'] : []), ...(canHires ? ['Resolution'] : []),
+    'Capture', 'Outlines', 'FPS',
+  ];
   // The game's own items (menuitem), slots 1-5, shown after Resume and before the built-in ones.
   // Each is { label, fn } or empty; Restart clears them (the game's _init sets them again).
   let customItems = [];
@@ -1167,7 +1174,8 @@ export function createEngine({
   const menuList = () => {
     const mine = [];
     for (let i = 1; i <= 5; i++) if (customItems[i]) mine.push({ slot: i, label: customItems[i].label });
-    return [MENU[0], ...mine, ...MENU.slice(1)];
+    const b = builtIn();
+    return [b[0], ...mine, ...b.slice(1)];
   };
   let paused = false, menuSel = 0, note = '', noteUntil = 0, menuAge = 0;
   const menuCanvas = document.createElement('canvas');
@@ -1200,7 +1208,7 @@ export function createEngine({
     ctx.fillRect(0, 0, SCREEN, SCREEN);
     const list = menuList();
     menuSel = Math.min(menuSel, list.length - 1);
-    const w = dev ? 168 : 156, h = 26 + list.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
+    const w = 168, h = 26 + list.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[0]); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
     ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
@@ -1210,8 +1218,8 @@ export function createEngine({
       const on = i === menuSel;
       const onOff = (v) => (v ? 'on' : 'off');
       const text = typeof item === 'object' ? item.label : item === 'Resolution' ? `Resolution < ${scale}x >`
-        : item === 'FPS' ? `FPS: ${onOff(dev.fps)}` : item === 'Capture' ? `GIF+Screenshot: ${onOff(!dev.nocapture)}`
-          : item === 'Outlines' ? `Outlines: ${onOff(!dev.nooutline)}` : item;
+        : item === 'FPS' ? `FPS: ${onOff(perf.fps)}` : item === 'Capture' ? `GIF+Screenshot: ${onOff(perf.capture)}`
+          : item === 'Outlines' ? `Outlines: ${onOff(perf.outlines)}` : item;
       drawText(ctx, (on ? '> ' : '  ') + text, x + 8, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
     });
     if (note && performance.now() < noteUntil) {
@@ -1221,6 +1229,7 @@ export function createEngine({
 
   // The game screen without the menu, at the active resolution (256, 512 or 768 square), as a PNG.
   function screenshot() {
+    if (!keepFrame) redraw();   // the last frame isn't kept: draw it again and read it right away
     const S = SCREEN * scale;
     const out = document.createElement('canvas');
     out.width = out.height = S;
@@ -1283,7 +1292,7 @@ export function createEngine({
   }
 
   function recordFrame() {
-    if (noCapture || manual || gifBusy || frames - gifLast < GIF_EVERY) return;
+    if (!perf.capture || manual || gifBusy || frames - gifLast < GIF_EVERY) return;
     gifLast = frames;
     if (!gifCtx) {
       const c = document.createElement('canvas');
@@ -1348,7 +1357,7 @@ export function createEngine({
 
   // The game screen as the cart's cover art: 256 square, the 3D view plus the game's text, no menu.
   function captureCover() {
-    if (noCapture) redraw();   // the last frame isn't kept: draw it again and read it right away
+    if (!keepFrame) redraw();   // the last frame isn't kept: draw it again and read it right away
     const out = document.createElement('canvas');
     out.width = out.height = SCREEN;
     const o = out.getContext('2d');
@@ -1400,12 +1409,11 @@ export function createEngine({
     else if (choice === 'Capture GIF') saveGif();
     else if (choice === 'Capture cover') captureCover();
     else if (choice === 'Resolution') changeRes(1);
-    else if (choice === 'FPS') { dev.fps = !dev.fps; showFps(); onDev(dev, false); }
-    else if (choice === 'Outlines') { dev.nooutline = !dev.nooutline; redraw(); onDev(dev, false); }
-    else if (choice === 'Capture') {      // the WebGL context changes: the IDE runs the game again
-      dev.nocapture = !dev.nocapture;
-      note = 'Running again...'; noteUntil = performance.now() + 3000;
-      onDev(dev, true);
+    else if (choice === 'FPS') { perf.fps = !perf.fps; showFps(); savePerf(); }
+    else if (choice === 'Outlines') { perf.outlines = !perf.outlines; redraw(); savePerf(); }
+    else if (choice === 'Capture') {      // recording starts from now (the GIF is the 10 s after this)
+      perf.capture = !perf.capture; resetGif(); savePerf();
+      menuSel = menuList().indexOf('Capture');   // Screenshot and Capture GIF come and go above it
     }
   }
 
@@ -1423,7 +1431,7 @@ export function createEngine({
     endDraw();
   }
 
-  // ---- the IDE's FPS readout: plain HTML over the top middle of the game, so it never shows in
+  // ---- the FPS readout: plain HTML over the top middle of the game, so it never shows in
   // screenshots or GIFs. Frames drawn per second, and the JavaScript time per frame (updates,
   // draw calls and handing them to the GPU; the GPU's own time isn't included).
   const fpsEl = document.createElement('div');
@@ -1431,10 +1439,10 @@ export function createEngine({
     + 'color:#fff;background:rgba(0,0,0,0.6);pointer-events:none;display:none;z-index:5';
   menuCanvas.after(fpsEl);
   let fpsFrames = 0, fpsWork = 0, fpsSince = performance.now();
-  function showFps() { fpsEl.style.display = dev && dev.fps ? 'block' : 'none'; fpsFrames = fpsWork = 0; fpsSince = performance.now(); }
+  function showFps() { fpsEl.style.display = perf.fps ? 'block' : 'none'; fpsFrames = fpsWork = 0; fpsSince = performance.now(); }
   showFps();
   function countFrame(work) {
-    if (!dev || !dev.fps) return;
+    if (!perf.fps) return;
     fpsFrames++; fpsWork += work;
     const now = performance.now();
     if (now - fpsSince >= 500) {

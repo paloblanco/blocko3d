@@ -72,7 +72,7 @@ window.B3D = {
     this.input = opt.input.map((e) => ({ ...e, to: e.to === null ? Infinity : e.to, on: false }));
     const fail = (e) => { if (!this.error) this.error = { message: String((e && e.message) || e), stack: String((e && e.stack) || '') }; };
     try {
-      this.engine = Blocko3D.install(cart, { canvas: document.getElementById('gl'), overlay: document.getElementById('ui'), wire: false,
+      this.engine = Blocko3D.install(cart, { canvas: document.getElementById('gl'), overlay: document.getElementById('ui'), wire: false, keepFrame: true,
         onError: fail, onLog: (t) => this.logs.push({ f: this.frame, t: String(t) }), onSave: (j) => this.logs.push({ f: this.frame, save: j }) });
     } catch (e) { fail(e); return false; }
     if (opt.res > 1) this.engine.setScale(opt.res);

@@ -27,12 +27,6 @@ function reportError(err) {
   send({ type: 'error', message: String((err && err.message) || err), line: cartLine(err) });
 }
 
-function devSettings() {
-  let s = {};
-  try { s = JSON.parse(localStorage.getItem('blocko3d.dev')) || {}; } catch { s = {}; }
-  return { fps: !!s.fps, nocapture: !!s.nocapture, nooutline: !!s.nooutline };
-}
-
 function run(cart) {
   started = true;
   Blocko3D.install(cart, {
@@ -40,12 +34,6 @@ function run(cart) {
     onLog: (text) => send({ type: 'log', text }),
     onSave: (json) => send({ type: 'save', json }),
     onCover: (png) => send({ type: 'cover', png }),   // only the IDE gets 'Capture cover' in the pause menu
-    // the IDE's performance toggles (FPS, GIF+Screenshot, Outlines), kept on this device
-    dev: devSettings(),
-    onDev: (s, reload) => {
-      try { localStorage.setItem('blocko3d.dev', JSON.stringify(s)); } catch { /* storage blocked */ }
-      if (reload) location.reload();   // the IDE sends the cart again when the player says 'ready'
-    },
   });
   // The cart's code becomes a function returning its hooks, so Restart can run it again in place.
   let runCart;
