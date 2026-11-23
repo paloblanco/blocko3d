@@ -1499,16 +1499,22 @@ export function createEngine({
   fpsEl.style.cssText = 'position:absolute;left:50%;top:2px;transform:translateX(-50%);white-space:pre;padding:1px 4px;font:600 11px/1.3 ui-monospace,monospace;'
     + 'color:#fff;background:rgba(0,0,0,0.6);pointer-events:none;display:none;z-index:5';
   menuCanvas.after(fpsEl);
-  let fpsFrames = 0, fpsWork = 0, fpsSince = performance.now();
-  function showFps() { fpsEl.style.display = perf.fps ? 'block' : 'none'; fpsFrames = fpsWork = 0; fpsSince = performance.now(); }
+  // The time is split three ways, averaged per frame over half a second: update (the game's
+  // _update, every step that frame), draw (the game's _draw, with the engine calls it makes) and
+  // render (the engine turning the frame into GPU work and sending it). If they add up to much
+  // less than a frame (16.7 ms) while fps is low, the GPU is the limit.
+  let fpsFrames = 0, fpsUpd = 0, fpsDraw = 0, fpsRender = 0, fpsSince = performance.now();
+  let frameDraw = 0, frameRender = 0;   // drawFrame's two parts, for countFrame
+  function showFps() { fpsEl.style.display = perf.fps ? 'block' : 'none'; fpsFrames = fpsUpd = fpsDraw = fpsRender = 0; fpsSince = performance.now(); }
   showFps();
-  function countFrame(work) {
+  function countFrame(upd) {
     if (!perf.fps) return;
-    fpsFrames++; fpsWork += work;
+    fpsFrames++; fpsUpd += upd; fpsDraw += frameDraw; fpsRender += frameRender;
     const now = performance.now();
     if (now - fpsSince >= 500) {
-      fpsEl.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsSince))} fps  ${(fpsWork / fpsFrames).toFixed(1)} ms`;
-      fpsFrames = fpsWork = 0; fpsSince = now;
+      const ms = (v) => (v / fpsFrames).toFixed(1);
+      fpsEl.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsSince))} fps  update ${ms(fpsUpd)}  draw ${ms(fpsDraw)}  render ${ms(fpsRender)} ms`;
+      fpsFrames = fpsUpd = fpsDraw = fpsRender = 0; fpsSince = now;
     }
   }
 
@@ -1528,11 +1534,14 @@ export function createEngine({
   }
 
   function drawFrame() {
-    if (paused) { drawMenu(); return true; }
+    if (paused) { drawMenu(); frameDraw = frameRender = 0; return true; }
+    const t0 = performance.now();
     beginDraw();
     if (hooks._draw && !guard(hooks._draw)) return false;
+    const t1 = performance.now();
     endDraw();
     recordFrame();
+    frameDraw = t1 - t0; frameRender = performance.now() - t1;
     return true;
   }
 
@@ -1546,8 +1555,9 @@ export function createEngine({
       acc -= STEP; steps++;
       if (!stepOnce() || !running) return;
     }
+    const upd = performance.now() - t0;
     if (steps > 0 && !drawFrame()) return;
-    if (steps > 0) countFrame(performance.now() - t0);
+    if (steps > 0) countFrame(upd);
     raf = requestAnimationFrame(tick);
   }
 
