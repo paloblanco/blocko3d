@@ -69,14 +69,22 @@ function wave(w, ph, ph2) {
 }
 
 // Renders notes [from, to) of a sound to Float32 samples at RATE.
-export function renderSfx(s, from = 0, to = NOTES) {
+export function renderSfx(s, from = 0, to = NOTES) { return finish(sfxGen(s, from, to)); }
+function* sfxGen(s, from, to) {
   const seq = [];
   for (let i = from; i < to; i++) seq.push(i);
-  return renderNotes(s, seq);
+  return yield* notesGen(s, seq);
 }
 
 // Renders a sequence of note indices (-1 = a silent note) to Float32 samples at RATE.
-export function renderNotes(s, seq) {
+export function renderNotes(s, seq) { return finish(notesGen(s, seq)); }
+
+// The renderers are generators that pause after each note, so sounds can be made ahead of time
+// a little at a time (warmSounds, below) without holding up a frame; finish() runs one to the end.
+function finish(gen) {
+  for (;;) { const r = gen.next(); if (r.done) return r.value; }
+}
+function* notesGen(s, seq) {
   const per = Math.max(1, Math.round(noteSeconds(s) * RATE));
   const out = new Float32Array(per * seq.length);
   let ph = 0, ph2 = 0, amp = 0, noise = 0, noisePh = 0;
@@ -117,7 +125,9 @@ export function renderNotes(s, seq) {
       }
       amp += (vol - amp) * 0.02;              // smooth volume changes to avoid clicks
       out[k * per + j] = v * amp * 0.35;
+      if ((j & 2047) === 2047) yield;          // a pause point every 2048 samples (slow notes are long)
     }
+    yield;
   }
   return out;
 }
@@ -182,17 +192,76 @@ function noteSequence(s, count) {
 }
 
 // Mixes a pattern's channels into one buffer of exactly its length.
-export function renderPattern(p, sounds) {
+export function renderPattern(p, sounds) { return finish(patternGen(p, sounds)); }
+function* patternGen(p, sounds) {
   const secs = patternSeconds(p, sounds);
   const len = Math.round(secs * RATE);
   const out = new Float32Array(Math.max(1, len));
   for (const c of p.ch) {
     const s = c < MAX_SFX ? sounds[c] : null;
     if (!s) continue;
-    const data = renderNotes(s, noteSequence(s, Math.ceil(secs / noteSeconds(s))));
+    const data = yield* notesGen(s, noteSequence(s, Math.ceil(secs / noteSeconds(s))));
     for (let i = 0; i < len && i < data.length; i++) out[i] += data[i] * 0.8;
   }
   return out;
+}
+
+// ---------------------------------------------------------------- samples, made ahead of time
+// Synthesizing a sound takes a few milliseconds and a music pattern tens of milliseconds (several
+// times more on a tablet), which used to stall the frame where it first played. The samples are
+// kept here, for the whole page, and warmSounds() makes a cart's sounds and patterns in advance,
+// one note at a time while the browser is idle (from the cover screen on). Anything needed before
+// it's ready is finished on the spot, from wherever the warm-up got to.
+const samples = new Map();      // key -> Float32Array
+const pending = new Map();      // key -> generator, part way through
+const sfxKey = (str, from, to) => str + '|' + from + '|' + to;
+const patternKey = (p, sounds) => 'p' + encodePattern(p) + p.ch.map((c) => (sounds[c] ? encodeSfx(sounds[c]) : '')).join('|');
+function keep(key, data) {
+  samples.set(key, data);
+  if (samples.size > 256) samples.delete(samples.keys().next().value);
+  return data;
+}
+function samplesFor(key, make) {
+  let d = samples.get(key);
+  if (d) return d;
+  const g = pending.get(key);
+  pending.delete(key);
+  d = finish(g || make());
+  return keep(key, d);
+}
+
+const queue = [];               // [key, make] still to warm
+let pumping = false;
+const idle = (fn) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 500 }) : setTimeout(() => fn(null), 20));
+function pump(deadline) {
+  const until = performance.now() + (deadline && deadline.timeRemaining ? Math.min(deadline.timeRemaining(), 4) : 4);
+  while (queue.length && performance.now() < until) {
+    const [key, make] = queue[0];
+    if (samples.has(key)) { queue.shift(); pending.delete(key); continue; }
+    let g = pending.get(key);
+    if (!g) { g = make(); pending.set(key, g); }
+    const r = g.next();                    // one note, or 2048 samples of a long one
+    if (r.done) { queue.shift(); pending.delete(key); keep(key, r.value); }
+  }
+  if (queue.length) idle(pump); else pumping = false;
+}
+
+// Make a cart's sounds (as sfx(n) plays them) and music patterns ahead of time. sfx and music are
+// the cart's lists of strings. Safe to call more than once: what's made or queued is skipped.
+export function warmSounds(sfx = [], music = []) {
+  const sounds = sfx.map((s) => (s ? decodeSfx(s) : null));
+  const add = (key, make) => { if (!samples.has(key) && !queue.some((q) => q[0] === key)) queue.push([key, make]); };
+  sfx.forEach((str, i) => {
+    const s = sounds[i];
+    if (!s) return;
+    const [from, to] = playRange(s);
+    if (to > from) add(sfxKey(str, from, to), () => sfxGen(s, from, to));
+  });
+  for (const str of music) {
+    const p = str ? decodePattern(str) : null;
+    if (p && !patternEmpty(p) && patternSeconds(p, sounds)) add(patternKey(p, sounds), () => patternGen(p, sounds));
+  }
+  if (queue.length && !pumping) { pumping = true; idle(pump); }
 }
 
 // After pattern i: the next pattern to play, or -1 to stop.
@@ -257,7 +326,7 @@ export class SfxPlayer {
     const key = str + '|' + from + '|' + to;
     let b = this.cache.get(key);
     if (!b) {
-      const data = renderSfx(s, from, to);
+      const data = samplesFor(sfxKey(str, from, to), () => sfxGen(s, from, to));
       b = this.ctx.createBuffer(1, Math.max(1, data.length), RATE);
       b.copyToChannel(data, 0);
       this.cache.set(key, b);
@@ -363,10 +432,10 @@ export class SfxPlayer {
         const p = pats[m.cur];
         const secs = patternEmpty(p) ? 0 : patternSeconds(p, sounds);
         if (!secs) { m.cur = -1; break; }
-        const key = 'p' + encodePattern(p) + p.ch.map((c) => (sounds[c] ? encodeSfx(sounds[c]) : '')).join('|');
+        const key = patternKey(p, sounds);
         let buf = this.cache.get(key);
         if (!buf) {
-          const data = renderPattern(p, sounds);
+          const data = samplesFor(key, () => patternGen(p, sounds));
           buf = this.ctx.createBuffer(1, data.length, RATE);
           buf.copyToChannel(data, 0);
           this.cache.set(key, buf);

@@ -1,6 +1,7 @@
 // Boot helpers shared by the IDE's player (player.html) and exported games.
 // Bundled with the engine and three.js into runtime/blocko3d.runtime.js as window.Blocko3D.
 import { createEngine } from './engine.js';
+import { warmSounds } from './audio.js';
 import { drawText, textWidth, drawTitle } from './font.js';
 import { mountShell, wireShell } from './shell.js';
 
@@ -32,6 +33,7 @@ export function install(cart, { canvas, overlay: ui, onError = showError, onLog 
 // The shell's buttons are wired to a stand-in until then: mute already works, anything else starts.
 export function play(cart, cartFn) {
   const els = mountShell();
+  warmSounds(cart.sfx || [], cart.music || []);   // the cover screen's idle time makes the sounds
   const ctx = els.overlay.getContext('2d');
   let real = null, begun = false;
   const stand = {

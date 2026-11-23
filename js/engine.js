@@ -9,7 +9,7 @@ import {
   voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
-import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS } from './audio.js';
+import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS, warmSounds } from './audio.js';
 import { GifWriter } from './gif.js';
 
 export const SCREEN = 256;          // square render target, scaled up with crisp pixels
@@ -93,6 +93,9 @@ export function createEngine({
   const decodedSounds = sounds.map((str) => (str ? decodeSfx(str) : null));
   const patterns = Array.from({ length: MAX_PATTERNS }, (_, i) => decodePattern(cart.music && cart.music[i]));
   const audio = new SfxPlayer();
+  // make the cart's sounds and music ahead of time, in idle moments (not for the headless tools,
+  // which never play sound), so the first sfx() or music() doesn't stall a frame
+  if (!keepFrame) warmSounds(cart.sfx || [], cart.music || []);
   // the storage keys (save, res, mute) keep the pre-BLOCKO3D name, so saves made before still load
   const saveKey = 'blocky3d.save.' + slug(cart.name);
   const voxels = voxFromCart(cart);

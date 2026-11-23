@@ -170,13 +170,24 @@ export function wireShell(engine, doc = document) {
   // D-pad: one touch area, so a thumb can roll between directions and onto diagonals. The game can
   // swap it for an analog circle, left/right only, or up/down only (touch_set_mode); the page shows
   // what the engine reports through onTouchMode, which is always the d-pad while paused.
+  // Where each control is on the page, measured once per touch and kept while the finger moves:
+  // asking on every move (just after moving the knob) made the browser lay out the page again,
+  // 60-120 times a second while a thumb was down. Measured again for each new touch, and after
+  // the window is resized or rotated, fullscreen changes or the game switches touch modes.
+  const rects = new Map();
+  const rectOf = (el) => { let r = rects.get(el); if (!r) { r = el.getBoundingClientRect(); rects.set(el, r); } return r; };
+  const forget = () => rects.clear();
+  shell.addEventListener('pointerdown', forget, true);
+  for (const ev of ['resize', 'orientationchange']) win.addEventListener(ev, forget);
+  doc.addEventListener('fullscreenchange', forget);
+  doc.addEventListener('webkitfullscreenchange', forget);
   const dpad = $('.b3d-dpad');
   const arms = ['.l', '.r', '.u', '.d'].map((s) => dpad.querySelector(s));   // buttons 0-3
   const touches = new Map();
   let mode = 0;
   const dpadUpdate = () => {
     const on = [false, false, false, false];
-    const r = dpad.getBoundingClientRect();
+    const r = rectOf(dpad);
     let sx = 0, sy = 0;
     for (const [x, y] of touches.values()) {
       const dx = (x - r.left) / r.width * 2 - 1, dy = (y - r.top) / r.height * 2 - 1;
@@ -207,7 +218,7 @@ export function wireShell(engine, doc = document) {
   const rtouches = new Map();
   let right = 0;
   const rstickUpdate = () => {
-    const r = rstick.getBoundingClientRect();
+    const r = rectOf(rstick);
     let sx = 0, sy = 0;
     for (const [x, y] of rtouches.values()) {
       const dx = (x - r.left) / r.width * 2 - 1, dy = (y - r.top) / r.height * 2 - 1;
@@ -258,7 +269,7 @@ export function wireShell(engine, doc = document) {
   });
   pad.addEventListener('pointermove', (e) => {
     if (e.pointerId !== padId) return;
-    const k = 256 / Math.max(1, pad.getBoundingClientRect().width);
+    const k = 256 / Math.max(1, rectOf(pad).width);
     if (engine.touchDelta) engine.touchDelta((e.clientX - padX) * k, (e.clientY - padY) * k);
     padMoved += Math.hypot(e.clientX - padX, e.clientY - padY);
     padX = e.clientX; padY = e.clientY;
@@ -277,6 +288,7 @@ export function wireShell(engine, doc = document) {
   }
 
   const setMode = (m, rm = 0) => {
+    forget();                       // the layout may change with the mode
     if (rm !== right) {
       right = rm;
       ab.dataset.mode = String(rm);
