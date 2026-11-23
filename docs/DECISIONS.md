@@ -130,7 +130,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 **Resolution** (agreed with the owner): the pause menu's Resolution item (left/right or select) sets the 3D view to **1×, 2× or 3×** (256/512/768 square). Only these three, by the owner's choice. The 2D overlay (`print`, `rect`) always stays 256. The choice is stored per device in `localStorage['blocky3d.res']`, and screenshots save at the active size. Changing it while paused re-runs `_draw` once to repaint the frozen frame.
 - 1× uses the original single outline pass. 2× and 3× keep outlines one 256-pixel thick (k real pixels) with option 1 from the design talk: the edge pass writes a 1-pixel **edge mask** to a float target (`uMode = 1`: outline color + 1, outlined surface's distance, its draw id, edge kind); two **grow passes** widen it by k − 1 (across, then down; nearest surface wins; creases grow only toward +x/+y so they stay k wide); a **paint pass** colors a pixel only where the kind allows. Kind 1 (over something else) goes onto background or another draw farther away; kind 2 (depth jump in one draw) onto the same draw well behind; kind 3 (crease) onto the same draw. So outlines spread over what's behind an object, never into it.
 - 2×/3× need `EXT_color_buffer_float` (float render targets); without it the Resolution item is hidden and the game stays at 1×.
-- Spheres use 24×16 segments so they look round at 3×. `line3` stays 1 real pixel wide.
+- Spheres: `sphere(x, y, z, r, c, n)` (2026-11-23, the owner asked for n, used for particles and flashes, and left the default to Claude): n segments around (3-64, rounded), n / 2 from pole to pole, **default 12** (about 130 triangles; they were always 24×16, 768). One shared geometry per n, made on first use. Tilt Maze's marble passes 24 to stay smooth. `line3` stays 1 real pixel wide.
 - Performance: under SwiftShader (CPU rendering) frame time grows with pixel count (about 23/116/247 ms for 1×/2×/3× in the demo); on a real GPU 768² is small.
 
 **Sound** (asked for by the owner): PICO-8-style SFX in `js/audio.js`, shared by the engine and the IDE.
@@ -209,7 +209,7 @@ The IDE iframe has `allow="autoplay; gamepad; fullscreen"`. Browsers only expose
 
 **Choices Claude made that the owner hasn't specifically reviewed.** Treat them as changeable:
 
-- The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(...)`.
+- The primitive names and signatures: `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c, n)` (n added by the owner), `line3(...)`.
 - The extras: `printh`, the keyboard mapping (arrows/WASD, Z C N space for O, X V M for X), `time`/`t`, and math helpers with turn-based `sin`/`cos`. `sin` is **not** inverted like PICO-8's.
 - `_update` runs at a fixed 60 per second. The loop is `stepOnce()` (input, pause menu or `_update`) and `drawFrame()`; `engine.step(n, draw = true)` (internal, for tools, not in the game API) stops the clock and runs exactly n steps, each drawn, as on a 60 Hz screen (`draw` false draws only the last); `step(0)` before `start` keeps the browser's clock from running any update first (the headless runner does this). `reset()` hands the loop back to the clock.
 - `srand(n)` (agreed with the owner, for headless runs and seeded levels): `rnd` then uses mulberry32 seeded with `round(n * 65536)` (so fractional seeds differ, like PICO-8's 16.16); `srand()` and `reset()` go back to `Math.random`.

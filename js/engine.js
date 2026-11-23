@@ -125,7 +125,15 @@ export function createEngine({
 
   // ---- per-frame object pools (immediate mode: everything is re-submitted each _draw)
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
-  const sphereGeo = new THREE.SphereGeometry(1, 24, 16);   // round enough to look smooth at 3x
+  // Spheres: n segments around and n / 2 from pole to pole, one shared geometry per n (made on
+  // first use). The default 12 is low-poly (about 130 triangles), fine for particles and flashes;
+  // a big, close sphere looks smooth from about 24.
+  const SPHERE_N = 12, sphereGeos = new Map();
+  const sphereGeo = (n) => {
+    let g = sphereGeos.get(n);
+    if (!g) { g = new THREE.SphereGeometry(1, n, Math.max(2, Math.round(n / 2))); sphereGeos.set(n, g); }
+    return g;
+  };
   const pools = { map: [], vox: [], cube: [], sphere: [], line: [] };
   const used = { map: 0, vox: 0, cube: 0, sphere: 0, line: 0 };
 
@@ -145,7 +153,7 @@ export function createEngine({
         o = new THREE.LineSegments(g, createSolidMaterial(palU));
         o.frustumCulled = false;
       } else {
-        o = new THREE.Mesh(kind === 'cube' ? cubeGeo : sphereGeo, createSolidMaterial(palU));
+        o = new THREE.Mesh(kind === 'cube' ? cubeGeo : sphereGeo(SPHERE_N), createSolidMaterial(palU));
       }
       Object.assign(o.material.uniforms, curveU, torchU);   // the shared curve and torches, not copies per draw
       pool.push(o);
@@ -670,9 +678,12 @@ export function createEngine({
         o.material.uniforms.uColor.value = c & 31;
       }
     },
-    sphere(x, y, z, r = 0.5, c = 7) {
+    // sphere(x, y, z, r, c, n): n segments around (3-64, default 12), n / 2 from pole to pole
+    sphere(x, y, z, r = 0.5, c = 7, n = SPHERE_N) {
+      const g = sphereGeo(Math.max(3, Math.min(64, Math.round(+n) || SPHERE_N)));
       for (const [dx, dy, dz] of repeatOffsets()) {
         const o = take('sphere');
+        o.geometry = g;
         o.position.set(x + dx, y + dy, z + dz); o.scale.setScalar(r);
         o.material.uniforms.uColor.value = c & 31;
       }

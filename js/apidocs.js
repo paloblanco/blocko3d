@@ -75,7 +75,7 @@ vox(f, px, py, pz, 0, yaw_to(dx, dz))`,
     intro: 'Simple shapes, colored with a palette index.',
     items: [
       ['cube(x, y, z, size?, c?)', 'Axis-aligned cube centered on (x, y, z). size defaults to 1, c to 7.'],
-      ['sphere(x, y, z, r?, c?)', 'Low-poly sphere. r defaults to 0.5.'],
+      ['sphere(x, y, z, r?, c?, n?)', 'A low-poly sphere. r defaults to 0.5. n is how many faces go around it (3-64, default 12), with half as many from top to bottom: low is cheap and fine for particles and flashes (6 is chunky, 4 a diamond); 24 or more looks smooth up close.'],
       ['line3(x1, y1, z1, x2, y2, z2, c?)', 'A 1-pixel line in 3D.'],
     ],
   },

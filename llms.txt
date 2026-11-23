@@ -74,7 +74,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 **Models and shapes:**
 
 - `vox(n, x, y, z, pitch, yaw, roll, scale)`: draw vox model n. Everything after z is optional. To face a model the way it moves: `vox(0, x, y, z, 0, yaw_to(dx, dz))`.
-- `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c)`, `line3(x1, y1, z1, x2, y2, z2, c)`: simple shapes in color c.
+- `cube(x, y, z, size, c)`, `sphere(x, y, z, r, c, n)`, `line3(x1, y1, z1, x2, y2, z2, c)`: simple shapes in color c. A sphere's n is the faces around it (default 12; lower is cheaper, 24 looks smooth).
 
 **Camera and drawing:**
 
