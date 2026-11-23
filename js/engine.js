@@ -32,8 +32,15 @@ export function createEngine({
   canvas, overlay, cart, onError = console.error, onLog = console.log,
   onRestart = () => location.reload(), onSave = () => {},   // boot passes a soft restart (see reset)
   onCover = null,   // the IDE passes this: the pause menu gets 'Capture cover' (never in exports)
+  // The IDE passes its performance settings { fps, nocapture, nooutline } (never in exports): the
+  // pause menu gets toggles for them, and onDev(settings, reload) reports a change (reload: the
+  // player must start again, for nocapture, which decides how the WebGL context is made).
+  dev = null, onDev = () => {},
 }) {
-  const renderer = setupRenderer(canvas, SCREEN);
+  const noCapture = !!(dev && dev.nocapture);
+  // Keeping each frame (preserveDrawingBuffer) is only for reading the screen later (Screenshot,
+  // Capture GIF, Capture cover); "GIF+Screenshot: off" makes the context without it.
+  const renderer = setupRenderer(canvas, SCREEN, { preserve: !noCapture });
   // Resolution: the 3D view renders at SCREEN * scale (1x, 2x or 3x); text and rectangles stay on
   // the SCREEN-sized overlay. 2x and 3x need float render targets for the outline mask.
   const canHires = renderer.extensions.has('EXT_color_buffer_float');
@@ -150,7 +157,7 @@ export function createEngine({
     u.uPix.value = scale;
     u.uFill.value.set(fillN, fillC);
     u.uId.value = ++drawId;
-    if (outlineColor >= 0) anyOutline = true;
+    if (outlineColor >= 0 && !(dev && dev.nooutline)) anyOutline = true;   // dev: outlines off
     o.userData.view = curView ? curView.i : 0;
     if (curView) curView.n++;
     return o;
@@ -1149,9 +1156,10 @@ export function createEngine({
   // never reads pixels back from the overlay: the game's text simply stays as it was (_draw doesn't
   // run while paused). Reading a canvas back can make phone browsers move it off the GPU, and the
   // first time that happened the menu stopped showing.
-  const MENU = ['Resume', 'Restart', 'Screenshot', 'Capture GIF'];
+  const MENU = noCapture ? ['Resume', 'Restart'] : ['Resume', 'Restart', 'Screenshot', 'Capture GIF'];
   if (onCover) MENU.push('Capture cover');
   if (canHires) MENU.push('Resolution');
+  if (dev) MENU.push('FPS', 'Capture', 'Outlines');   // the IDE's performance toggles
   // The game's own items (menuitem), slots 1-5, shown after Resume and before the built-in ones.
   // Each is { label, fn } or empty; Restart clears them (the game's _init sets them again).
   let customItems = [];
@@ -1192,7 +1200,7 @@ export function createEngine({
     ctx.fillRect(0, 0, SCREEN, SCREEN);
     const list = menuList();
     menuSel = Math.min(menuSel, list.length - 1);
-    const w = 156, h = 26 + list.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
+    const w = dev ? 168 : 156, h = 26 + list.length * 14, x = (SCREEN - w) >> 1, y = (SCREEN - h) >> 1;
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[0]); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = hexColor(DEFAULT_PALETTE[7]);
     ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
@@ -1200,7 +1208,10 @@ export function createEngine({
     menuRects = list.map((_, i) => [x + 4, y + 19 + i * 14, w - 8, 14]);
     list.forEach((item, i) => {
       const on = i === menuSel;
-      const text = typeof item === 'object' ? item.label : item === 'Resolution' ? `Resolution < ${scale}x >` : item;
+      const onOff = (v) => (v ? 'on' : 'off');
+      const text = typeof item === 'object' ? item.label : item === 'Resolution' ? `Resolution < ${scale}x >`
+        : item === 'FPS' ? `FPS: ${onOff(dev.fps)}` : item === 'Capture' ? `GIF+Screenshot: ${onOff(!dev.nocapture)}`
+          : item === 'Outlines' ? `Outlines: ${onOff(!dev.nooutline)}` : item;
       drawText(ctx, (on ? '> ' : '  ') + text, x + 8, y + 20 + i * 14, hexColor(DEFAULT_PALETTE[on ? 10 : 7]));
     });
     if (note && performance.now() < noteUntil) {
@@ -1272,7 +1283,7 @@ export function createEngine({
   }
 
   function recordFrame() {
-    if (manual || gifBusy || frames - gifLast < GIF_EVERY) return;
+    if (noCapture || manual || gifBusy || frames - gifLast < GIF_EVERY) return;
     gifLast = frames;
     if (!gifCtx) {
       const c = document.createElement('canvas');
@@ -1337,6 +1348,7 @@ export function createEngine({
 
   // The game screen as the cart's cover art: 256 square, the 3D view plus the game's text, no menu.
   function captureCover() {
+    if (noCapture) redraw();   // the last frame isn't kept: draw it again and read it right away
     const out = document.createElement('canvas');
     out.width = out.height = SCREEN;
     const o = out.getContext('2d');
@@ -1363,6 +1375,7 @@ export function createEngine({
     const item = list[menuSel];
     if (pressed(0) || pressed(1)) {
       if (item === 'Resolution') changeRes(pressed(1) ? 1 : -1);
+      else if (item === 'FPS' || item === 'Capture' || item === 'Outlines') menuChoose(item);
       else if (typeof item === 'object') menuChoose(item, pressed(1) ? 1 : 0);   // the game's item hears left / right
     }
     if (pressed(6)) menuChoose('Resume');
@@ -1387,15 +1400,47 @@ export function createEngine({
     else if (choice === 'Capture GIF') saveGif();
     else if (choice === 'Capture cover') captureCover();
     else if (choice === 'Resolution') changeRes(1);
+    else if (choice === 'FPS') { dev.fps = !dev.fps; showFps(); onDev(dev, false); }
+    else if (choice === 'Outlines') { dev.nooutline = !dev.nooutline; redraw(); onDev(dev, false); }
+    else if (choice === 'Capture') {      // the WebGL context changes: the IDE runs the game again
+      dev.nocapture = !dev.nocapture;
+      note = 'Running again...'; noteUntil = performance.now() + 3000;
+      onDev(dev, true);
+    }
   }
 
   // Cycle 1x -> 2x -> 3x, and redraw the paused frame at the new resolution.
   function changeRes(step) {
     setScale(((scale - 1 + step + 3) % 3) + 1);
+    redraw();
+  }
+
+  // Draw the paused frame again (the game's state hasn't changed, so it's the same picture).
+  function redraw() {
     ctx.clearRect(0, 0, SCREEN, SCREEN);
     beginDraw();
     if (hooks._draw && !guard(hooks._draw)) return;
     endDraw();
+  }
+
+  // ---- the IDE's FPS readout: plain HTML over the top middle of the game, so it never shows in
+  // screenshots or GIFs. Frames drawn per second, and the JavaScript time per frame (updates,
+  // draw calls and handing them to the GPU; the GPU's own time isn't included).
+  const fpsEl = document.createElement('div');
+  fpsEl.style.cssText = 'position:absolute;left:50%;top:2px;transform:translateX(-50%);white-space:pre;padding:1px 4px;font:600 11px/1.3 ui-monospace,monospace;'
+    + 'color:#fff;background:rgba(0,0,0,0.6);pointer-events:none;display:none;z-index:5';
+  menuCanvas.after(fpsEl);
+  let fpsFrames = 0, fpsWork = 0, fpsSince = performance.now();
+  function showFps() { fpsEl.style.display = dev && dev.fps ? 'block' : 'none'; fpsFrames = fpsWork = 0; fpsSince = performance.now(); }
+  showFps();
+  function countFrame(work) {
+    if (!dev || !dev.fps) return;
+    fpsFrames++; fpsWork += work;
+    const now = performance.now();
+    if (now - fpsSince >= 500) {
+      fpsEl.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsSince))} fps  ${(fpsWork / fpsFrames).toFixed(1)} ms`;
+      fpsFrames = fpsWork = 0; fpsSince = now;
+    }
   }
 
   // One fixed 1/60 s step: input, then the pause menu or the game's update. False if the game threw.
@@ -1424,6 +1469,7 @@ export function createEngine({
 
   function tick(t) {
     if (!running || manual) return;
+    const t0 = performance.now();
     acc += Math.min(t - last, 100);
     last = t;
     let steps = 0;
@@ -1432,6 +1478,7 @@ export function createEngine({
       if (!stepOnce() || !running) return;
     }
     if (steps > 0 && !drawFrame()) return;
+    if (steps > 0) countFrame(performance.now() - t0);
     raf = requestAnimationFrame(tick);
   }
 

@@ -709,11 +709,11 @@ export function createGrowPasses(paletteUniform) {
   return { growScene: fullScreen(grow), grow: grow.uniforms, paintScene: fullScreen(paint), paint: paint.uniforms, camera: new THREE.Camera() };
 }
 
-export function setupRenderer(canvas, size) {
+export function setupRenderer(canvas, size, { preserve = true } = {}) {
   THREE.ColorManagement.enabled = false;  // palette colors go to the screen untouched
   let r;
   try {
-    r = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+    r = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: preserve });
   } catch (e) {
     // three.js fails with cryptic messages when the browser won't give a working WebGL 2 context
     // (seen on iPhones: "getShaderPrecisionFormat(...).precision" means the context came back lost).
