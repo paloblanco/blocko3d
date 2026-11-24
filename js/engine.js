@@ -4,9 +4,9 @@ import {
   DEFAULT_PALETTE, NCOLORS, TURN, hexColor,
   createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureChunks, markBox, disposeMap,
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
-  createVoxelMaterial, createSolidMaterial, setupRenderer, mapsFromCart, tilesFromCart,
+  createVoxelMaterial, createBatchMaterial, BATCH_ATTRS, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, createVoxMaterial, MAX_VOX, createSkyMesh, createCurveUniforms, createTorchUniforms,
+  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, createSkyMesh, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS, warmSounds } from './audio.js';
@@ -137,27 +137,17 @@ export function createEngine({
     if (!g) { g = new THREE.SphereGeometry(1, n, Math.max(2, Math.round(n / 2))); sphereGeos.set(n, g); }
     return g;
   };
-  const pools = { map: [], vox: [], cube: [], sphere: [], line: [] };
-  const used = { map: 0, vox: 0, cube: 0, sphere: 0, line: 0 };
+  // Maps (map chunks) are one object each, from this pool. vox, cube, sphere and line3 are batched
+  // instead (see below).
+  const pools = { map: [] };
+  const used = { map: 0 };
 
   function take(kind) {
     const pool = pools[kind];
     let o = pool[used[kind]];
     if (!o) {
-      if (kind === 'map') {
-        o = new THREE.Mesh(undefined, createVoxelMaterial(atlas, palU));
-        o.matrixAutoUpdate = false;
-      } else if (kind === 'vox') {
-        o = new THREE.Mesh(undefined, createVoxMaterial(palU));
-        o.matrixAutoUpdate = false;
-      } else if (kind === 'line') {
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3));
-        o = new THREE.LineSegments(g, createSolidMaterial(palU));
-        o.frustumCulled = false;
-      } else {
-        o = new THREE.Mesh(kind === 'cube' ? cubeGeo : sphereGeo(SPHERE_N), createSolidMaterial(palU));
-      }
+      o = new THREE.Mesh(undefined, createVoxelMaterial(atlas, palU));
+      o.matrixAutoUpdate = false;
       Object.assign(o.material.uniforms, curveU, torchU);   // the shared curve and torches, not copies per draw
       pool.push(o);
       scene.add(o);
@@ -179,6 +169,118 @@ export function createEngine({
     return o;
   }
 
+  // ---- batched draws. A GPU draw has a fixed cost (the CPU sets up its material and settings and
+  // issues it), which added up to most of a frame on slow devices with a few hundred vox models,
+  // cubes, spheres and lines. So those calls only record what to draw (recs), and each view draws
+  // the records of one shape (a vox model, the cube, a sphere size, the line) in one GPU draw: a
+  // batch, with every copy's placement and settings in per-copy attributes (createBatchMaterial in
+  // core.js). Same pixels as one draw per call; the API stays immediate.
+  const recs = [];
+  let nRecs = 0;
+  // pal() / palt() settings used this frame, one 64-byte row each (32 remapped colors, then 32
+  // transparency flags); a draw points at its row. palVer changes whenever the setting does.
+  let palCap = 64, palData = new Uint8Array(64 * palCap);
+  const makePalTex = () => {
+    const t = new THREE.DataTexture(palData, 64, palCap, THREE.RedFormat, THREE.UnsignedByteType);
+    t.minFilter = t.magFilter = THREE.NearestFilter; t.unpackAlignment = 1; t.needsUpdate = true;
+    return t;
+  };
+  const batchShared = { uPalStates: { value: makePalTex() }, uPix: { value: 1 } };
+  let palRows = 0, palVer = 0, palRowVer = -1, palRowCur = 0;
+  function palRow() {
+    if (palRowVer === palVer) return palRowCur;
+    if (palRows >= palCap) {
+      const old = palData;
+      palCap *= 2; palData = new Uint8Array(64 * palCap); palData.set(old);
+      batchShared.uPalStates.value.dispose();
+      batchShared.uPalStates.value = makePalTex();
+    }
+    const o = palRows * 64;
+    for (let i = 0; i < NCOLORS; i++) { palData[o + i] = remap[i]; palData[o + 32 + i] = trans[i] ? 1 : 0; }
+    palRowVer = palVer;
+    return (palRowCur = palRows++);
+  }
+  // one draw call's record: what (kind: 'vox', 'solid' or 'line', and the shape) and its settings,
+  // as the batch attributes want them; the caller fills in the placement (m) and color
+  function record(kind, geo) {
+    let r = recs[nRecs];
+    if (!r) recs[nRecs] = r = { m: new Float64Array(16), misc: new Float32Array(4), fog: new Float32Array(4), x: new Float32Array(3) };   // m in double, as three.js keeps a matrix
+    nRecs++;
+    r.kind = kind; r.geo = geo;
+    r.misc[0] = 0; r.misc[1] = ++drawId;
+    r.misc[2] = outlineColor < 0 ? -1 : remap[outlineColor]; r.misc[3] = outlineInner ? 1 : 0;
+    if (fogState) { r.fog[0] = fogState[0]; r.fog[1] = fogState[1]; r.fog[2] = fogState[2]; r.fog[3] = 1; } else r.fog.fill(0);
+    r.x[0] = fillN; r.x[1] = fillC; r.x[2] = palRow();
+    if (outlineColor >= 0 && perf.outlines) anyOutline = true;   // the player can turn outlines off
+    r.view = curView ? curView.i : 0;
+    if (curView) curView.n++;
+    return r;
+  }
+  const _mv = new THREE.Matrix4(), _mvM = new THREE.Matrix4();
+  const lineGeo = new THREE.BufferGeometry();   // a line's two ends: position.x 0 and 1 (see the line shader)
+  lineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+  // the batches, one per shape, made on first use and kept
+  const batches = new Map();
+  function setBatchCap(b, cap) {
+    const old = b.arrays;
+    if (b.cap) b.ig.dispose();   // frees the old per-copy buffers on the GPU
+    b.cap = cap; b.arrays = {}; b.attrs = {};
+    for (const [name, size] of Object.entries(BATCH_ATTRS)) {
+      const arr = new Float32Array(cap * size);
+      if (old) arr.set(old[name]);
+      const a = new THREE.InstancedBufferAttribute(arr, size);
+      a.setUsage(THREE.DynamicDrawUsage);
+      b.ig.setAttribute(name, a);
+      b.arrays[name] = arr; b.attrs[name] = a;
+    }
+  }
+  function batchFor(kind, base) {
+    let b = batches.get(base);
+    if (b) return b;
+    const ig = new THREE.InstancedBufferGeometry();
+    ig.index = base.index;
+    for (const [name, a] of Object.entries(base.attributes)) ig.setAttribute(name, a);
+    const material = createBatchMaterial(kind, palU, batchShared);
+    Object.assign(material.uniforms, curveU, torchU);
+    const mesh = kind === 'line' ? new THREE.LineSegments(ig, material) : new THREE.Mesh(ig, material);
+    mesh.frustumCulled = false;   // culled per copy instead (drawBatches)
+    mesh.visible = false;
+    scene.add(mesh);
+    b = { mesh, ig, cap: 0, n: 0 };
+    setBatchCap(b, 64);
+    batches.set(base, b);
+    return b;
+  }
+  // Fill and show the batches with this view's records; skip(r) culls one.
+  function drawBatches(v, several, skip) {
+    for (const b of batches.values()) b.n = 0;
+    batchShared.uPix.value = scale;
+    let culled = 0;
+    for (let i = 0; i < nRecs; i++) {
+      const r = recs[i];
+      if (several && r.view !== v.i) continue;
+      if (skip && r.kind !== 'line' && skip(r)) { culled++; continue; }   // lines are never culled
+      const b = batchFor(r.kind, r.geo);
+      if (b.n >= b.cap) setBatchCap(b, b.cap * 2);
+      const k = b.n++, A = b.arrays;
+      A.iM0.set(r.m.subarray(0, 4), k * 4); A.iM1.set(r.m.subarray(4, 8), k * 4);
+      A.iM2.set(r.m.subarray(8, 12), k * 4); A.iM3.set(r.m.subarray(12, 16), k * 4);
+      if (r.kind !== 'line') {   // the camera-combined matrix, made exactly as three.js makes modelViewMatrix
+        const e = _mv.multiplyMatrices(camera.matrixWorldInverse, _mvM.fromArray(r.m)).elements;
+        A.iV0.set(e.slice(0, 4), k * 4); A.iV1.set(e.slice(4, 8), k * 4);
+        A.iV2.set(e.slice(8, 12), k * 4); A.iV3.set(e.slice(12, 16), k * 4);
+      }
+      A.iMisc.set(r.misc, k * 4); A.iFog.set(r.fog, k * 4); A.iX.set(r.x, k * 3);
+    }
+    for (const b of batches.values()) {
+      b.ig.instanceCount = b.n;
+      b.mesh.visible = b.n > 0;
+      if (b.n) for (const [name, a] of Object.entries(b.attrs)) { a.clearUpdateRanges(); a.addUpdateRange(0, b.n * BATCH_ATTRS[name]); a.needsUpdate = true; }
+    }
+    if (palRows) batchShared.uPalStates.value.needsUpdate = true;
+    return culled;
+  }
+
   // repeat(): the offsets each 3D draw is made at. [0, 0, 0] comes first and is drawn exactly as
   // without repeat; the others are whole periods away in each repeating axis, up to n each way.
   const NO_REPEAT = [[0, 0, 0]];
@@ -189,6 +291,13 @@ export function createEngine({
     const out = [[0, 0, 0]];
     for (const dx of steps(px)) for (const dy of steps(py)) for (const dz of steps(pz)) if (dx || dy || dz) out.push([dx, dy, dz]);
     return out;
+  }
+  // a cube or sphere record: centered at (x, y, z), scaled by s, color c
+  const _vm = new THREE.Matrix4();
+  function placeSolid(r, x, y, z, s, c) {
+    const m = r.m;
+    m.fill(0); m[0] = m[5] = m[10] = +s; m[12] = +x; m[13] = +y; m[14] = +z; m[15] = 1;
+    r.misc[0] = c & 31;
   }
   // move a draw's world matrix by an offset (its translation is the last column)
   function shiftMatrix(m, [dx, dy, dz]) { const e = m.elements; e[12] += dx; e[13] += dy; e[14] += dz; }
@@ -432,10 +541,12 @@ export function createEngine({
     get palette() { return palette; },
     set palette(v) { palette = v; },
     pal(a, b) {
+      palVer++;
       if (a === undefined) { remap = identityRemap(); trans = noTransparency(); return; }
       remap[a & 31] = (b ?? a) & 31;
     },
     palt(i, on = true) {
+      palVer++;
       if (i === undefined) { trans = noTransparency(); return; }
       trans[i & 31] = on ? 1 : 0;
     },
@@ -666,39 +777,27 @@ export function createEngine({
       const v = voxels[i];
       if (!v) return;                     // an unused slot draws nothing
       const geometry = ensureVoxGeometry(v);
-      let first = null;
-      for (const off of repeatOffsets()) {
-        const o = take('vox');
-        o.geometry = geometry;
-        if (!first) { voxMatrix(v, [+x || 0, +y || 0, +z || 0], [+pitch || 0, +yaw || 0, +roll || 0], [+sx, +sy, +sz], o.matrix); first = o.matrix; }
-        else { o.matrix.copy(first); shiftMatrix(o.matrix, off); }
+      voxMatrix(v, [+x || 0, +y || 0, +z || 0], [+pitch || 0, +yaw || 0, +roll || 0], [+sx, +sy, +sz], _vm);
+      for (const [dx, dy, dz] of repeatOffsets()) {
+        const r = record('vox', geometry);
+        r.m.set(_vm.elements); r.m[12] += dx; r.m[13] += dy; r.m[14] += dz;
       }
     },
 
     // --- primitives (color is a palette index)
     cube(x, y, z, s = 1, c = 7) {
-      for (const [dx, dy, dz] of repeatOffsets()) {
-        const o = take('cube');
-        o.position.set(x + dx, y + dy, z + dz); o.scale.setScalar(s);
-        o.material.uniforms.uColor.value = c & 31;
-      }
+      for (const [dx, dy, dz] of repeatOffsets()) placeSolid(record('solid', cubeGeo), x + dx, y + dy, z + dz, s, c);
     },
     // sphere(x, y, z, r, c, n): n segments around (3-64, default 12), n / 2 from pole to pole
     sphere(x, y, z, r = 0.5, c = 7, n = SPHERE_N) {
       const g = sphereGeo(Math.max(3, Math.min(64, Math.round(+n) || SPHERE_N)));
-      for (const [dx, dy, dz] of repeatOffsets()) {
-        const o = take('sphere');
-        o.geometry = g;
-        o.position.set(x + dx, y + dy, z + dz); o.scale.setScalar(r);
-        o.material.uniforms.uColor.value = c & 31;
-      }
+      for (const [dx, dy, dz] of repeatOffsets()) placeSolid(record('solid', g), x + dx, y + dy, z + dz, r, c);
     },
     line3(x1, y1, z1, x2, y2, z2, c = 7) {
       for (const [dx, dy, dz] of repeatOffsets()) {
-        const o = take('line');
-        const a = o.geometry.attributes.position;
-        a.array.set([x1 + dx, y1 + dy, z1 + dz, x2 + dx, y2 + dy, z2 + dz]); a.needsUpdate = true;
-        o.material.uniforms.uColor.value = c & 31;
+        const r = record('line', lineGeo), m = r.m;
+        m[0] = x1 + dx; m[1] = y1 + dy; m[2] = z1 + dz; m[4] = x2 + dx; m[5] = y2 + dy; m[6] = z2 + dz;
+        r.misc[0] = c & 31;
       }
     },
 
@@ -1042,6 +1141,7 @@ export function createEngine({
 
   function beginDraw() {
     for (const k in used) used[k] = 0;
+    nRecs = 0; palRows = 0; palRowVer = -1;
     torches = [];
     if (clipped2d) { ctx.restore(); clipped2d = false; }
     ctx.clearRect(0, 0, SCREEN, SCREEN);
@@ -1093,43 +1193,63 @@ export function createEngine({
   // draw. Never wrong (no popping at the edges); it skips what stays behind or beside the view.
   const _cullBox = new THREE.Box3(), _frustum = new THREE.Frustum(), _pv = new THREE.Matrix4();
   let lastCulled = 0;
-  function cullBent() {
-    const U = curveU, k = U.uCurve.value.x;
-    const T = [U.uCurve.value.y, U.uCurve.value.z, U.uCurve.value.w];
-    const A = U.uCurveA.value.toArray(), B = U.uCurveB.value.toArray(), P = U.uCurveP.value.toArray();
-    scene.updateMatrixWorld();
+  // The camera's view, for culling: aimFrustum() after the camera is aimed. bentVisible(box) is the
+  // test above for a world box; seen(r) tells whether a batched record can show in this view (its
+  // shape's bounding sphere, or with a curve its bent box), as three.js's own culling did when
+  // these were objects of their own.
+  const _cullM = new THREE.Matrix4(), _cullSphere = new THREE.Sphere();
+  let bendK = 0;
+  const bendT = [0, 0, 0], bendA = [0, 0, 0], bendB = [0, 0, 0], bendP = [0, 0, 0], lo = [0, 0, 0], hi = [0, 0, 0];
+  function aimFrustum() {
     camera.updateMatrixWorld();
     _frustum.setFromProjectionMatrix(_pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-    const lo = [0, 0, 0], hi = [0, 0, 0];
-    // smallest and largest square of (x - T) . D over the box
-    const sq = (D) => {
-      let c = 0, e = 0;
-      for (let i = 0; i < 3; i++) { c += ((lo[i] + hi[i]) / 2 - T[i]) * D[i]; e += ((hi[i] - lo[i]) / 2) * Math.abs(D[i]); }
-      const a0 = c - e, a1 = c + e;
-      return [a0 <= 0 && a1 >= 0 ? 0 : Math.min(a0 * a0, a1 * a1), Math.max(a0 * a0, a1 * a1)];
-    };
-    let culled = 0;
-    for (const kind of ['map', 'vox', 'cube', 'sphere']) {
-      const pool = pools[kind];
-      for (let n = 0; n < used[kind]; n++) {
-        const o = pool[n];
-        if (!o.visible) continue;
-        const g = o.geometry;
-        if (!g.boundingBox) g.computeBoundingBox();
-        _cullBox.copy(g.boundingBox).applyMatrix4(o.matrixWorld);
-        _cullBox.min.toArray(lo); _cullBox.max.toArray(hi);
-        const [a0, a1] = sq(A), [b0, b1] = sq(B);
-        const f0 = k > 0 ? k * (a0 + b0) : k * (a1 + b1), f1 = k > 0 ? k * (a1 + b1) : k * (a0 + b0);
-        for (let i = 0; i < 3; i++) { const d0 = P[i] * f0, d1 = P[i] * f1; lo[i] += Math.min(d0, d1); hi[i] += Math.max(d0, d1); }
-        _cullBox.min.fromArray(lo); _cullBox.max.fromArray(hi);
-        if (!_frustum.intersectsBox(_cullBox)) { o.visible = false; culled++; }
-      }
+    const U = curveU;
+    bendK = U.uCurve.value.x;
+    bendT[0] = U.uCurve.value.y; bendT[1] = U.uCurve.value.z; bendT[2] = U.uCurve.value.w;
+    U.uCurveA.value.toArray(bendA); U.uCurveB.value.toArray(bendB); U.uCurveP.value.toArray(bendP);
+  }
+  // smallest and largest square of (x - T) . D over the box lo..hi
+  function sqRange(D) {
+    let c = 0, e = 0;
+    for (let i = 0; i < 3; i++) { c += ((lo[i] + hi[i]) / 2 - bendT[i]) * D[i]; e += ((hi[i] - lo[i]) / 2) * Math.abs(D[i]); }
+    const a0 = c - e, a1 = c + e;
+    return [a0 <= 0 && a1 >= 0 ? 0 : Math.min(a0 * a0, a1 * a1), Math.max(a0 * a0, a1 * a1)];
+  }
+  function bentVisible(box) {
+    box.min.toArray(lo); box.max.toArray(hi);
+    const k = bendK, [a0, a1] = sqRange(bendA), [b0, b1] = sqRange(bendB);
+    const f0 = k > 0 ? k * (a0 + b0) : k * (a1 + b1), f1 = k > 0 ? k * (a1 + b1) : k * (a0 + b0);
+    for (let i = 0; i < 3; i++) { const d0 = bendP[i] * f0, d1 = bendP[i] * f1; lo[i] += Math.min(d0, d1); hi[i] += Math.max(d0, d1); }
+    box.min.fromArray(lo); box.max.fromArray(hi);
+    return _frustum.intersectsBox(box);
+  }
+  function seen(r) {
+    const g = r.geo;
+    _cullM.fromArray(r.m);
+    if (bendK) {
+      if (!g.boundingBox) g.computeBoundingBox();
+      return bentVisible(_cullBox.copy(g.boundingBox).applyMatrix4(_cullM));
     }
-    lastCulled = culled;
+    if (!g.boundingSphere) g.computeBoundingSphere();
+    return _frustum.intersectsSphere(_cullSphere.copy(g.boundingSphere).applyMatrix4(_cullM));
+  }
+  // with a curve: the map pieces' culling (three.js's is off then); returns how many it hid
+  function cullBentMaps() {
+    scene.updateMatrixWorld();
+    let culled = 0;
+    const pool = pools.map;
+    for (let n = 0; n < used.map; n++) {
+      const o = pool[n];
+      if (!o.visible) continue;
+      const g = o.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      if (!bentVisible(_cullBox.copy(g.boundingBox).applyMatrix4(o.matrixWorld))) { o.visible = false; culled++; }
+    }
+    return culled;
   }
 
   // the view's curve into the shared uniforms; a bent world can bend into view from outside it, so
-  // three.js's own culling is off while it's on (cullBent does it instead)
+  // three.js's own culling is off while it's on (cullBentMaps and the batches' seen() do it instead)
   function setCurve(v) {
     const [k, along, push] = v.curve || [0, 'view', 'down'];
     // the camera's forward direction across the ground (straight down: +z)
@@ -1144,7 +1264,7 @@ export function createEngine({
     U.uCurveA.value.set(...dirs[0]);
     U.uCurveB.value.set(...(dirs[1] || [0, 0, 0]));
     U.uCurveP.value.set(...p);
-    for (const kind of ['map', 'vox', 'cube', 'sphere']) for (const o of pools[kind]) o.frustumCulled = k === 0;
+    for (const o of pools.map) o.frustumCulled = k === 0;
   }
 
   // this frame's torches into the shared uniforms, as positions from this view's camera
@@ -1172,7 +1292,8 @@ export function createEngine({
     aimCamera(camera, v);
     outlinePass.uniforms.uOrtho.value = growPasses.paint.uOrtho.value = v.ortho > 0 ? 1 : 0;
     setCurve(v);
-    if (v.curve && v.curve[0]) cullBent(); else lastCulled = 0;
+    aimFrustum();
+    lastCulled = (bendK ? cullBentMaps() : 0) + drawBatches(v, several, (r) => !seen(r));
     setTorches();
     sky.visible = v.bg2 >= 0;
     if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
@@ -1599,7 +1720,7 @@ export function createEngine({
     maps.splice(0, maps.length, ...mapsFromCart(cart));
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
-    remap = identityRemap(); trans = noTransparency();
+    remap = identityRemap(); trans = noTransparency(); palVer++;
     bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; orthoW = 0; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];

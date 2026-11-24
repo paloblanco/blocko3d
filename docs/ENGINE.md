@@ -72,7 +72,7 @@ The project is **BLOCKO3D** (all caps, "3D" in the accent color), renamed from b
 - `torch()` positions are converted to each view's camera space once per view (`setTorches`) into uniforms shared by every draw; the fog branch of `writePixel` takes the least fog of the camera's and each torch's ramp.
 - `cam_set_ortho(w)` renders with an `OrthographicCamera`; the outline passes then read depth as linear (`uOrtho`).
 - `bg(sky, horizon)` draws a full-screen sky quad (`createSkyMesh`) first in each view, with no depth, so the outline pass still sees background there.
-- Each pooled draw object has its own material, and the remap, transparency, outline color, fog and draw id are copied into it on every draw.
+- **Maps** (each chunk) are pooled draw objects with their own material; the remap, transparency, outline color, fog, fillp and draw id are copied into it on every draw. **`vox`, `cube`, `sphere` and `line3` are batched** (2026-11-23): each call records its placement and settings (`record` in `js/engine.js`), and each view draws the records of one shape (a vox model's mesh, the cube, a sphere size, the line) as one instanced draw (`drawBatches`, `createBatchMaterial` in `js/core.js`, per-copy attributes `BATCH_ATTRS`), culled per copy (`seen`). `pal`/`palt` settings go into a per-frame texture, one row per setting (`palRow`). See **Batched draws** in `docs/DECISIONS.md`.
 - The engine renders the scene into a 256×256 multiple-render-target (color + draw info) with a depth texture, then the outline pass draws to the canvas. The editor previews render straight to their canvas; the extra shader output is simply ignored there.
 
 **Cart format (JSON)**

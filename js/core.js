@@ -357,8 +357,12 @@ export const createCurveUniforms = () => ({
   uCurveP: { value: new THREE.Vector3(0, -1, 0) },
 });
 
-const PAL_GLSL = /* glsl */`
-  uniform vec3 uPalette[32];
+// A draw's own settings. Maps get them as uniforms, set per draw object. Batched draws (vox
+// models, cubes, spheres, lines: many in one GPU draw, see createBatchMaterial) get them per copy
+// from attributes, passed on as flat varyings with the same names, and their pal() / palt()
+// settings from uPalStates: a texture with one row per setting used this frame (32 remapped
+// colors, then 32 transparency flags).
+const PER_DRAW_UNIFORMS = /* glsl */`
   uniform float uRemap[32];
   uniform float uTrans[32];
   uniform float uOutline;   // outline palette index for this draw, or -1 for none
@@ -366,6 +370,23 @@ const PAL_GLSL = /* glsl */`
   uniform float uInner;     // 1: outline inner edges too (creases, overlaps); 0: outer outline only
   uniform vec4 uFog;        // fog(): palette index, near, far, on (1) / off (0)
   uniform vec2 uFill;       // fillp(n, c): how much (0 none .. 1 all), palette index
+  float remapOf(int i) { return uRemap[i]; }
+  bool transOf(int i) { return uTrans[i] > 0.5; }
+`;
+const PER_DRAW_BATCHED = /* glsl */`
+  uniform highp sampler2D uPalStates;
+  flat in float vOutline; flat in float vId; flat in float vInner; flat in vec4 vFog; flat in vec2 vFill; flat in float vPal;
+  #define uOutline vOutline
+  #define uId vId
+  #define uInner vInner
+  #define uFog vFog
+  #define uFill vFill
+  float remapOf(int i) { return floor(texelFetch(uPalStates, ivec2(i, int(vPal + 0.5)), 0).r * 255.0 + 0.5); }
+  bool transOf(int i) { return texelFetch(uPalStates, ivec2(32 + i, int(vPal + 0.5)), 0).r > 0.001; }
+`;
+const palGLSL = (batched) => /* glsl */`
+  uniform vec3 uPalette[32];
+  ${batched ? PER_DRAW_BATCHED : PER_DRAW_UNIFORMS}
   uniform float uPix;       // render pixels per screen pixel (1, 2 or 3), so the dither stays 256-chunky
   uniform vec4 uTorch[8];   // torch(): position from the camera (view space) and near, this frame
   uniform float uTorchFar[8];
@@ -374,8 +395,8 @@ const PAL_GLSL = /* glsl */`
   layout(location = 0) out highp vec4 outColor;
   layout(location = 1) out highp vec4 outInfo;   // read by the outline pass
   vec3 palColor(int idx) {
-    if (uTrans[idx] > 0.5) discard;          // palt applies to the original index
-    return uPalette[int(uRemap[idx] + 0.5)];  // then pal() remap, then the real color
+    if (transOf(idx)) discard;                 // palt applies to the original index
+    return uPalette[int(remapOf(idx) + 0.5)];  // then pal() remap, then the real color
   }
   // dir: which way a map face points (1-6), or 0 for primitives. A draw with outline(c, false)
   // writes 7 instead: the outline pass then draws no lines inside it, only around it.
@@ -436,7 +457,7 @@ export function createVoxelMaterial(atlas, paletteUniform) {
       }`,
     fragmentShader: /* glsl */`
       uniform sampler2D uAtlas;
-      ${PAL_GLSL}
+      ${palGLSL(false)}
       varying vec2 vUV;
       varying vec3 vTF;
       void main() {
@@ -460,7 +481,7 @@ export function createSolidMaterial(paletteUniform) {
       void main() { place(position); }`,
     fragmentShader: /* glsl */`
       uniform float uColor;
-      ${PAL_GLSL}
+      ${palGLSL(false)}
       void main() { writePixel(palColor(int(uColor + 0.5)), 0.0); }`,
   });
 }
@@ -478,9 +499,66 @@ export function createVoxMaterial(paletteUniform) {
         place(position);
       }`,
     fragmentShader: /* glsl */`
-      ${PAL_GLSL}
+      ${palGLSL(false)}
       varying vec2 vCD;
       void main() { writePixel(palColor(int(vCD.x + 0.5)), floor(vCD.y + 0.5)); }`,
+  });
+}
+
+// ---------------------------------------------------------------- batched draws
+// vox models, cubes, spheres and lines are drawn many at a time: one GPU draw per shape per view,
+// each copy with its own placement and settings in per-copy attributes:
+//   iM0..iM3  the copy's matrix (lines: iM0.xyz and iM1.xyz are the two ends)
+//   iV0..iV3  the same combined with the camera's, made on the CPU per view as three.js makes a
+//             draw's modelViewMatrix, so without a curve the math is exactly the old shader's
+//   iMisc     color (cubes, spheres, lines), draw id, outline color (-1: none), inner (1/0)
+//   iFog      fog: palette index, near, far, on
+//   iX        fillp amount, fillp color, the row of uPalStates with this draw's pal() / palt()
+// The pixels come out exactly as from one draw per call (same shader code, same values).
+export const BATCH_ATTRS = { iM0: 4, iM1: 4, iM2: 4, iM3: 4, iV0: 4, iV1: 4, iV2: 4, iV3: 4, iMisc: 4, iFog: 4, iX: 3 };
+const BATCH_VERT = /* glsl */`
+  attribute vec4 iM0; attribute vec4 iM1; attribute vec4 iM2; attribute vec4 iM3;
+  attribute vec4 iV0; attribute vec4 iV1; attribute vec4 iV2; attribute vec4 iV3;
+  attribute vec4 iMisc; attribute vec4 iFog; attribute vec3 iX;
+  flat out float vOutline; flat out float vId; flat out float vInner; flat out vec4 vFog; flat out vec2 vFill; flat out float vPal;
+  flat out float vColor;
+  void passDraw() {
+    vColor = iMisc.x; vId = iMisc.y; vOutline = iMisc.z; vInner = iMisc.w;
+    vFog = iFog; vFill = iX.xy; vPal = iX.z;
+  }
+  // place() for a copy: the same operations, in the same order, as a draw of its own
+  void placeCopy(vec3 p) {
+    if (uCurve.x == 0.0) {
+      mat4 mv = mat4(iV0, iV1, iV2, iV3);
+      vFogPos = (mv * vec4(p, 1.0)).xyz;
+      gl_Position = projectionMatrix * mv * vec4(p, 1.0);
+      return;
+    }
+    place((mat4(iM0, iM1, iM2, iM3) * vec4(p, 1.0)).xyz);
+  }
+`;
+// kind: 'vox', 'solid' (cubes and spheres) or 'line'. shared: { uPalStates, uPix } for all batches.
+export function createBatchMaterial(kind, paletteUniform, shared) {
+  const main = {
+    vox: ['attribute vec2 aCD;\n      varying vec2 vCD;', 'vCD = aCD; passDraw(); placeCopy(position);',
+      'varying vec2 vCD;', 'writePixel(palColor(int(vCD.x + 0.5)), floor(vCD.y + 0.5));'],
+    solid: ['', 'passDraw(); placeCopy(position);',
+      'flat in float vColor;', 'writePixel(palColor(int(vColor + 0.5)), 0.0);'],
+    line: ['', 'passDraw(); place(mix(iM0.xyz, iM1.xyz, position.x));',
+      'flat in float vColor;', 'writePixel(palColor(int(vColor + 0.5)), 0.0);'],
+  }[kind];
+  return new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { uPalette: paletteUniform, ...createCurveUniforms(), ...createTorchUniforms(), uPalStates: shared.uPalStates, uPix: shared.uPix },
+    vertexShader: /* glsl */`
+      ${main[0]}
+      ${PLACE_GLSL}
+      ${BATCH_VERT}
+      void main() { ${main[1]} }`,
+    fragmentShader: /* glsl */`
+      ${palGLSL(true)}
+      ${main[2]}
+      void main() { ${main[3]} }`,
   });
 }
 
