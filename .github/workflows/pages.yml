@@ -55,8 +55,10 @@ jobs:
           mv branch site/multiplayer
       - name: Leave out what the site doesn't need
         run: rm -rf site/node_modules site/.git
-      - uses: actions/upload-pages-artifact@v3
+      # v5 (from v3/v4 on 2026-11-24, after repeated "no artifacts named github-pages" deploy failures)
+      # leaves out hidden files (.gitignore, .nojekyll); the site needs none of them.
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
