@@ -45,6 +45,7 @@ Drawing is **immediate-mode**: `_draw()` re-submits everything every frame, with
 - Up to 255 tiles, numbered 1–255 (raised from 63 by the owner: a map block is one byte, so 255 is the most; the atlas is 24×2048, WebGL2's guaranteed minimum texture size).
 - Each tile has three 8×8 textures: **top, sides, bottom**, like Minecraft but simpler.
 - Pixels store **palette indices**, never colors.
+- **`tile_sub(t, src)`** (2026-11-25, asked for by the owner for animated water, PICO-8 sprite-sheet style; he picked this over `tile_copy(dst, src)` and pixel-level `tset`/`tget`, and named it: `tile_draw` sounded like a draw call): blocks of tile t show cart tile src's picture, all three faces, in every map. It rewrites atlas slot t from the cart's tiles (`writeAtlasTile` in `js/core.js`, `subTile` in `js/engine.js`), so no remeshing and a 6 KB texture upload; a call that changes nothing does nothing, so calling it every frame is free. Always from the cart's pictures, so substitutions never chain and nothing is lost. Not per-draw state: the frame is drawn with the atlas as it is at the end of `_draw`. `tile_sub(t)` restores t, `tile_sub()` all; `reset()` restores all. Numbers outside 1-255 or not whole throw a plain error. `tset`/`tget` could come later on top.
 
 **Rendering**
 

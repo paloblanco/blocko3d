@@ -2,11 +2,11 @@
 import * as THREE from 'three';
 import {
   DEFAULT_PALETTE, NCOLORS, TURN, hexColor,
-  createAtlas, writeAtlas, createMap, mapGet, mapSet, updateTransform, ensureChunks, markBox, disposeMap,
+  createAtlas, writeAtlas, writeAtlasTile, createMap, mapGet, mapSet, updateTransform, ensureChunks, markBox, disposeMap,
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createBatchMaterial, BATCH_ATTRS, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, createSkyMesh, createCurveUniforms, createTorchUniforms,
+  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, MAX_TILES, createSkyMesh, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS, warmSounds } from './audio.js';
@@ -87,7 +87,20 @@ export function createEngine({
   const sky = createSkyMesh(palU);
   scene.add(sky);
   const atlas = createAtlas();
-  writeAtlas(atlas, tilesFromCart(cart));
+  const cartTiles = tilesFromCart(cart);
+  writeAtlas(atlas, cartTiles);
+  // tile_sub: which cart tile's picture each tile number shows (itself unless substituted)
+  const tileSubs = Uint8Array.from({ length: MAX_TILES }, (_, i) => i);
+  function subTile(t, src) {
+    if (tileSubs[t] === src) return;
+    tileSubs[t] = src;
+    writeAtlasTile(atlas, t, cartTiles[src]);
+    atlas.needsUpdate = true;
+  }
+  const tileNum = (v, what) => {
+    if (!Number.isInteger(v) || v < 1 || v >= MAX_TILES) throw new Error(`tile_sub: ${what} must be a tile number from 1 to ${MAX_TILES - 1} (got ${v})`);
+    return v;
+  };
   const maps = mapsFromCart(cart);
   const sounds = Array.from({ length: MAX_SFX }, (_, i) => (cart.sfx && cart.sfx[i]) || null);
   const decodedSounds = sounds.map((str) => (str ? decodeSfx(str) : null));
@@ -544,6 +557,15 @@ export function createEngine({
       palVer++;
       if (a === undefined) { remap = identityRemap(); trans = noTransparency(); return; }
       remap[a & 31] = (b ?? a) & 31;
+    },
+    // tile_sub(t, src): blocks of tile t show tile src's picture (all three faces), in every map,
+    // until changed; tile_sub(t) puts t's own picture back, tile_sub() all of them. Not per-draw
+    // state: the atlas is what the whole frame is drawn with. Always from the cart's pictures, so
+    // substitutions never chain. For animated tiles (water, lava, torches) without touching maps.
+    tile_sub(t, src) {
+      if (t === undefined || t === null) { for (let i = 1; i < MAX_TILES; i++) subTile(i, i); return; }
+      tileNum(t, 't');
+      subTile(t, src === undefined || src === null ? t : tileNum(src, 'src'));
     },
     palt(i, on = true) {
       palVer++;
@@ -1721,6 +1743,7 @@ export function createEngine({
     sceneMaps = [];
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency(); palVer++;
+    for (let i = 1; i < MAX_TILES; i++) subTile(i, i);
     bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; orthoW = 0; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];

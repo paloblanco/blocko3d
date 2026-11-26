@@ -65,6 +65,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `mgetw(m, x, y, z)`: the block at a world point, as `[t, xi, yi, zi]`. Handy for "what am I standing on": `let [t] = mgetw(0, px, py - 0.5, pz)`.
 - `mray(m, ox, oy, oz, dx, dy, dz, maxd)`: the first block along a ray, `[t, xi, yi, zi, nx, ny, nz, d]`; t is 0 on a miss.
 - `map_set_pos(m, [x, y, z])` / `map_set_angle(m, [pitch, yaw, roll])`: move or turn a whole map (moving platforms, doors). Collision follows.
+- `tile_sub(t, src)`: blocks of tile t show tile src's picture, in every map, until changed; `tile_sub(t)` puts it back. Animate water by drawing frames as spare tiles: `tile_sub(7, [7, 17, 18][flr(t() * 4) % 3])` in `_draw`. Don't `mset` every water block for this.
 
 **Models and shapes:**
 

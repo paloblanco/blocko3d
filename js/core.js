@@ -31,20 +31,22 @@ export function createAtlas() {
 }
 
 export function writeAtlas(tex, tiles) {
-  const data = tex.image.data;
-  data.fill(0);
-  for (let t = 1; t < MAX_TILES; t++) {
-    const tile = tiles[t];
-    if (!tile) continue;
-    FACES.forEach((f, fi) => {
-      const px = tile[f];
-      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-        // v grows upward in the shader, so image row 0 goes to the highest atlas row
-        data[(t * 8 + (7 - r)) * ATLAS_W + fi * 8 + c] = px[r * 8 + c] & 31;
-      }
-    });
-  }
+  tex.image.data.fill(0);
+  for (let t = 1; t < MAX_TILES; t++) if (tiles[t]) writeAtlasTile(tex, t, tiles[t]);
   tex.needsUpdate = true;
+}
+
+// Write one tile's three faces into atlas slot t (tile_sub uses it to show another tile's picture
+// there; null clears the slot). The caller sets needsUpdate.
+export function writeAtlasTile(tex, t, tile) {
+  const data = tex.image.data;
+  FACES.forEach((f, fi) => {
+    const px = tile && tile[f];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      // v grows upward in the shader, so image row 0 goes to the highest atlas row
+      data[(t * 8 + (7 - r)) * ATLAS_W + fi * 8 + c] = px ? px[r * 8 + c] & 31 : 0;
+    }
+  });
 }
 
 // ---------------------------------------------------------------- maps
