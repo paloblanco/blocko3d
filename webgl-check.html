@@ -17,11 +17,14 @@
 </head>
 <body>
 <h1>BLOCKO3D WebGL check</h1>
-<p>Open this page on the device with the problem, wait a few seconds, then take a screenshot of the whole page.</p>
+<p>Open this page on the device with the problem, wait about 8 seconds, then take a screenshot of the whole page.</p>
 <div id="verdict">Checking…</div>
 <table id="out"></table>
+<div id="shots"></div>
+<script src="runtime/blocko3d.runtime.js"></script>
 <script>
-// Checks what BLOCKO3D needs from the browser (a working WebGL 2 context) without using the engine.
+// Checks what BLOCKO3D needs from the browser (a working WebGL 2 context), first without the engine,
+// then with it.
 const rows = [];
 const out = document.getElementById('out');
 function row(k, v) { rows.push([k, String(v)]); out.innerHTML = rows.map(([a, b]) => '<tr><td>' + a + '</td><td>' + b.replace(/</g, '&lt;') + '</td></tr>').join(''); }
@@ -79,10 +82,44 @@ function verdict(final) {
     : 'WebGL 2 is not working here, so BLOCKO3D can\'t run.';
 }
 verdict(false);
+// Games since 2026-11-23 don't keep each frame (preserveDrawingBuffer: false; faster on tablets).
+const p3 = probe('webgl2', { antialias: false, preserveDrawingBuffer: false, alpha: false, depth: true, stencil: false });
+row('WebGL 2, frame not kept (as games ask)', !p3.gl ? 'NOT created' + (p3.err ? ' (' + p3.err + ')' : '')
+  : p3.gl.isContextLost() ? 'created but LOST' : 'works');
+if (!p3.gl || p3.gl.isContextLost()) ok = false;
+
+// Then the engine itself (the runtime every game carries), on a tiny cart: once the way games start
+// (frame not kept), once the way the IDE's Run does (frame kept).
+const CART = { version: 1, name: 'check', code: '', tiles: [null], maps: [], vox: [], sfx: [], music: [] };
+function engineTest(keepFrame) {
+  return new Promise((done) => {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:relative;width:64px;height:64px;display:inline-block;margin:4px';
+    const canvas = document.createElement('canvas'), overlay = document.createElement('canvas');
+    for (const c of [canvas, overlay]) { c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%'; box.appendChild(c); }
+    document.getElementById('shots').appendChild(box);
+    let err = null, frames = 0;
+    try {
+      Blocko3D.stop();
+      Blocko3D.install(CART, { canvas, overlay, wire: false, keepFrame, onError: (e) => { err = err || e; } });
+      Blocko3D.start(function () { return { _draw() { frames++; bg(12); outline(0); cube(0, 0, 0, 4, 8) } }; });
+    } catch (e) { err = e; }
+    setTimeout(() => done(err ? 'FAILED: ' + ((err && err.message) || err) : frames > 0 ? 'works (' + frames + ' frames drawn)' : 'started but drew nothing'), 1500);
+  });
+}
 // iPhones sometimes lose the context a moment later; watch for a few seconds
-setTimeout(() => {
+setTimeout(async () => {
   row('Context lost events (3 s)', p2.lost() + (p2.restored() ? ', restored ' + p2.restored() : ''));
   if (gl && gl.isContextLost()) { ok = false; row('Lost after 3 s', 'YES'); }
+  if (typeof Blocko3D === 'undefined') row('Engine', 'the runtime did not load');
+  else {
+    row('Engine version', Blocko3D.VERSION);
+    for (const [label, keep] of [['Engine, as a game starts', false], ['Engine, as the IDE runs it', true]]) {
+      const r = await engineTest(keep);
+      row(label, r);
+      if (!r.startsWith('works')) ok = false;
+    }
+  }
   verdict(true);
 }, 3000);
 </script>
