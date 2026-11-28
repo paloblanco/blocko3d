@@ -6,7 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createBatchMaterial, BATCH_ATTRS, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, MAX_TILES, createSkyMesh, createCurveUniforms, createTorchUniforms,
+  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, MAX_TILES, createSkyMesh, skyFade, SKY_FADE, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS, warmSounds } from './audio.js';
@@ -118,6 +118,7 @@ export function createEngine({
   let trans = noTransparency();
   let bgColor = 0;
   let bgHorizon = -1;   // bg(sky, horizon): the horizon color, or -1 for a plain background
+  let bgFade = SKY_FADE;   // bg(sky, horizon, center, range): the fade, as the sky shader takes it
   let outlineColor = -1;   // -1 = no outline (the default)
   let outlineInner = true; // false: outline(c, false), only the outer outline, no inner edges
   let repeatState = null;    // repeat(x, y, z, n): [period x, y, z (0 = not that axis), n], or null
@@ -572,11 +573,12 @@ export function createEngine({
       if (i === undefined) { trans = noTransparency(); return; }
       trans[i & 31] = on ? 1 : 0;
     },
-    // bg(c): a plain background; bg(sky, horizon): sky overhead, dithering down to horizon at the
-    // horizon and below (see createSkyMesh)
-    bg(c, h) {
+    // bg(c): a plain background; bg(sky, horizon, center, range): sky overhead, dithering down to
+    // horizon; center and range (0-1) place the fade (see skyFade in core.js)
+    bg(c, h, center, range) {
       bgColor = remap[(c | 0) & 31];
       bgHorizon = h === undefined || h === null || h === false ? -1 : remap[(h | 0) & 31];
+      bgFade = skyFade(center, range);
     },
     // outline(c): outlines in color c, inner edges included; outline(c, false): only around the
     // outside of each draw; outline(): none
@@ -1147,7 +1149,7 @@ export function createEngine({
   function startView() { curView = { i: views.length, rect: clipRect || FULL, n: 0 }; views.push(curView); }
   function endView() {
     if (!curView) return;
-    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.ortho = orthoW; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.curve = curve;
+    curView.pos = [...camPos]; curView.look = [...camLook]; curView.fov = fovDeg; curView.ortho = orthoW; curView.bg = bgColor; curView.bg2 = bgHorizon; curView.fade = bgFade; curView.curve = curve;
   }
   // 2D drawing (print, rect, rectfill) is clipped to the same rectangle
   let clipped2d = false;
@@ -1189,7 +1191,7 @@ export function createEngine({
     syncPaletteUniform(palU, palette);
     // the views with 3D in them, in the order they were drawn (a frame with none still shows bg)
     let list = views.filter((v) => v.n > 0);
-    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, ortho: orthoW, bg: bgColor, bg2: bgHorizon, curve }];
+    if (!list.length) list = [{ i: -1, rect: FULL, pos: [...camPos], look: [...camLook], fov: fovDeg, ortho: orthoW, bg: bgColor, bg2: bgHorizon, fade: bgFade, curve }];
     const S = SCREEN * scale;
     if (list.length > 1 || list[0].rect !== FULL) {
       // parts of the screen outside every view show the background
@@ -1318,7 +1320,7 @@ export function createEngine({
     lastCulled = (bendK ? cullBentMaps() : 0) + drawBatches(v, several, (r) => !seen(r));
     setTorches();
     sky.visible = v.bg2 >= 0;
-    if (sky.visible) { sky.material.uniforms.uSky.value.set(v.bg, v.bg2); sky.material.uniforms.uPix.value = scale; }
+    if (sky.visible) { const u = sky.material.uniforms; u.uSky.value.set(v.bg, v.bg2); u.uFade.value.set(v.fade[0], v.fade[1]); u.uPix.value = scale; }
     // 1) scene -> color + draw info + depth, inside this view only
     setArea(target, x, y, w, h);
     renderer.setRenderTarget(target);
@@ -1744,7 +1746,7 @@ export function createEngine({
     palette = Array.isArray(cart.palette) && cart.palette.length === NCOLORS ? [...cart.palette] : [...DEFAULT_PALETTE];
     remap = identityRemap(); trans = noTransparency(); palVer++;
     for (let i = 1; i < MAX_TILES; i++) subTile(i, i);
-    bgColor = 0; bgHorizon = -1; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
+    bgColor = 0; bgHorizon = -1; bgFade = SKY_FADE; outlineColor = -1; outlineInner = true; fogState = null; fillN = 0; fillC = 0; repeatState = null; cursorY = 0;
     camPos.splice(0, 3, 0, 6, -10); camLook.splice(0, 3, 0, 0, 0);
     fovDeg = 90; orthoW = 0; clipRect = null; lastViews = []; curve = [0, 'view', 'down'];
     resetGif();

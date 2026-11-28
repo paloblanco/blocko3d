@@ -80,7 +80,7 @@ The game loop is `_init()` (once), `_update()` (60 times a second) and `_draw()`
 - `cam_set_ortho(w)`: orthographic view, w blocks across the screen at any distance (isometric: `cam_set_ortho(20)` then `cam_orbit(player, 0.125, -0.098, 60)`); `cam_set_ortho(0)` is perspective again.
 - `cam_set_curve(k, along, push)`: the picture bends away from the camera's target; collision stays flat. `cam_set_curve(0.01)` rolls away ahead, `cam_set_curve(0.05, 'xz')` is a small planet, `cam_set_curve(0.1, 'x', '+z')` wraps a wall map into a round tower; `cam_set_curve(0)` is flat.
 - `repeat(x, y, z, n)` / `repeat()`: the following 3D draws are drawn again x, y and z blocks away, n times each way (default 1; -1 skips an axis), for a level you can walk all the way around. Only the picture repeats: wrap the player's position yourself, and collide across the edges.
-- `bg(c)`: the background color.
+- `bg(c)`: the background color. `bg(sky, horizon, center, range)`: a two-color sky; the optional center and range (0-1, where 0 is straight down, 0.5 the horizon, 1 straight up) move the fade and set its width (0 a sharp line). Leave them out for the usual sky.
 - `outline(c)` / `outline()`: black outlines look good, `outline(0)`; they apply to draws after the call.
 - `pal(a, b)` / `pal()`: recolor color a as b for the following draws (a red guard into a blue one); `pal()` resets.
 - `fillp(n, c)` / `fillp()`: the following 3D draws have the fraction n (0 to 1) of their pixels drawn in color c, dithered: `fillp(0.5, 7)` before a `vox` makes a white hit flash; `fillp(0.5, -1)` makes the next draws half see-through (ghosts, water).

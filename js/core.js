@@ -569,12 +569,26 @@ export function createBatchMaterial(kind, paletteUniform, shared) {
 // the outline pass still sees background there). Each pixel's view ray gives its height above the
 // horizon: at or below the horizon it's the horizon color, 45 degrees up and higher the sky color,
 // dithered in between. It follows the camera, so the sky stays put when the view tilts.
+// bg(sky, horizon, center, range): center and range are on a 0-1 scale of elevation (0 straight
+// down, 0.5 the horizon, 1 straight up, measured as (sine of elevation + 1) / 2, so it's even near
+// the horizon). The fade runs from center - range/2 (all horizon color) to center + range/2 (all
+// sky). The defaults are the original sky exactly: from the horizon up to 45 degrees.
+export const SKY_FADE = [0, 0.7071];                         // the default, as the shader's (start, width) in sine
+export const SKY_DEFAULTS = [0.5 + 0.7071 / 4, 0.7071 / 2];  // the same as (center, range): 0.676775, 0.35355
+export function skyFade(center, range) {
+  const ok = (v) => typeof v === 'number' && Number.isFinite(v);
+  if (!ok(center) && !ok(range)) return SKY_FADE;
+  const c = ok(center) ? Math.min(1, Math.max(0, center)) : SKY_DEFAULTS[0];
+  const r = ok(range) ? Math.min(1, Math.max(0, range)) : SKY_DEFAULTS[1];
+  return [2 * c - r - 1, 2 * r];
+}
+
 export function createSkyMesh(paletteUniform) {
   const mat = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
     depthTest: false,
     depthWrite: false,
-    uniforms: { uPalette: paletteUniform, uSky: { value: new THREE.Vector2(0, 0) }, uPix: { value: 1 } },
+    uniforms: { uPalette: paletteUniform, uSky: { value: new THREE.Vector2(0, 0) }, uFade: { value: new THREE.Vector2(0, SKY_FADE[1]) }, uPix: { value: 1 } },
     vertexShader: /* glsl */`
       varying vec3 vRay;
       varying vec3 vUp;
@@ -587,6 +601,7 @@ export function createSkyMesh(paletteUniform) {
     fragmentShader: /* glsl */`
       uniform vec3 uPalette[32];
       uniform vec2 uSky;    // sky, horizon (palette indices)
+      uniform vec2 uFade;   // where the fade starts and how wide it is, in sine of elevation (see skyFade)
       uniform float uPix;   // render pixels per screen pixel
       varying vec3 vRay;
       varying vec3 vUp;
@@ -594,7 +609,8 @@ export function createSkyMesh(paletteUniform) {
       layout(location = 1) out highp vec4 outInfo;
       ${BAYER_GLSL}
       void main() {
-        float t = clamp(dot(normalize(vRay), normalize(vUp)) / 0.7071, 0.0, 1.0);
+        float s = dot(normalize(vRay), normalize(vUp));   // -1 straight down, 0 the horizon, 1 straight up
+        float t = uFade.y > 0.0 ? clamp((s - uFade.x) / uFade.y, 0.0, 1.0) : (s > uFade.x ? 1.0 : 0.0);
         int c = t > bayer4(floor(gl_FragCoord.xy / uPix)) ? int(uSky.x + 0.5) : int(uSky.y + 0.5);
         outColor = vec4(uPalette[c], 1.0);
         outInfo = vec4(0.0);   // no outline, no draw
