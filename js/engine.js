@@ -6,7 +6,7 @@ import {
   createPaletteUniform, syncPaletteUniform, identityRemap, noTransparency,
   createVoxelMaterial, createBatchMaterial, BATCH_ATTRS, setupRenderer, mapsFromCart, tilesFromCart,
   createSceneTarget, createOutlinePass, createMaskTarget, createGrowPasses,
-  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, MAX_TILES, createSkyMesh, skyFade, SKY_FADE, createCurveUniforms, createTorchUniforms,
+  voxFromCart, ensureVoxGeometry, voxMatrix, MAX_VOX, MAX_TILES, createSkyMesh, skyFade, SKY_FADE, faceDirMap, DIR_IDENTITY, createCurveUniforms, createTorchUniforms,
 } from './core.js';
 import { drawText, LINE_H, textWidth } from './font.js';
 import { SfxPlayer, MAX_SFX, CHANNELS, decodeSfx, decodePattern, MAX_PATTERNS, warmSounds } from './audio.js';
@@ -743,23 +743,31 @@ export function createEngine({
       map._xfDirty = true;
     },
     // map(m, backs): backs true also draws each face's back, so through a block's transparent
-    // pixels (palt) you see the inside of its far faces instead of straight through it
+    // pixels (palt) you see the inside of its far faces instead of straight through it.
+    // map([a, b, ...], backs): the maps are drawn as one surface for outlines (one draw id), so no
+    // line appears where they meet flat; quarter-turned maps write world face directions so their
+    // creases agree (faceDirMap).
     map(m, backs = false) {
-      const map = getMap(m);
-      const chunks = ensureChunks(map);    // 16-block pieces; only edited ones are remade
-      updateTransform(map);
+      const join = Array.isArray(m);
+      const list = join ? m.map(getMap) : [getMap(m)];
       let id0 = 0;
-      for (const off of repeatOffsets()) for (const ch of chunks) {
-        if (!ch.geometry) continue;        // a piece with nothing to show
-        const o = take('map');
-        // the pieces of a map, and repeat copies of it, share one draw id, so the outline pass treats
-        // them as one surface: no outline along the seams where they meet
-        if (!id0) id0 = o.material.uniforms.uId.value;
-        else { o.material.uniforms.uId.value = id0; drawId--; }
-        o.geometry = ch.geometry;
-        o.matrix.copy(map._m);
-        if (off !== NO_REPEAT[0]) shiftMatrix(o.matrix, off);
-        o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
+      for (const map of list) {
+        const chunks = ensureChunks(map);    // 32-block pieces; only edited ones are remade
+        updateTransform(map);
+        const dirs = (join && faceDirMap(map._rot)) || DIR_IDENTITY;
+        for (const off of repeatOffsets()) for (const ch of chunks) {
+          if (!ch.geometry) continue;        // a piece with nothing to show
+          const o = take('map');
+          // the pieces of a map, and repeat copies of it, share one draw id, so the outline pass treats
+          // them as one surface: no outline along the seams where they meet
+          if (!id0) id0 = o.material.uniforms.uId.value;
+          else { o.material.uniforms.uId.value = id0; drawId--; }
+          o.material.uniforms.uDirMap.value = dirs;
+          o.geometry = ch.geometry;
+          o.matrix.copy(map._m);
+          if (off !== NO_REPEAT[0]) shiftMatrix(o.matrix, off);
+          o.material.side = backs ? THREE.DoubleSide : THREE.FrontSide;
+        }
       }
     },
     mget(m, x, y, z) { return mapGet(getMap(m), Math.floor(x), Math.floor(y), Math.floor(z)); },

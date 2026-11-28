@@ -30,7 +30,7 @@ function param(p, i, used) {
   if (p.endsWith('?')) { opt = true; p = p.slice(0, -1); }
   if (p.startsWith('[')) {
     const inner = p.slice(1, -1).split(/,\s*/);
-    name = inner.join('') === 'xyz' ? 'xyz' : inner.join('_');
+    name = inner.includes('...') ? 'list' : inner.join('') === 'xyz' ? 'xyz' : inner.join('_');   // [a, b, ...]: a list
   } else if (p === 'true' || p === 'false') name = 'on';
   else if (/^-?\d+$/.test(p)) name = 'n';
   else if (/^[a-z_$][\w$]*$/i.test(p)) name = p;

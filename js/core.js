@@ -443,10 +443,30 @@ const drawUniforms = (paletteUniform) => ({
   uPix: { value: 1 },
 });
 
+// Outline creases compare the direction each map pixel faces (1-6: +y, -y, +x, -x, +z, -z, the
+// order of FACE_DEFS) in the map's own grid. Maps joined with map(list) share a draw id, so their
+// directions must agree: faceDirMap gives the world direction of each of a map's faces when it's
+// turned by quarter turns (any mix of them), and null otherwise (odd angles keep their own).
+export const DIR_IDENTITY = [0, 1, 2, 3, 4, 5, 6];
+export function faceDirMap(rot) {
+  const e = rot.elements, out = [0];
+  for (const { n } of FACE_DEFS) {
+    // world = R n (three's matrices are column-major)
+    const w = [0, 1, 2].map((r) => e[r] * n[0] + e[4 + r] * n[1] + e[8 + r] * n[2]);
+    const a = w.findIndex((v) => Math.abs(Math.abs(v) - 1) < 1e-6);
+    if (a < 0) return null;
+    const s = Math.sign(w[a]);
+    out.push(1 + FACE_DEFS.findIndex((f) => f.n[a] === s));
+  }
+  return out;
+}
+
 export function createVoxelMaterial(atlas, paletteUniform) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    uniforms: { uAtlas: { value: atlas }, ...drawUniforms(paletteUniform) },
+    // uDirMap: face direction (1-6) -> the direction written for outline creases; identity unless
+    // map(list) turns a quarter-turned map's directions into world ones (see faceDirMap)
+    uniforms: { uAtlas: { value: atlas }, uDirMap: { value: [...DIR_IDENTITY] }, ...drawUniforms(paletteUniform) },
     vertexShader: /* glsl */`
       attribute vec2 aUV;
       attribute vec3 aTF;
@@ -459,6 +479,7 @@ export function createVoxelMaterial(atlas, paletteUniform) {
       }`,
     fragmentShader: /* glsl */`
       uniform sampler2D uAtlas;
+      uniform float uDirMap[7];
       ${palGLSL(false)}
       varying vec2 vUV;
       varying vec3 vTF;
@@ -469,7 +490,7 @@ export function createVoxelMaterial(atlas, paletteUniform) {
         float face = floor(vTF.y + 0.5);
         vec2 st = vec2((face * 8.0 + px + 0.5) / ${ATLAS_W.toFixed(1)}, (tile * 8.0 + py + 0.5) / ${ATLAS_H.toFixed(1)});
         int idx = int(texture2D(uAtlas, st).r * 255.0 + 0.5);
-        writePixel(palColor(idx), floor(vTF.z + 0.5));
+        writePixel(palColor(idx), uDirMap[int(vTF.z + 0.5)]);
       }`,
   });
 }
